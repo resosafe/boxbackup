@@ -10,7 +10,6 @@
 #include "Box.h"
 
 #include <fcntl.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -26,6 +25,7 @@
 #include "RaidFileException.h"
 #include "RaidFileRead.h"
 #include "Guards.h"
+#include "intercept.h"
 
 #include "MemLeakFindOn.h"
 
@@ -36,14 +36,6 @@
 
 #ifndef PLATFORM_CLIB_FNS_INTERCEPTION_IMPOSSIBLE
 	#define	TRF_CAN_INTERCEPT
-#endif
-
-
-#ifdef TRF_CAN_INTERCEPT
-// function in intercept.cpp for setting up errors
-void intercept_setup_error(const char *filename, unsigned int errorafter, int errortoreturn, int syscalltoerror);
-bool intercept_triggered();
-void intercept_clear_setup();
 #endif
 
 // Nice random data for testing written files
@@ -661,12 +653,21 @@ int test(int argc, const char *argv[])
 	IOStream &write1stream = write1;	// use the stream interface where possible
 	write1.Open();
 	write1stream.Write(data, sizeof(data));
+	TEST_EQUAL(sizeof(data), write1stream.GetPosition());
 	write1stream.Seek(1024, IOStream::SeekType_Absolute);
+	TEST_EQUAL(1024, write1stream.GetPosition());
 	write1stream.Write(data2, sizeof(data2));
+	TEST_EQUAL(1024 + sizeof(data2), write1stream.GetPosition());
 	write1stream.Seek(1024, IOStream::SeekType_Relative);
+	TEST_EQUAL(2048 + sizeof(data2), write1stream.GetPosition());
 	write1stream.Write(data2, sizeof(data2));
+	TEST_EQUAL(2048 + sizeof(data2) * 2, write1stream.GetPosition());
 	write1stream.Seek(0, IOStream::SeekType_End);
+	TEST_EQUAL(sizeof(data), write1stream.GetPosition());
 	write1stream.Write(data, sizeof(data));
+	TEST_EQUAL(sizeof(data) * 2, write1stream.GetPosition());
+	write1stream.Seek(-1, IOStream::SeekType_Relative);
+	TEST_EQUAL(sizeof(data) * 2 - 1, write1stream.GetPosition());
 	
 	// Before it's deleted, check to see the contents are as expected
 	int f;

@@ -118,6 +118,13 @@
 
         <listitem>
           <para>Change directory. Options: <variablelist>
+             <varlistentry>
+                <term><option>-i</option></term>
+
+                <listitem>
+                  <para>directory name is actually an ID</para>
+                </listitem>
+              </varlistentry>
               <varlistentry>
                 <term><option>-d</option></term>
 

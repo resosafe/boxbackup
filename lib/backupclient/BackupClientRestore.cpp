@@ -195,6 +195,7 @@ typedef struct
 	bool RestoreDeleted;
 	bool ContinueAfterErrors;
 	bool ContinuedAfterError;
+	bool CreateParentDirs;
 	std::string mRestoreResumeInfoFilename;
 	RestoreResumeInfo mResumeInfo;
 } RestoreParams;
@@ -373,10 +374,25 @@ static int BackupClientRestoreDir(BackupProtocolCallable &rConnection,
 				return Restore_TargetPathNotFound;
 
 			case ObjectExists_NoObject:
-				BOX_ERROR("Failed to restore: parent '" <<
-					parentDirectoryName << "' of target "
-					"directory does not exist.");
-				return Restore_TargetPathNotFound;
+				if ( Params.CreateParentDirs == true) 
+				{
+					if ( MkPath(parentDirectoryName.c_str(), S_IRWXU)!=0 ) {
+						BOX_ERROR("Failed to restore: parent '" <<
+							"failed to create parent path "<<parentDirectoryName);
+					
+						return Restore_TargetPathNotFound;
+					} else {
+						break;
+					}
+				} 
+				else 
+				{
+
+					BOX_ERROR("Failed to restore: parent '" <<
+						parentDirectoryName << "' of target "
+						"directory does not exist.");
+					return Restore_TargetPathNotFound;
+				}
 
 			default:
 				BOX_ERROR("Failed to restore: unknown "
@@ -847,7 +863,7 @@ int BackupClientRestore(BackupProtocolCallable &rConnection,
 	int64_t DirectoryID, const std::string& RemoteDirectoryName,
 	const std::string& LocalDirectoryName, bool PrintDots, bool RestoreDeleted,
 	bool UndeleteAfterRestoreDeleted, bool Resume,
-	bool ContinueAfterErrors)
+	bool ContinueAfterErrors, bool CreateParentsDirs)
 {
 	// Parameter block
 	RestoreParams params;
@@ -855,6 +871,7 @@ int BackupClientRestore(BackupProtocolCallable &rConnection,
 	params.RestoreDeleted = RestoreDeleted;
 	params.ContinueAfterErrors = ContinueAfterErrors;
 	params.ContinuedAfterError = false;
+	params.CreateParentDirs = CreateParentsDirs;
 	params.mRestoreResumeInfoFilename = LocalDirectoryName;
 	params.mRestoreResumeInfoFilename += ".boxbackupresume";
 
@@ -903,6 +920,7 @@ int BackupClientRestore(BackupProtocolCallable &rConnection,
 	// Undelete the directory on the server?
 	if(RestoreDeleted && UndeleteAfterRestoreDeleted)
 	{
+
 		// Send the command
 		rConnection.QueryUndeleteDirectory(DirectoryID);
 	}

@@ -18,6 +18,10 @@
 std::string GetBoxBackupVersion();
 
 void SplitString(std::string String, char SplitOn, std::vector<std::string> &rOutput);
+bool StartsWith(const std::string& prefix, const std::string& haystack);
+bool EndsWith(const std::string& prefix, const std::string& haystack);
+std::string RemovePrefix(const std::string& prefix, const std::string& haystack);
+std::string RemoveSuffix(const std::string& suffix, const std::string& haystack);
 
 void DumpStackBacktrace();
 
@@ -31,6 +35,8 @@ enum
 	ObjectExists_Dir = 2
 };
 int ObjectExists(const std::string& rFilename);
+int MkPath(const char *path, mode_t mode);
+static int MkDir(const char *path, mode_t mode);
 std::string HumanReadableSize(int64_t Bytes);
 std::string FormatUsageBar(int64_t Blocks, int64_t Bytes, int64_t Max,
 	bool MachineReadable);

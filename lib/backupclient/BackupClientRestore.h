@@ -30,7 +30,8 @@ int BackupClientRestore(BackupProtocolCallable &rConnection,
 	bool RestoreDeleted,
 	bool UndeleteAfterRestoreDeleted,
 	bool Resume,
-	bool ContinueAfterErrors);
+	bool ContinueAfterErrors,
+	bool BackupClientRestore);
 
 #endif // BACKUPCLIENTRESTORE_H
 
