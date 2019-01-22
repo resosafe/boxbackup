@@ -1332,7 +1332,6 @@ void BackupQueries::CommandCompare(const std::vector<std::string> &args, const b
 				"synchronisation -- checks not performed.");
 		}
 	}
-
 	// Parameters, including count of differences
 	BackupQueries::CompareParams params(opts['q'], // quick compare?
 		opts['E'], // ignore excludes
@@ -2029,6 +2028,9 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir,
 // --------------------------------------------------------------------------
 void BackupQueries::CommandRestore(const std::vector<std::string> &args, const bool *opts)
 {
+
+
+
 	// Check arguments
 	if(args.size() < 1 || args.size() > 2)
 	{
@@ -2036,6 +2038,8 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 			"[<local-name>]");
 		return;
 	}
+
+	
 
 	// Restoring deleted things?
 	bool restoreDeleted = opts['d'];
@@ -2110,13 +2114,106 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 	try
 	{
+
+		
 		// At TRACE level, we print a line for each file and
 		// directory, so we don't need dots.
+		bool undelete=opts['u'];
+		if ( undelete ) {
+			// We'll allow undelete only if target is not an active directory
+
+			const Configuration &rLocations(mrConfiguration.GetSubConfiguration("BackupLocations"));
+			std::vector<std::string> locNames = rLocations.GetSubConfigurationNames();
+			for(std::vector<std::string>::iterator
+					pLocName  = locNames.begin();
+					pLocName != locNames.end();
+					pLocName++)
+			{
+				// replace local location with configuration Path if match
+				const Configuration &loc(rLocations.GetSubConfiguration(*pLocName));
+
+				const std::string &path=loc.GetKeyValue("Path");
+				
+				std::cout<<*pLocName<< " "<<path<<std::endl;
+				std::cout<<storeDirEncoded<<std::endl;
+				std::cout<<localName<<std::endl;
+
+
+				if ( StartsWith(path, localName) ) {
+					// this is a path watched
+					
+					std::string target(localName);
+					Replace(target, path, *pLocName);
+					std::cout<<"GOING TO SEARCH FOR "<<target<<std::endl;
+
+				
+
+					std::vector<std::string> dirElements;
+					SplitString(target, '/', dirElements);
+
+					int64_t fileId, parentId=GetCurrentDirectoryID();
+					std::string fileName;
+					int16_t flagsOut;
+
+
+					u_int64_t fId=dirID;
+
+					if ( mDirStack.size() == dirElements.size()-1 ) {
+						for( int i=mDirStack.size()-1; i>=0; i--) {
+							int64_t dirID=mDirStack.at(i).second;
+							std::cout<<"looking in "<<dirID<<std::endl;
+
+							// look in this dir if we have some same directory not deleted
+							mrConnection.QueryListDirectory(
+								dirID, BackupProtocolListDirectory::Flags_Dir,
+								BackupProtocolListDirectory::Flags_Deleted,
+								true );
+							
+							BackupStoreDirectory dir;
+							std::auto_ptr<IOStream> dirstream(mrConnection.ReceiveStream());
+							dir.ReadFromStream(*dirstream, mrConnection.GetTimeout());
+							BackupStoreDirectory::Entry *en;
+							BackupStoreDirectory::Iterator it(dir);
+							std::string fileName;
+							bool undelete=true;
+							while((en = it.Next()) != 0)
+							{
+								BackupStoreFilenameClear clear(en->GetName());
+
+								fileName=clear.GetClearFilename();
+								if ( fileName==dirElements[i+1] ) //&& en->GetObjectID()!=mDirStack.at(i+1))
+								{
+									// TODO TEST IF FILE IS NOT THE SAME AS THE ONE RESTORED
+									std::cout<<"got "<<fileName<<" no deleted "<<std::endl;
+									undelete=false; // prevent undelete, it's not safe
+									std::cout<<"SAME NAME FOUND MAY BE UNDELETED"<<std::endl;
+								} 
+							}
+
+							if ( !undelete ) 
+							{
+								break;
+							} 
+							else
+							{
+								std::cout<<"GOING TO UNDELETE "<<dirID<<std::endl;
+								mrConnection.QueryUndeleteDirectory(dirID);
+
+							}
+							
+
+						}
+					}
+
+				}
+			}		
+		}
+
 
 		result = BackupClientRestore(mrConnection, dirID, 
 			storeDirEncoded.c_str(), localName.c_str(), 
 			true /* print progress dots */, restoreDeleted, 
-			opts['u'] /* undelete after restore ? */, 
+			false, 
 			opts['r'] /* resume? */,
 			opts['f'] /* force continue after errors */,
 			opts['p'] /* create parents folder if not found */);

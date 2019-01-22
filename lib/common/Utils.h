@@ -20,6 +20,7 @@ std::string GetBoxBackupVersion();
 void SplitString(std::string String, char SplitOn, std::vector<std::string> &rOutput);
 bool StartsWith(const std::string& prefix, const std::string& haystack);
 bool EndsWith(const std::string& prefix, const std::string& haystack);
+bool Replace(std::string& str, const std::string& from, const std::string& to);
 std::string RemovePrefix(const std::string& prefix, const std::string& haystack);
 std::string RemoveSuffix(const std::string& suffix, const std::string& haystack);
 

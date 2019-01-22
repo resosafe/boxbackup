@@ -920,7 +920,6 @@ int BackupClientRestore(BackupProtocolCallable &rConnection,
 	// Undelete the directory on the server?
 	if(RestoreDeleted && UndeleteAfterRestoreDeleted)
 	{
-
 		// Send the command
 		rConnection.QueryUndeleteDirectory(DirectoryID);
 	}

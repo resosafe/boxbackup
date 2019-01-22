@@ -107,6 +107,14 @@ bool EndsWith(const std::string& suffix, const std::string& haystack)
 		haystack.substr(haystack.size() - suffix.size()) == suffix;
 }
 
+bool Replace(std::string& str, const std::string& from, const std::string& to) {
+    size_t start_pos = str.find(from);
+    if(start_pos == std::string::npos)
+        return false;
+    str.replace(start_pos, from.length(), to);
+    return true;
+}
+
 std::string RemovePrefix(const std::string& prefix, const std::string& haystack)
 {
 	if(StartsWith(prefix, haystack))

@@ -443,7 +443,7 @@ QueryCommandSpecification commands[] =
 		{CompleteRestoreRemoteDirOrId, CompleteLocalDir} },
 	{ "help",	"",		Command_Help,	{} },
 	{ "usage",	"m",		Command_Usage,	{} },
-	{ "undelete",	"i",		Command_Undelete,
+	{ "undelete",	"isp",		Command_Undelete,
 		{CompleteGetFileOrId} },
 	{ "delete",	"i",		Command_Delete,	{CompleteGetFileOrId} },
 	{ NULL, 	NULL,		Command_Unknown, {} } 

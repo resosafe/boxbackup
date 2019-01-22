@@ -33,6 +33,7 @@ start with '/'. The initial directory is always the root directory.
 
 	List contents of current directory, or specified directory.
 	
+	-i -- directory name is actually an ID
 	-R -- recursively list all files
 	-d -- list deleted files/directories
 	-o -- list old versions of files/directories
@@ -181,6 +182,10 @@ undelete -i <object-id>
 	current directory) or hex object ID. Be careful not to use this
 	command where a directory already exists with the same name which is
 	not marked as deleted.
+
+	-p -- undelete parents
+	-s -- safe undelete. Do not undelete if a not delete directory already exists
+
 <
 
 > delete <file-name>
