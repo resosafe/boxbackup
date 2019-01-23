@@ -921,7 +921,7 @@ int BackupClientRestore(BackupProtocolCallable &rConnection,
 	if(RestoreDeleted && UndeleteAfterRestoreDeleted)
 	{
 		// Send the command
-		rConnection.QueryUndeleteDirectory(DirectoryID);
+		rConnection.QueryUndeleteDirectory(DirectoryID, true);
 	}
 
 	// Finish progress display?

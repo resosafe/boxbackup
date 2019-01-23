@@ -2146,27 +2146,45 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 					Replace(target, path, *pLocName);
 					std::cout<<"GOING TO SEARCH FOR "<<target<<std::endl;
 
-				
+					std::vector<std::string> targetDirElements;
+					SplitString(target, '/', targetDirElements);
 
-					std::vector<std::string> dirElements;
-					SplitString(target, '/', dirElements);
+					std::vector<std::string> srcDirElements;
+					SplitString(target, '/', srcDirElements);
 
-					int64_t fileId, parentId=GetCurrentDirectoryID();
+
 					std::string fileName;
 					int16_t flagsOut;
 
 
-					u_int64_t fId=dirID;
+					u_int64_t tDirID, fileID;
 
-					if ( mDirStack.size() == dirElements.size()-1 ) {
-						for( int i=mDirStack.size()-1; i>=0; i--) {
-							int64_t dirID=mDirStack.at(i).second;
-							std::cout<<"looking in "<<dirID<<std::endl;
+					if ( mDirStack.size() == targetDirElements.size()-1 ) {
+
+						
+						for( int i=0; i<mDirStack.size(); i++) {
+						
+							
+							tDirID=mDirStack.at(i).second;
+							if ( i<mDirStack.size()-1) 
+							{
+								fileID=mDirStack.at(i+1).second;
+							}
+							else
+							{
+								fileID=dirID;
+							}
+
+
+
+							std::ostringstream oss;
+							oss << BOX_FORMAT_OBJECTID(tDirID);
+							std::cout<<"looking in "<<oss.str()<<" for "<<targetDirElements[i+1]<<std::endl;
 
 							// look in this dir if we have some same directory not deleted
 							mrConnection.QueryListDirectory(
-								dirID, BackupProtocolListDirectory::Flags_Dir,
-								BackupProtocolListDirectory::Flags_Deleted,
+								tDirID, BackupProtocolListDirectory::Flags_Dir,
+								BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING,
 								true );
 							
 							BackupStoreDirectory dir;
@@ -2175,32 +2193,57 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 							BackupStoreDirectory::Entry *en;
 							BackupStoreDirectory::Iterator it(dir);
 							std::string fileName;
-							bool undelete=true;
+
+							bool hasInactive=false;
+							bool hasActive=false;
 							while((en = it.Next()) != 0)
 							{
 								BackupStoreFilenameClear clear(en->GetName());
 
 								fileName=clear.GetClearFilename();
-								if ( fileName==dirElements[i+1] ) //&& en->GetObjectID()!=mDirStack.at(i+1))
+								if ( fileName==targetDirElements[i+1] )
 								{
+									std::ostringstream oss2;
+									oss2 << BOX_FORMAT_OBJECTID(fileID);
+									if ( en->GetObjectID()!=fileID && (en->GetFlags() & BackupStoreDirectory::Entry::Flags_Deleted)==0 ) {
+										std::cout<<"ACTIVE VERSION FOUND"<<std::endl;
+										hasActive=true;
+									}
+
+									if ( en->GetObjectID()==fileID && (en->GetFlags() & BackupStoreDirectory::Entry::Flags_Deleted)!=0 ) {
+										std::cout<<"DELETED FOUND, MAY UNDELETE"<<std::endl;
+										hasInactive=true;
+									}
+
+//									if ( en->GetObjectID()==fileID && en->GetFlags() & BackupStoreDirectory::Entry::Flags_Deleted ) {
+									/*
 									// TODO TEST IF FILE IS NOT THE SAME AS THE ONE RESTORED
-									std::cout<<"got "<<fileName<<" no deleted "<<std::endl;
 									undelete=false; // prevent undelete, it's not safe
-									std::cout<<"SAME NAME FOUND MAY BE UNDELETED"<<std::endl;
+									std::cout<<"ACTIVE VERSION FOUND, DO NOT UNDELETE"<<std::endl;
+									break;
+									*/
 								} 
 							}
 
-							if ( !undelete ) 
-							{
+							if ( hasActive && hasInactive) {
+								std::cout<<"STOP"<<std::endl;
 								break;
-							} 
-							else
+							}
+
+							std::ostringstream oss1;
+							oss1 << BOX_FORMAT_OBJECTID(fileID);
+
+							if ( hasInactive ) 
 							{
-								std::cout<<"GOING TO UNDELETE "<<dirID<<std::endl;
-								mrConnection.QueryUndeleteDirectory(dirID);
+								std::cout<<"GOING TO UNDELETE "<<oss1.str()<<"into "<<oss.str()<<std::endl;
+								mrConnection.QueryUndeleteDirectory(fileID, false);
+								//break;
+
+							} else {
+								std::cout<<"NO UNDELETE "<<oss1.str()<<std::endl;
 
 							}
-							
+							fileID=tDirID;
 
 						}
 					}
@@ -2431,7 +2474,7 @@ void BackupQueries::CommandUndelete(const std::vector<std::string> &args, const 
 		}
 		else
 		{
-			mrConnection.QueryUndeleteDirectory(fileId);
+			mrConnection.QueryUndeleteDirectory(fileId, true);
 		}
 	}
 	catch (BoxException &e)

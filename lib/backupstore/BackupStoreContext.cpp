@@ -1264,7 +1264,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 //		Created: 2003/10/21
 //
 // --------------------------------------------------------------------------
-void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete)
+void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool Recurse)
 {
 	// Essential checks!
 	if(mapStoreInfo.get() == 0)
@@ -1291,7 +1291,10 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete)
 			InDirectory = dir.GetContainerID();
 		
 			// Depth first delete of contents
-			DeleteDirectoryRecurse(ObjectID, Undelete);
+			if ( Recurse ) 
+			{
+				DeleteDirectoryRecurse(ObjectID, Undelete);
+			}
 		}
 
 		// Remove the entry from the directory it's in

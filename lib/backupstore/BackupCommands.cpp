@@ -702,7 +702,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolUndeleteDirectory::DoCommand(
 	}
 
 	// Context handles this
-	rContext.DeleteDirectory(mObjectID, true /* undelete */);
+	rContext.DeleteDirectory(mObjectID, true /* undelete */, mRecurse);
 
 	// return the object ID
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(mObjectID));
