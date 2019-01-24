@@ -1514,6 +1514,8 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 {
 	// Get attributes
 	box_time_t attrModTime = 0;
+	EMU_STRUCT_STAT st;
+
 	InodeRefType inodeNum = 0;
 	BackupClientFileAttributes attr;
 	*pHaveJustCreatedDirOnServer = false;
@@ -1526,6 +1528,11 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 			0 /* not interested in mod time */,
 			&attrModTime, 0 /* not file size */,
 			&inodeNum);
+		
+		if(EMU_STAT(localDirPath.c_str(), &st) == -1)
+		{
+			THROW_EXCEPTION(CommonException,  OSFileOpenError)
+		}
 	}
 	catch (BoxException &e)
 	{
@@ -1607,9 +1614,9 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 		// Create a new directory
 		try
 		{
-			subDirObjectID = connection.QueryCreateDirectory(
-				mObjectID, attrModTime, storeFilename,
-				attrStream)->GetObjectID();
+			subDirObjectID = connection.QueryCreateDirectory2(
+				mObjectID, attrModTime, FileModificationTime(st),
+				storeFilename, attrStream)->GetObjectID();
 			// Flag as having done this for optimisation later
 			*pHaveJustCreatedDirOnServer = true;
 		}

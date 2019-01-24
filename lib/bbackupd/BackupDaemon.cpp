@@ -74,6 +74,7 @@
 #include "Conversion.h"
 #include "ExcludeList.h"
 #include "FileStream.h"
+#include "FileModificationTime.h"
 #include "IOStreamGetLine.h"
 #include "LocalProcessStream.h"
 #include "Logging.h"
@@ -2681,14 +2682,20 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 				// First, get the directory's attributes and modification time
 				box_time_t attrModTime = 0;
 				BackupClientFileAttributes attr;
+				EMU_STRUCT_STAT st;
+
 				try
 				{
 					attr.ReadAttributes(pLoc->mPath.c_str(), 
 						true /* directories have zero mod times */,
 						0 /* not interested in mod time */, 
 						&attrModTime /* get the attribute modification time */);
-				}
-				catch (BoxException &e)
+				
+					if(EMU_STAT(pLoc->mPath.c_str(), &st) == -1)
+					{
+						THROW_EXCEPTION(CommonException,  OSFileOpenError)
+					}
+				} catch (BoxException &e)
 				{
 					BOX_ERROR("Failed to get attributes "
 						"for path '" << pLoc->mPath
@@ -2703,9 +2710,9 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 					std::auto_ptr<IOStream> attrStream(
 						new MemBlockStream(attr));
 					std::auto_ptr<BackupProtocolSuccess>
-						dirCreate(connection.QueryCreateDirectory(
+						dirCreate(connection.QueryCreateDirectory2(
 						BACKUPSTORE_ROOT_DIRECTORY_ID, // containing directory
-						attrModTime, dirname, attrStream));
+						attrModTime, FileModificationTime(st), dirname, attrStream));
 						
 					// Object ID for later creation
 					oid = dirCreate->GetObjectID();

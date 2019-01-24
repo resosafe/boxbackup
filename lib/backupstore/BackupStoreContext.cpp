@@ -1152,6 +1152,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	int64_t ModificationTime,
 	bool &rAlreadyExists)
 {
+
 	if(mapStoreInfo.get() == 0)
 	{
 		THROW_EXCEPTION(BackupStoreException, StoreInfoNotLoaded)
@@ -1193,6 +1194,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	int64_t dirSize;
 
 	{
+		std::cout<<"ADD DIR "<<AttributesModTime<<std::endl;
 		BackupStoreDirectory emptyDir(id, InDirectory);
 		// add the atttribues
 		emptyDir.SetAttributes(Attributes, AttributesModTime);
@@ -1226,6 +1228,8 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	// Then add it into the parent directory
 	try
 	{
+				std::cout<<"ADD ENTRY "<<ModificationTime<<std::endl;
+
 		dir.AddEntry(rFilename, ModificationTime, id, dirSize,
 			BackupStoreDirectory::Entry::Flags_Dir,
 			0 /* attributes hash */);
@@ -1255,7 +1259,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	return id;
 }
 
-
+#include "Logging.h"
 // --------------------------------------------------------------------------
 //
 // Function
@@ -1279,7 +1283,7 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 
 	// Containing directory
 	int64_t InDirectory = 0;
-
+std::cout<<"GOING FOR DELETE"<<std::endl;
 	try
 	{
 		// Get the directory that's to be deleted
@@ -1289,7 +1293,10 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 
 			// Store the directory it's in for later
 			InDirectory = dir.GetContainerID();
-		
+
+
+
+
 			// Depth first delete of contents
 			if ( Recurse ) 
 			{
@@ -1300,12 +1307,25 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 		// Remove the entry from the directory it's in
 		ASSERT(InDirectory != 0);
 		BackupStoreDirectory &parentDir(GetDirectoryInternal(InDirectory));
-
+		BackupStoreDirectory::Entry *dirEntry=parentDir.FindEntryByID(ObjectID);
 		BackupStoreDirectory::Iterator i(parentDir);
 		BackupStoreDirectory::Entry *en = 0;
-		while((en = i.Next(Undelete?(BackupStoreDirectory::Entry::Flags_Deleted):(BackupStoreDirectory::Entry::Flags_INCLUDE_EVERYTHING),
+		BackupStoreDirectory::Entry *lastMatchEN=0;
+		bool changes=false;
+
+/*		while((en = i.Next(Undelete?(BackupStoreDirectory::Entry::Flags_Deleted):(BackupStoreDirectory::Entry::Flags_INCLUDE_EVERYTHING),
 			Undelete?(0):(BackupStoreDirectory::Entry::Flags_Deleted))) != 0)	// Ignore deleted directories (or not deleted if Undelete)
+			*/
+		while((en = i.Next(BackupStoreDirectory::Entry::Flags_INCLUDE_EVERYTHING)) != 0)	// Ignore deleted directories (or not deleted if Undelete)
 		{
+
+
+// TODO manage UNDELETE and restore latest old version to "not old"
+			std::ostringstream oss;
+			oss << BOX_FORMAT_OBJECTID(en->GetObjectID());
+			
+			std::cout<<"ID FOUND "<<oss.str()<< std::endl;
+
 			if(en->GetObjectID() == ObjectID)
 			{
 				// This is the one to delete
@@ -1318,12 +1338,39 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 					en->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
 				}
 
-				// Save it
-				SaveDirectory(parentDir);
+				changes=true;
 
 				// Done
-				break;
+				//break;
+			} else {
+				
+				if ( en->GetName()==dirEntry->GetName() )
+				{
+					if ( Undelete ) {
+						lastMatchEN=en;
+					} 
+					else 
+					{
+						// Same name but different ID: mark it as an old version
+						std::cout<<"Same name found, but different ID"<<std::endl;
+						std::cout<<en->GetModificationTime()<<std::endl;
+						en->AddFlags(BackupStoreDirectory::Entry::Flags_OldVersion);
+						changes=true;
+						//  
+					}
+				}
+
 			}
+		}
+		if ( lastMatchEN ) {
+			lastMatchEN->RemoveFlags(BackupStoreDirectory::Entry::Flags_OldVersion);
+			changes=true;
+		}
+
+		if ( changes ) 
+		{
+			// Save it
+			SaveDirectory(parentDir);
 		}
 
 		// Update blocks deleted count
@@ -1363,8 +1410,10 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 			BackupStoreDirectory::Entry *en = 0;
 			if(Undelete)
 			{
+				// Recursively undelete subdirs not marked as old
+				// Thus we can safely undelete a full branch and restore previous latest state
 				while((en = i.Next(BackupStoreDirectory::Entry::Flags_Dir | BackupStoreDirectory::Entry::Flags_Deleted,	// deleted dirs
-					BackupStoreDirectory::Entry::Flags_EXCLUDE_NOTHING)) != 0)
+					BackupStoreDirectory::Entry::Flags_OldVersion)) != 0)
 				{
 					// Store the directory ID.
 					subDirs.push_back(en->GetObjectID());

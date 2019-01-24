@@ -2087,6 +2087,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 	if(dirID == BackupProtocolListDirectory::RootDirectory)
 	{
+		
 		BOX_ERROR("Cannot restore the root directory -- restore locations individually.");
 		return;
 	}
@@ -2118,6 +2119,18 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 		
 		// At TRACE level, we print a line for each file and
 		// directory, so we don't need dots.
+		
+
+		result = BackupClientRestore(mrConnection, dirID, 
+			storeDirEncoded.c_str(), localName.c_str(), 
+			true /* print progress dots */, restoreDeleted, 
+			false, 
+			opts['r'] /* resume? */,
+			opts['f'] /* force continue after errors */,
+			opts['p'] /* create parents folder if not found */);
+
+
+
 		bool undelete=opts['u'];
 		if ( undelete ) {
 			// We'll allow undelete only if target is not an active directory
@@ -2158,10 +2171,11 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 
 					u_int64_t tDirID, fileID;
-
+std::cout<<mDirStack.size()<<" "<<targetDirElements.size()<<std::endl;
 					if ( mDirStack.size() == targetDirElements.size()-1 ) {
 
-						
+						std::cout<<"CHANCES TO HAVE SAME PATH"<<std::endl;
+
 						for( int i=0; i<mDirStack.size(); i++) {
 						
 							
@@ -2236,7 +2250,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 							if ( hasInactive ) 
 							{
 								std::cout<<"GOING TO UNDELETE "<<oss1.str()<<"into "<<oss.str()<<std::endl;
-								mrConnection.QueryUndeleteDirectory(fileID, false);
+								mrConnection.QueryUndeleteDirectory(fileID, (fileID==dirID)); // recurse only in leaf
 								//break;
 
 							} else {
@@ -2250,17 +2264,9 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 				}
 			}		
-		}
-
-
-		result = BackupClientRestore(mrConnection, dirID, 
-			storeDirEncoded.c_str(), localName.c_str(), 
-			true /* print progress dots */, restoreDeleted, 
-			false, 
-			opts['r'] /* resume? */,
-			opts['f'] /* force continue after errors */,
-			opts['p'] /* create parents folder if not found */);
+		}	
 	}
+
 	catch(std::exception &e)
 	{
 		BOX_ERROR("Failed to restore: " << e.what());

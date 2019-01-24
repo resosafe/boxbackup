@@ -498,7 +498,8 @@ BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t 
 }
 
 
-
+#include "Logging.h"
+#include <iostream>
 // --------------------------------------------------------------------------
 //
 // Function
@@ -534,6 +535,7 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
 	mAttributesHash =		box_ntoh64(entry.mAttributesHash);
 	mFlags = 				ntohs(entry.mFlags);
 	mName =					name;
+	
 }
 
 
@@ -550,6 +552,7 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream) const
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Build a structure
 	en_StreamFormat entry;
+	
 	entry.mModificationTime = 	box_hton64(mModificationTime);
 	entry.mObjectID = 			box_hton64(mObjectID);
 	entry.mSizeInBlocks = 		box_hton64(mSizeInBlocks);
