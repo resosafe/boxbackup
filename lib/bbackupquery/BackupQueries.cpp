@@ -579,7 +579,7 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 				buf << "[ERROR: Entry has additional flags set] ";
 			}
 		}
-		
+	
 		if(opts[LIST_OPTION_TIMES_UTC])
 		{
 			// Show UTC times...

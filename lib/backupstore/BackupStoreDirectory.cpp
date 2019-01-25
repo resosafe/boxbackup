@@ -357,7 +357,7 @@ BackupStoreDirectory::AddEntry(const BackupStoreFilename &rName,
 	int16_t Flags, uint64_t AttributesHash)
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
-	Entry *pnew = new Entry(rName, ModificationTime, ObjectID,
+	Entry *pnew = new Entry(rName, ModificationTime, 0, ObjectID,
 		SizeInBlocks, Flags, AttributesHash);
 	try
 	{

@@ -1283,7 +1283,8 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 
 	// Containing directory
 	int64_t InDirectory = 0;
-std::cout<<"GOING FOR DELETE"<<std::endl;
+	std::cout<<"GOING FOR DELETE"<<std::endl;
+	box_time_t deletionTime=GetCurrentBoxTime();
 	try
 	{
 		// Get the directory that's to be deleted
@@ -1294,11 +1295,20 @@ std::cout<<"GOING FOR DELETE"<<std::endl;
 			// Store the directory it's in for later
 			InDirectory = dir.GetContainerID();
 
+			// Retreive the time this directory was deleted
+			if ( Undelete ) {
+				BackupStoreDirectory &parentDir(GetDirectoryInternal(InDirectory));
+				BackupStoreDirectory::Entry *dirEntry=parentDir.FindEntryByID(ObjectID);
+				deletionTime=dirEntry->GetDeletionTime();
+			} 
+
 			// Depth first delete of contents
-			if ( Recurse ) 
+			if ( Recurse )
 			{
-				DeleteDirectoryRecurse(ObjectID, Undelete);
+				std::cout<<"GOING TO "<<(Undelete ? "UNDELETE" : "DELETE")<<" TIME IS "<<deletionTime<<std::endl;
+				DeleteDirectoryRecurse(ObjectID, Undelete, deletionTime);
 			}
+			
 		}
 
 		// Remove the entry from the directory it's in
@@ -1334,7 +1344,7 @@ std::cout<<"GOING FOR DELETE"<<std::endl;
 				else
 				{
 					en->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
-					en->SetDeletionTime(GetCurrentBoxTime());
+					en->SetDeletionTime(deletionTime);
 				}
 
 				changes=true;
@@ -1395,7 +1405,7 @@ std::cout<<"GOING FOR DELETE"<<std::endl;
 //		Created: 2003/10/21
 //
 // --------------------------------------------------------------------------
-void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
+void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete, box_time_t ActionTime)
 {
 	try
 	{
@@ -1406,7 +1416,8 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 		{
 			// Get the directory...
 			BackupStoreDirectory &dir(GetDirectoryInternal(ObjectID));
-			BackupStoreDirectory *dirEntry=dir.G
+			
+			
 			// Then scan it for directories
 			std::vector<int64_t> subDirs;
 			BackupStoreDirectory::Iterator i(dir);
@@ -1416,10 +1427,14 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 				// Recursively undelete subdirs not marked as old
 				// Thus we can safely undelete a full branch and restore previous latest state
 				while((en = i.Next(BackupStoreDirectory::Entry::Flags_Dir | BackupStoreDirectory::Entry::Flags_Deleted,	// deleted dirs
-					BackupStoreDirectory::Entry::Flags_OldVersion)) != 0)
+					BackupStoreDirectory::Entry::Flags_EXCLUDE_NOTHING)) != 0)
 				{
 					// Store the directory ID.
-					subDirs.push_back(en->GetObjectID());
+					std::cout<<"SUBDIR DT "<<en->GetDeletionTime()<<std::endl;
+					if ( en->GetDeletionTime()==ActionTime )
+					{
+						subDirs.push_back(en->GetObjectID());
+					}
 				}
 			}
 			else
@@ -1435,7 +1450,7 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 			// Done with the directory for now. Recurse to sub directories
 			for(std::vector<int64_t>::const_iterator i = subDirs.begin(); i != subDirs.end(); ++i)
 			{
-				DeleteDirectoryRecurse(*i, Undelete);
+				DeleteDirectoryRecurse(*i, Undelete, ActionTime);
 			}
 		}
 
@@ -1474,11 +1489,16 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 				// Add/remove the deleted flags
 				if(Undelete)
 				{
-					en->RemoveFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+					if ( en->GetDeletionTime()==ActionTime ) 
+					{
+						en->RemoveFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+						en->SetDeletionTime(0);
+					}
 				}
 				else
 				{
 					en->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+					en->SetDeletionTime(ActionTime);
 				}
 
 				// Did something

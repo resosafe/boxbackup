@@ -915,7 +915,7 @@ bool BackupStoreDirectory::CheckAndFix()
 void BackupStoreDirectory::AddUnattachedObject(const BackupStoreFilename &rName,
 	box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags)
 {
-	Entry *pnew = new Entry(rName, ModificationTime, ObjectID, SizeInBlocks, Flags,
+	Entry *pnew = new Entry(rName, ModificationTime, 0, ObjectID, SizeInBlocks, Flags,
 			ModificationTime /* use as attr mod time too */);
 	try
 	{
