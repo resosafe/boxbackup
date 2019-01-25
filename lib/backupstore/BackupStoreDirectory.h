@@ -94,9 +94,11 @@ public:
 		Entry();
 		~Entry();
 		Entry(const Entry &rToCopy);
-		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
+		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t DeletionTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
 
 		void ReadFromStream(IOStream &rStream, int Timeout);
+		void ReadFromStream2(IOStream &rStream, int Timeout);
+
 		void WriteToStream(IOStream &rStream) const;
 
 		const BackupStoreFilename &GetName() const
@@ -108,6 +110,16 @@ public:
 		{
 			ASSERT(!mInvalidated); // Compiled out of release builds
 			return mModificationTime;
+		}
+		box_time_t GetDeletionTime() const
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			return mDeletionTime;
+		}
+		void SetDeletionTime(box_time_t DeletionTime)
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			mDeletionTime = DeletionTime;
 		}
 		int64_t GetObjectID() const
 		{
@@ -271,6 +283,7 @@ public:
 	private:
 		BackupStoreFilename mName;
 		box_time_t mModificationTime;
+		box_time_t mDeletionTime;
 		int64_t mObjectID;
 		int64_t mSizeInBlocks;
 		int16_t mFlags;
@@ -369,6 +382,11 @@ public:
 	{
 		ASSERT(!mInvalidated); // Compiled out of release builds
 		return mAttributes;
+	}
+	void SetAttributesModtime(box_time_t AttributesModTime)
+	{
+		ASSERT(!mInvalidated); // Compiled out of release builds
+		mAttributesModTime = AttributesModTime;
 	}
 	box_time_t GetAttributesModTime() const
 	{

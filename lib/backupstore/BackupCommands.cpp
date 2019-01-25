@@ -484,7 +484,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetFile::DoCommand(BackupProt
 }
 
 
-#include <iostream>
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -496,7 +496,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetFile::DoCommand(BackupProt
 std::auto_ptr<BackupProtocolMessage> BackupProtocolCreateDirectory::DoCommand(
 	BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext,
 	IOStream& rDataStream) const
-{std::cout<<"CREATE1 "<<std::endl;
+{
 	return BackupProtocolCreateDirectory2(mContainingDirectoryID,
 		mAttributesModTime, 0 /* ModificationTime */,
 		mDirectoryName).DoCommand(rProtocol, rContext, rDataStream);
@@ -533,7 +533,6 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolCreateDirectory2::DoCommand(
 	}
 
 	bool alreadyExists = false;
-	std::cout<<"CREATE2 "<<mModificationTime<<std::endl;
 	int64_t id = rContext.AddDirectory(mContainingDirectoryID,
 		mDirectoryName, attr, mAttributesModTime, mModificationTime,
 		alreadyExists);

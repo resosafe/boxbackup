@@ -49,6 +49,19 @@ typedef struct
 
 typedef struct
 {
+	uint64_t mModificationTime;
+	uint64_t mDeletionTime;
+	int64_t mObjectID;
+	int64_t mSizeInBlocks;
+	uint64_t mAttributesHash;
+	int16_t mFlags;				// order smaller items after bigger ones (for alignment)
+
+	// Then a BackupStoreFilename
+	// Then a StreamableMemBlock for attributes
+} en_StreamFormat2;
+
+typedef struct
+{
 	int64_t mDependsNewer;
 	int64_t mDependsOlder;
 } en_StreamFormatDepends;
@@ -142,11 +155,13 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 	}
 
 	// Check magic value...
-	if(OBJECTMAGIC_DIR_MAGIC_VALUE != ntohl(hdr.mMagicValue))
+	if(OBJECTMAGIC_DIR_MAGIC_VALUE_V0 != ntohl(hdr.mMagicValue)
+		&& OBJECTMAGIC_DIR_MAGIC_VALUE_V1 != ntohl(hdr.mMagicValue))
 	{
 		THROW_EXCEPTION_MESSAGE(BackupStoreException, BadDirectoryFormat,
 			"Wrong magic number for directory: expected " <<
-			BOX_FORMAT_HEX32(OBJECTMAGIC_DIR_MAGIC_VALUE) <<
+			BOX_FORMAT_HEX32(OBJECTMAGIC_DIR_MAGIC_VALUE_V0) << " or " <<
+			BOX_FORMAT_HEX32(OBJECTMAGIC_DIR_MAGIC_VALUE_V1) << 
 			" but found " <<
 			BOX_FORMAT_HEX32(ntohl(hdr.mMagicValue)) << " in " <<
 			rStream.ToString());
@@ -181,7 +196,16 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 		try
 		{
 			// Read from stream
-			pen->ReadFromStream(rStream, Timeout);
+			if( OBJECTMAGIC_DIR_MAGIC_VALUE_V0 == ntohl(hdr.mMagicValue) )
+			{
+				pen->ReadFromStream(rStream, Timeout);
+			}
+			else
+			{
+				pen->ReadFromStream2(rStream, Timeout);
+			}
+		
+		
 
 			// Add to list
 			mEntries.push_back(pen);
@@ -253,7 +277,7 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 
 	// Build header
 	dir_StreamFormat hdr;
-	hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE);
+	hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
 	hdr.mNumEntries = htonl(count);
 	hdr.mObjectID = box_hton64(mObjectID);
 	hdr.mContainerID = box_hton64(mContainerID);
@@ -420,6 +444,7 @@ BackupStoreDirectory::Entry::Entry()
   mInvalidated(false),
 #endif
   mModificationTime(0),
+  mDeletionTime(0),
   mObjectID(0),
   mSizeInBlocks(0),
   mFlags(0),
@@ -458,6 +483,7 @@ BackupStoreDirectory::Entry::Entry(const Entry &rToCopy)
 #endif
   mName(rToCopy.mName),
   mModificationTime(rToCopy.mModificationTime),
+  mDeletionTime(rToCopy.mDeletionTime),
   mObjectID(rToCopy.mObjectID),
   mSizeInBlocks(rToCopy.mSizeInBlocks),
   mFlags(rToCopy.mFlags),
@@ -479,13 +505,14 @@ BackupStoreDirectory::Entry::Entry(const Entry &rToCopy)
 //		Created: 2003/08/27
 //
 // --------------------------------------------------------------------------
-BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
+BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t DeletionTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
 :
 #ifndef BOX_RELEASE_BUILD
   mInvalidated(false),
 #endif
   mName(rName),
   mModificationTime(ModificationTime),
+  mDeletionTime(DeletionTime),
   mObjectID(ObjectID),
   mSizeInBlocks(SizeInBlocks),
   mFlags(Flags),
@@ -539,6 +566,37 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
 }
 
 
+void BackupStoreDirectory::Entry::ReadFromStream2(IOStream &rStream, int Timeout)
+{
+	ASSERT(!mInvalidated); // Compiled out of release builds
+	// Grab the raw bytes from the stream which compose the header
+	en_StreamFormat2 entry;
+	if(!rStream.ReadFullBuffer(&entry, sizeof(entry),
+		0 /* not interested in bytes read if this fails */, Timeout))
+	{
+		THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
+	}
+
+	// Do reading first before modifying the variables, to be more exception safe
+
+	// Get the filename
+	BackupStoreFilename name;
+	name.ReadFromStream(rStream, Timeout);
+
+	// Get the attributes
+	mAttributes.ReadFromStream(rStream, Timeout);
+
+	// Store the rest of the bits
+	mModificationTime =		box_ntoh64(entry.mModificationTime);
+	mDeletionTime =		    box_ntoh64(entry.mDeletionTime);
+	mObjectID = 			box_ntoh64(entry.mObjectID);
+	mSizeInBlocks = 		box_ntoh64(entry.mSizeInBlocks);
+	mAttributesHash =		box_ntoh64(entry.mAttributesHash);
+	mFlags = 				ntohs(entry.mFlags);
+	mName =					name;
+	
+}
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -551,9 +609,10 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream) const
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Build a structure
-	en_StreamFormat entry;
+	en_StreamFormat2 entry;
 	
 	entry.mModificationTime = 	box_hton64(mModificationTime);
+	entry.mDeletionTime = 		box_hton64(mDeletionTime);
 	entry.mObjectID = 			box_hton64(mObjectID);
 	entry.mSizeInBlocks = 		box_hton64(mSizeInBlocks);
 	entry.mAttributesHash =		box_hton64(mAttributesHash);

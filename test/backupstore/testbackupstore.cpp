@@ -3173,7 +3173,7 @@ bool test_read_write_attr_streamformat()
 	Archive darc(buf, IOStream::TimeOutInfinite);
 
 	// Write a dir_StreamFormat structure
-	darc.Write((int32_t)OBJECTMAGIC_DIR_MAGIC_VALUE); // mMagicValue
+	darc.Write((int32_t)OBJECTMAGIC_DIR_MAGIC_VALUE_V0); // mMagicValue
 	darc.Write((int32_t)1); // mNumEntries
 	darc.Write((int64_t)0x0123456789abcdef); // mObjectID
 	darc.Write((int64_t)0x0000000000000001); // mContainerID

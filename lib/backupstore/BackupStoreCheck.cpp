@@ -556,7 +556,8 @@ bool BackupStoreCheck::CheckAndAddObject(int64_t ObjectID,
 			containerID = CheckFile(ObjectID, *file);
 			break;
 
-		case OBJECTMAGIC_DIR_MAGIC_VALUE:
+		case OBJECTMAGIC_DIR_MAGIC_VALUE_V1:
+		case OBJECTMAGIC_DIR_MAGIC_VALUE_V0:
 			isFile = false;
 			containerID = CheckDirInitial(ObjectID, *file);
 			break;

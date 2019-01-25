@@ -61,7 +61,7 @@ int main(int argc, const char *argv[])
 		BackupStoreFile::DumpFile(stdout, false, file);
 		break;
 
-	case OBJECTMAGIC_DIR_MAGIC_VALUE:
+	case OBJECTMAGIC_DIR_MAGIC_VALUE_V0:
 		{
 			BackupStoreDirectory dir;
 			dir.ReadFromStream(file, IOStream::TimeOutInfinite);

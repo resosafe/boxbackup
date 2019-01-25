@@ -1294,9 +1294,6 @@ std::cout<<"GOING FOR DELETE"<<std::endl;
 			// Store the directory it's in for later
 			InDirectory = dir.GetContainerID();
 
-
-
-
 			// Depth first delete of contents
 			if ( Recurse ) 
 			{
@@ -1310,7 +1307,7 @@ std::cout<<"GOING FOR DELETE"<<std::endl;
 		BackupStoreDirectory::Entry *dirEntry=parentDir.FindEntryByID(ObjectID);
 		BackupStoreDirectory::Iterator i(parentDir);
 		BackupStoreDirectory::Entry *en = 0;
-		BackupStoreDirectory::Entry *lastMatchEN=0;
+		//BackupStoreDirectory::Entry *lastMatchEN=0;
 		bool changes=false;
 
 /*		while((en = i.Next(Undelete?(BackupStoreDirectory::Entry::Flags_Deleted):(BackupStoreDirectory::Entry::Flags_INCLUDE_EVERYTHING),
@@ -1332,17 +1329,21 @@ std::cout<<"GOING FOR DELETE"<<std::endl;
 				if(Undelete)
 				{
 					en->RemoveFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+					en->SetDeletionTime(0);
 				}
 				else
 				{
 					en->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+					en->SetDeletionTime(GetCurrentBoxTime());
 				}
 
 				changes=true;
-
+				SaveDirectory(parentDir);
 				// Done
-				//break;
-			} else {
+				break;
+			} 
+#if 0
+			else {
 				
 				if ( en->GetName()==dirEntry->GetName() )
 				{
@@ -1361,7 +1362,9 @@ std::cout<<"GOING FOR DELETE"<<std::endl;
 				}
 
 			}
+#endif			
 		}
+		/*
 		if ( lastMatchEN ) {
 			lastMatchEN->RemoveFlags(BackupStoreDirectory::Entry::Flags_OldVersion);
 			changes=true;
@@ -1372,7 +1375,7 @@ std::cout<<"GOING FOR DELETE"<<std::endl;
 			// Save it
 			SaveDirectory(parentDir);
 		}
-
+*/
 		// Update blocks deleted count
 		SaveStoreInfo(false);
 	}
@@ -1403,7 +1406,7 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 		{
 			// Get the directory...
 			BackupStoreDirectory &dir(GetDirectoryInternal(ObjectID));
-
+			BackupStoreDirectory *dirEntry=dir.G
 			// Then scan it for directories
 			std::vector<int64_t> subDirs;
 			BackupStoreDirectory::Iterator i(dir);
@@ -1656,7 +1659,7 @@ bool BackupStoreContext::ObjectExists(int64_t ObjectID, int MustBe)
 #endif
 
 		// Right one?
-		uint32_t requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V1:OBJECTMAGIC_DIR_MAGIC_VALUE;
+		uint32_t requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V1:OBJECTMAGIC_DIR_MAGIC_VALUE_V0;
 
 		// Check
 		if(ntohl(magic) != requiredMagic)
