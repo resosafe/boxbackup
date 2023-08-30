@@ -723,9 +723,30 @@ bool BackupStoreDirectory::CheckAndFix()
 		for(; i != mEntries.end(); ++i)
 		{
 			int64_t dependsNewer = (*i)->GetDependsNewer();
+			if ( dependsNewer == (*i)->GetObjectID() ) {
+				BOX_TRACE("Entry id " << 
+						FMT_i <<
+						" has a newer dependency on itself, this was a bug. Removing dependency.");
+				(*i)->SetDependsNewer(0);
+				dependsNewer = 0;
+				changed = true;
+				
+			}
+
+
+			int64_t dependsOlder = (*i)->GetDependsOlder();
+			if ( dependsOlder == (*i)->GetObjectID() ) {
+				BOX_TRACE("Entry id " << 
+						FMT_i <<
+						" has an older dependency on itself, this was a bug. Removing dependency.");
+				(*i)->SetDependsOlder(0);
+				changed = true;
+			}
+
 			if(dependsNewer != 0)
 			{
 				BackupStoreDirectory::Entry *newerEn = FindEntryByID(dependsNewer);
+				
 				if(newerEn == 0)
 				{
 					// Depends on something, but it isn't there.
@@ -748,9 +769,11 @@ bool BackupStoreDirectory::CheckAndFix()
 				}
 				else
 				{
+					
+					// Entry id 0x45, correcting DependsOlder to 0x45, was 0x32
 					// Check that newerEn has it marked
 					if(newerEn->GetDependsOlder() != (*i)->GetObjectID())
-					{
+					{		
 						// Wrong entry
 						BOX_TRACE("Entry id " <<
 							FMT_OID(dependsNewer) <<
@@ -759,6 +782,7 @@ bool BackupStoreDirectory::CheckAndFix()
 							", was " <<
 							FMT_OID(newerEn->GetDependsOlder()));
 						newerEn->SetDependsOlder((*i)->GetObjectID());
+						
 						// Mark as changed
 						changed = true;
 					}

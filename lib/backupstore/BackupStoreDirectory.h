@@ -27,6 +27,7 @@ class IOStream;
 //		Created: 2003/08/26
 //
 // --------------------------------------------------------------------------
+
 class BackupStoreDirectory
 {
 private:

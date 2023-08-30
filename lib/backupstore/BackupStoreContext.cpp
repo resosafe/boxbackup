@@ -515,6 +515,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	bool reversedDiffIsCompletelyDifferent = false;
 	int64_t oldVersionNewBlocksUsed = 0;
 	BackupStoreInfo::Adjustment adjustment = {};
+	bool isVersionned = mapStoreInfo->GetVersionCountLimit()!=1;
 
 	try
 	{
@@ -588,30 +589,38 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				std::auto_ptr<RaidFileRead> from(RaidFileRead::Open(mStoreDiscSet, oldVersionFilename));
 				BackupStoreFile::CombineFile(diff, diff2, *from, storeFile);
 
-				// Then... reverse the patch back (open the from file again, and create a write file to overwrite it)
-				std::auto_ptr<RaidFileRead> from2(RaidFileRead::Open(mStoreDiscSet, oldVersionFilename));
-				ppreviousVerStoreFile = new RaidFileWrite(mStoreDiscSet, oldVersionFilename);
-				ppreviousVerStoreFile->Open(true /* allow overwriting */);
-				from->Seek(0, IOStream::SeekType_Absolute);
-				diff.Seek(0, IOStream::SeekType_Absolute);
-				BackupStoreFile::ReverseDiffFile(diff, *from, *from2, *ppreviousVerStoreFile,
-						DiffFromFileID, &reversedDiffIsCompletelyDifferent);
 
-				// Store disc space used
-				oldVersionNewBlocksUsed = ppreviousVerStoreFile->GetDiscUsageInBlocks();
+				if (isVersionned == false) {
+					// we'll keep only one version, dismiss the patch
+					adjustment.mBlocksUsed -= from->GetDiscUsageInBlocks();
+					adjustment.mBlocksInCurrentFiles -= from->GetDiscUsageInBlocks();
+				} else {
+					// Then... reverse the patch back (open the from file again, and create a write file to overwrite it)
 
-				// And make a space adjustment for the size calculation
-				spaceSavedByConversionToPatch =
-					from->GetDiscUsageInBlocks() - 
-					oldVersionNewBlocksUsed;
+					std::auto_ptr<RaidFileRead> from2(RaidFileRead::Open(mStoreDiscSet, oldVersionFilename));
+					ppreviousVerStoreFile = new RaidFileWrite(mStoreDiscSet, oldVersionFilename);
+					ppreviousVerStoreFile->Open(true /* allow overwriting */);
+					from->Seek(0, IOStream::SeekType_Absolute);
+					diff.Seek(0, IOStream::SeekType_Absolute);
+					BackupStoreFile::ReverseDiffFile(diff, *from, *from2, *ppreviousVerStoreFile,
+							DiffFromFileID, &reversedDiffIsCompletelyDifferent);
 
-				adjustment.mBlocksUsed -= spaceSavedByConversionToPatch;
-				// The code below will change the patch from a
-				// Current file to an Old file, so we need to
-				// account for it as a Current file here.
-				adjustment.mBlocksInCurrentFiles -=
-					spaceSavedByConversionToPatch;
+					// Store disc space used
+					oldVersionNewBlocksUsed = ppreviousVerStoreFile->GetDiscUsageInBlocks();
 
+					// And make a space adjustment for the size calculation
+					spaceSavedByConversionToPatch =
+						from->GetDiscUsageInBlocks() -
+						oldVersionNewBlocksUsed;
+
+					adjustment.mBlocksUsed -= spaceSavedByConversionToPatch;
+					// The code below will change the patch from a
+					// Current file to an Old file, so we need to
+					// account for it as a Current file here.
+					adjustment.mBlocksInCurrentFiles -=
+						spaceSavedByConversionToPatch;
+
+				}
 				// Don't adjust anything else here. We'll do it
 				// when we update the directory just below,
 				// which also accounts for non-diff replacements.
@@ -732,22 +741,24 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			}
 
             int versionsCount=0;
-            if ( mapStoreInfo->GetVersionCountLimit()>0 && !oldEntries.empty() ) {
-                //  we have a version limit, let's do some cleanup
-                BackupStoreDirectory::Entry *latestVersion=0;
+            if ( mapStoreInfo->GetVersionCountLimit()>0 ) {
+                BackupStoreDirectory::Entry *oldestVersionToKeep=0;
                 for (std::list<BackupStoreDirectory::Entry*>::reverse_iterator it=oldEntries.rbegin(); it != oldEntries.rend(); ++it) {
 
                     if ( ++versionsCount>mapStoreInfo->GetVersionCountLimit()-1 ) {
-                        int64_t objectID=(*it)->GetObjectID();
+                        
+						// get infos before it becomes invalid on delete
+						int64_t objectID=(*it)->GetObjectID();
+						int64_t oldSize = (*it)->GetSizeInBlocks();
+
                         dir.DeleteEntry(objectID);
-                        adjustment.mBlocksUsed -= (*it)->GetSizeInBlocks();
-                        adjustment.mBlocksInOldFiles -= (*it)->GetSizeInBlocks();
+
+                        adjustment.mBlocksUsed -= oldSize;
+                        adjustment.mBlocksInOldFiles -= oldSize;
                         adjustment.mNumOldFiles--;
 
                         std::string objFilename;
                         MakeObjectFilename(objectID, objFilename);
-
-
                         mapRefCount->RemoveReference(objectID);
 
                         BackupStoreRefCountDatabase::refcount_t refs=mapRefCount->GetRefCount(objectID);
@@ -757,12 +768,13 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
                             del.Delete();
                         }
 
-                        if ( latestVersion ) {
-                            latestVersion->SetDependsOlder(0);
-                            latestVersion=0;
+                        if ( oldestVersionToKeep ) {
+                            oldestVersionToKeep->SetDependsOlder(0);
+                            oldestVersionToKeep=0;
                         }
                     } else {
-                        latestVersion=(*it);
+						// this is not a version to delete, may be the oldest to keep
+                        oldestVersionToKeep=(*it);
                     }
                 }
             }
@@ -776,7 +788,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			AttributesHash);
 
 		// Adjust dependency info of file?
-		if(DiffFromFileID && poldEntry && !reversedDiffIsCompletelyDifferent)
+		if(ppreviousVerStoreFile && !reversedDiffIsCompletelyDifferent)
 		{
 			poldEntry->SetDependsNewer(id);
 			pnewEntry->SetDependsOlder(DiffFromFileID);
