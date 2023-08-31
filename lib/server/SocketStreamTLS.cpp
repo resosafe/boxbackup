@@ -414,12 +414,14 @@ void SocketStreamTLS::Write(const void *pBuffer, int NBytes, int Timeout)
 			break;
 		
 		default:
+			CryptoUtils::LogError("writing");
 		 	// Retry up to 5 times
 			if (mNumWriteRetries++ < 5) {
+				CryptoUtils::LogError("SSL_write failed, retrying");
 				WaitWhenRetryRequired(SSL_ERROR_WANT_WRITE, Timeout);
+			} else {
+				THROW_EXCEPTION(ConnectionException, TLSWriteFailed)
 			}
-			CryptoUtils::LogError("writing");
-			THROW_EXCEPTION(ConnectionException, TLSWriteFailed)
 			break;
 		}
 	}
