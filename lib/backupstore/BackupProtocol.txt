@@ -231,6 +231,20 @@ DeleteFileASAP	37	Command(Success)
 	# will return 0 if the object couldn't be found in the specified directory
 
 
+IsFileToBeResumed	38	Command(Success)
+	int64		DirectoryObjectID
+	int64		AttributesHash
+	# will return the temporary file offset 
+
+
+#ResumeStoreFile	30	Command(Success)	StreamWithCommand
+	#int64		DirectoryObjectID
+	#int64		ModificationTime
+	#int64		AttributesHash
+	#int64		DiffFromFileID		# 0 if the file is not a diff
+	#Filename	Filename
+	# then send a stream containing the encoded file
+
 # -------------------------------------------------------------------------------------
 #  Information commands
 # -------------------------------------------------------------------------------------

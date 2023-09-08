@@ -1901,11 +1901,41 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 				*apStreamToUpload));
 		}
 
-		// Send to store
+
+
+		// Check if this is a new upload or continuing an old one
+
+		// 1. ask server
+		std::auto_ptr<BackupProtocolSuccess> resume(connection.QueryIsFileToBeResumed(mObjectID, AttributesHash));
+
+		// 2. get an offset
+		// uint64_t offset = resume->GetOffset();
+
+		// // 3. seek to that offset
+		// if (offset > 0)
+		// {
+		// 	apWrappedStream->Seek(offset, IOStream::Seek_Set);
+			
+		// 	// 4. upload with offset
+		// 	std::auto_ptr<BackupProtocolSuccess> stored(
+		// 		connection.QueryResumeStoreFile(mObjectID, ModificationTime,
+		// 			AttributesHash, diffFromID, rStoreFilename,
+		// 			apWrappedStream));
+		// } else {
+		// 	// Send to store
+		// 	std::auto_ptr<BackupProtocolSuccess> stored(
+		// 		connection.QueryStoreFile(mObjectID, ModificationTime,
+		// 			AttributesHash, diffFromID, rStoreFilename,
+		// 			apWrappedStream));
+		// }
+ 
+	
+
+
 		std::auto_ptr<BackupProtocolSuccess> stored(
-			connection.QueryStoreFile(mObjectID, ModificationTime,
-				AttributesHash, diffFromID, rStoreFilename,
-				apWrappedStream));
+				connection.QueryStoreFile(mObjectID, ModificationTime,
+					AttributesHash, diffFromID, rStoreFilename,
+					apWrappedStream));
 
 		rContext.SetNiceMode(false);
 

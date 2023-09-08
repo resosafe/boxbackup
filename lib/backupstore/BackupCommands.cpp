@@ -665,6 +665,29 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolDeleteFileASAP::DoCommand(Bac
 }
 
 
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolIsFileToBeResumed::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
+//		Purpose: Check if a file is to be resumed
+//		Created: 2023/09/07
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolIsFileToBeResumed::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+{
+	CHECK_PHASE(Phase_Commands)
+	CHECK_WRITEABLE_SESSION
+
+	// Context handles this
+	uint64_t offset = 0;
+	rContext.IsFileToBeResumed(mAttributesHash, offset);
+
+	// return the object ID or zero for not found
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(offset));
+}
+
+
 // --------------------------------------------------------------------------
 //
 // Function

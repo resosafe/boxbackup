@@ -469,14 +469,19 @@ int64_t BackupStoreContext::AllocateObjectID()
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupStoreContext::AddFile(IOStream &, int64_t,
-//			 int64_t, int64_t, const BackupStoreFilename &, bool)
-//		Purpose: Add a file to the store, from a given stream, into
-//			 a specified directory. Returns object ID of the new
-//			 file.
+//		Name:    BackupStoreContext::IsFileToBeResumed(int64_t, uint64_t &)
+//		Purpose: Check if the upload can be resumed, set the corresponding offset 
+//           and return true if the resume can take place
 //		Created: 2003/09/03
 //
 // --------------------------------------------------------------------------
+bool BackupStoreContext::IsFileToBeResumed(int64_t AttributesHash, uint64_t &offset) {
+	BOX_WARNING("ASKING FOR OFFSET");
+	return true;
+}
+
+
+
 int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	int64_t ModificationTime, int64_t AttributesHash,
 	int64_t DiffFromFileID, const BackupStoreFilename &rFilename,
@@ -519,6 +524,11 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 
 	try
 	{
+
+		// First write all the incoming data into a temporary file
+		std::string uploadTempFn(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, "upload.tempX", 1);
+
+
 		RaidFileWrite storeFile(mStoreDiscSet, fn);
 		storeFile.Open(false /* no overwriting */);
 
