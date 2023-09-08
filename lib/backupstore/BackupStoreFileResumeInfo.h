@@ -7,15 +7,44 @@
 //
 // --------------------------------------------------------------------------
 
-#ifndef BACKUPSTORERESUME__H
-#define BACKUPSTORERESUME__H
+#ifndef BACKUPSTORERESUMEFILEINFO__H
+#define BACKUPSTORERESUMEFILEINFO__H
 
 #include <string>
-
-class Protocol;
-class IOStream;
+#include "BoxPlatform.h"
 
 
+
+class BackupStoreResumeInfos {
+	private:
+		std::string mFilePath;
+		int64_t mAttributesHash;
+
+	public:
+
+		
+		BackupStoreResumeInfos(std::string filePath, int64_t attributesHash) {
+			mFilePath = filePath;
+			mAttributesHash = attributesHash;
+		}
+
+		void SetFilePath(std::string filePath) {
+			mFilePath = filePath;
+		}
+
+		std::string GetFilePath() {
+			return mFilePath;
+		}
+
+		void SetAttributesHash(int64_t attributesHash) {
+			mAttributesHash = attributesHash;
+		}
+
+		int64_t GetAttributesHash() {
+			return mAttributesHash;
+		}
+
+} ;
 
 
 // --------------------------------------------------------------------------
@@ -26,33 +55,20 @@ class IOStream;
 //		Created: 2023/09/07
 //
 // --------------------------------------------------------------------------
-class BackupStoreResumeInfo
+class BackupStoreResumeFileInfo
 {
-private:
+	private:
+		std::string mFilePath;
 
-	std::string mFilePath;
-	std::string mResumeFilePath;
-    int64_t mResumeFileAttributesHash;
-
-public:
-	BackupStoreResumeInfo(int storeDiscSet);
-	
-	void Set(const std::string &rFilePath, int64_t attributesHash);
-
-	const std::string& GetFilePath() const
-	{
-		return mFilePath;
-	}
-
-	
-	int64_t GetAttributesHash() const
-	{
-		return mAttributesHash;
-	}
-
+	public:
+		BackupStoreResumeFileInfo(std::string filePath) {
+			mFilePath = filePath +"/resume.info";
+		}
+		void Set(BackupStoreResumeInfos &infos);
+		BackupStoreResumeInfos Get();
 	
 };
 
 
-#endif // BACKUPSTORERESUME__H
+#endif // BACKUPSTORERESUMEFILEINFO__H
 

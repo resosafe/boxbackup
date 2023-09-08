@@ -18,6 +18,7 @@
 #include "BackupStoreFile.h"
 #include "BackupStoreInfo.h"
 #include "BackupStoreObjectMagic.h"
+#include "BackupStoreFileResumeInfo.h"
 #include "BufferedStream.h"
 #include "BufferedWriteStream.h"
 #include "FileStream.h"
@@ -476,7 +477,24 @@ int64_t BackupStoreContext::AllocateObjectID()
 //
 // --------------------------------------------------------------------------
 bool BackupStoreContext::IsFileToBeResumed(int64_t AttributesHash, uint64_t &offset) {
-	BOX_WARNING("ASKING FOR OFFSET");
+	
+	try {
+		BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
+		BackupStoreResumeInfos infos = resume.Get();
+
+		if (AttributesHash == infos.GetAttributesHash()) {
+			// same attributes, we may be able to resume
+			BOX_NOTICE("Trying to resume file transfert for " << infos.GetFilePath());
+
+			// lookup for file and get its size
+			// std::string fp = RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1)
+		}
+		
+	} catch(BoxException &e) {
+		return false;
+	}
+	
+	
 	return true;
 }
 
@@ -525,10 +543,8 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	try
 	{
 
-		// First write all the incoming data into a temporary file
-		std::string uploadTempFn(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, "upload.tempX", 1);
-
-
+		BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
+		
 		RaidFileWrite storeFile(mStoreDiscSet, fn);
 		storeFile.Open(false /* no overwriting */);
 
@@ -537,6 +553,9 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		// Diff or full file?
 		if(DiffFromFileID == 0)
 		{
+			BackupStoreResumeInfos infos(storeFile.GetTempFilename(), AttributesHash);
+			resume.Set(infos);
+
 			// A full file, just store to disc
 			if(!rFile.CopyStreamTo(storeFile, BACKUP_STORE_TIMEOUT))
 			{
@@ -559,27 +578,24 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			try
 			{
 				// Open it twice
-#ifdef WIN32
-				InvisibleTempFileStream diff(tempFn.c_str(), 
-					O_RDWR | O_CREAT | O_BINARY);
-				InvisibleTempFileStream diff2(tempFn.c_str(), 
-					O_RDWR | O_BINARY);
-#else
 				FileStream diff(tempFn.c_str(), O_RDWR | O_CREAT | O_EXCL);
 				FileStream diff2(tempFn.c_str(), O_RDONLY);
 
-				// Unlink it immediately, so it definitely goes away
-				if(::unlink(tempFn.c_str()) != 0)
-				{
-					THROW_EXCEPTION(CommonException, OSFileError);
-				}
-#endif
+				BackupStoreResumeInfos infos(tempFn, AttributesHash);
+				resume.Set(infos);
 
 				// Stream the incoming diff to this temporary file
 				if(!rFile.CopyStreamTo(diff, BACKUP_STORE_TIMEOUT))
 				{
 					THROW_EXCEPTION(BackupStoreException, ReadFileFromStreamTimedOut)
 				}
+
+				// Unlink here as we want to keep the file for resuming
+				if(::unlink(tempFn.c_str()) != 0)
+				{
+					THROW_EXCEPTION(CommonException, OSFileError);
+				}
+
 
 				// Verify the diff
 				diff.Seek(0, IOStream::SeekType_Absolute);

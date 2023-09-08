@@ -1,19 +1,30 @@
 #include "BackupStoreFileResumeInfo.h"
-#include "RaidFileController.h"
+#include "FileStream.h"
 
+void BackupStoreResumeFileInfo::Set(BackupStoreResumeInfos &infos) {
 
-BackupStoreResumeInfo::BackupStoreResumeInfo(int storeDiscSet) {
-    mFilePath = RaidFileController::DiscSetPathToFileSystemPath(storeDiscSet, "resume.info", 1);
-}
+    FileStream resume(mFilePath.c_str(), O_BINARY | O_RDWR | O_CREAT);
 
-
-
-void BackupStoreResumeInfo::Set(const std::string &rFilePath, int64_t attributesHash) {
-    mResumeFilePath = rFilePath;
-    mResumeFileAttributesHash = attributesHash;
-
-	FileStream resume(mFilePath.c_str(), O_RDWR | O_CREAT | O_EXCL);
-    resume.Write(&mResumeFileAttributesHash, sizeof(mResumeFileAttributesHash));
-    resume.Write(mResumeFilePath.c_str(), mResumeFilePath.size());
+    int64_t val = infos.GetAttributesHash();
+    resume.Write(&val, sizeof(val));
+    resume.Write(infos.GetFilePath().c_str(), infos.GetFilePath().size());
     resume.Close();
+}
+	
+
+BackupStoreResumeInfos BackupStoreResumeFileInfo::Get() {
+    FileStream resume(mFilePath.c_str());
+
+    int64_t attrs;
+    resume.Read(&attrs, sizeof(attrs));
+
+    std::string filePath;	
+    char buf[256];
+    int nread;
+    while ((nread = resume.Read(buf, sizeof(buf))) > 0) {
+        filePath.append(buf, nread);
+    }
+
+    return BackupStoreResumeInfos(filePath, attrs);
+    
 }

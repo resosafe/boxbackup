@@ -64,6 +64,8 @@ public:
 	void Delete();
 	pos_type GetFileSize();
 	pos_type GetDiscUsageInBlocks();
+	std::string GetFilename() const { return mFilename; }
+	std::string GetTempFilename() const { return mTempFilename; }
 	
 	static void CreateDirectory(int SetNumber, const std::string &rDirName, bool Recursive = false, int mode = 0777);
 	static void CreateDirectory(const RaidFileDiscSet &rSet, const std::string &rDirName, bool Recursive = false, int mode = 0777);
