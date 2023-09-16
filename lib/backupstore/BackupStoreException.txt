@@ -74,3 +74,4 @@ CorruptReferenceCountDatabase	70	The account's refcount database is corrupt and 
 CancelledByBackgroundTask	71	The current task was cancelled on request by the background task.
 ObjectDoesNotExist		72	The specified object ID does not exist in the store.
 AccountAlreadyExists		73	Tried to create an account that already exists.
+CannotResumeFile          74  Impossible to resume the file transfert

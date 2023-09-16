@@ -470,31 +470,22 @@ int64_t BackupStoreContext::AllocateObjectID()
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupStoreContext::IsFileToBeResumed(int64_t, uint64_t &)
+//		Name:    BackupStoreContext::IsFileToBeResumed(int64_t, int64_t &)
 //		Purpose: Check if the upload can be resumed, set the corresponding offset 
 //           and return true if the resume can take place
 //		Created: 2003/09/03
 //
 // --------------------------------------------------------------------------
-bool BackupStoreContext::IsFileToBeResumed(int64_t AttributesHash, uint64_t &offset) {
+bool BackupStoreContext::IsFileToBeResumed(int64_t AttributesHash, int64_t &offset) {
 	
 	try {
 		BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
-		BackupStoreResumeInfos infos = resume.Get();
-
-		if (AttributesHash == infos.GetAttributesHash()) {
-			// same attributes, we may be able to resume
-			BOX_NOTICE("Trying to resume file transfert for " << infos.GetFilePath());
-
-			// lookup for file and get its size
-			// std::string fp = RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1)
-		}
-		
+		offset = resume.GetFileToBeResumedSize(this, AttributesHash);
 	} catch(BoxException &e) {
+		offset = -1;
 		return false;
 	}
-	
-	
+
 	return true;
 }
 
@@ -503,7 +494,8 @@ bool BackupStoreContext::IsFileToBeResumed(int64_t AttributesHash, uint64_t &off
 int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	int64_t ModificationTime, int64_t AttributesHash,
 	int64_t DiffFromFileID, const BackupStoreFilename &rFilename,
-	bool MarkFileWithSameNameAsOldVersions)
+	bool MarkFileWithSameNameAsOldVersions,
+	uint64_t ResumeOffset)
 {
 	if(mapStoreInfo.get() == 0)
 	{
@@ -539,23 +531,36 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	int64_t oldVersionNewBlocksUsed = 0;
 	BackupStoreInfo::Adjustment adjustment = {};
 	bool isVersionned = mapStoreInfo->GetVersionCountLimit()!=1;
-
+	IOStream::pos_type offset = 0;
 	try
 	{
-
+		printf("ResumeOffset = %llu\n", ResumeOffset);
 		BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
-		
-		RaidFileWrite storeFile(mStoreDiscSet, fn);
-		storeFile.Open(false /* no overwriting */);
+		if(ResumeOffset > 0) {
+			// will throw an exception if the file cannot be resumed
+			if( resume.GetFileToBeResumedSize(this, AttributesHash) < ResumeOffset) {
+				THROW_EXCEPTION(BackupStoreException, CannotResumeFile);
+			}
+		}
 
+
+		RaidFileWrite storeFile(mStoreDiscSet, fn);
+		storeFile.Open(false /* no overwriting */, ResumeOffset > 0);
+		storeFile.SetDiscardable(false);
 		int64_t spaceSavedByConversionToPatch = 0;
 
 		// Diff or full file?
 		if(DiffFromFileID == 0)
 		{
-			BackupStoreResumeInfos infos(storeFile.GetTempFilename(), AttributesHash);
-			resume.Set(infos);
+			if(ResumeOffset > 0) {
+				BOX_INFO("Resuming transfert of file " << storeFile.GetTempFilename() << " at offset " << ResumeOffset);
+				storeFile.Seek(ResumeOffset, IOStream::SeekType_Absolute);
+			} else {
+				BackupStoreResumeInfos infos(storeFile.GetTempFilename(), AttributesHash);
+				resume.Set(infos);
+			}
 
+		
 			// A full file, just store to disc
 			if(!rFile.CopyStreamTo(storeFile, BACKUP_STORE_TIMEOUT))
 			{
@@ -581,8 +586,13 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				FileStream diff(tempFn.c_str(), O_RDWR | O_CREAT | O_EXCL);
 				FileStream diff2(tempFn.c_str(), O_RDONLY);
 
-				BackupStoreResumeInfos infos(tempFn, AttributesHash);
-				resume.Set(infos);
+				if(ResumeOffset > 0) {
+					BOX_INFO("Resuming transfert of file " << tempFn.c_str() << " at offset " << ResumeOffset);
+					diff.Seek(ResumeOffset, IOStream::SeekType_Absolute);
+				} else {
+					BackupStoreResumeInfos infos(tempFn, AttributesHash);
+					resume.Set(infos);
+				}
 
 				// Stream the incoming diff to this temporary file
 				if(!rFile.CopyStreamTo(diff, BACKUP_STORE_TIMEOUT))
@@ -704,7 +714,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		{
 			// Error! Delete the file
 			RaidFileWrite del(mStoreDiscSet, fn);
-			del.Delete();
+			//del.Delete();
 
 			// Exception
 			THROW_EXCEPTION(BackupStoreException, AddedFileDoesNotVerify)

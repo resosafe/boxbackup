@@ -57,8 +57,9 @@ public:
 	virtual bool StreamClosed();
 
 	// Extra bits
-	void Open(bool AllowOverwrite = false);
+	void Open(bool AllowOverwrite = false, bool NoTruncate = false);
 	void Commit(bool ConvertToRaidNow = false);
+	void SetDiscardable(bool Discardable) { mCanDiscard = Discardable; }
 	void Discard();
 	void TransformToRaidStorage();
 	void Delete();
@@ -75,6 +76,7 @@ private:
 	std::string mFilename, mTempFilename;
 	int mOSFileHandle;
 	int mRefCount;
+	bool mCanDiscard;
 };
 
 #endif // RAIDFILEWRITE__H

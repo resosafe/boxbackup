@@ -76,6 +76,8 @@ private:
 	bool DeleteStoreObjectInfo() const;
 	BackupDaemon(const BackupDaemon &);
 
+
+
     class SyncStats  {
 
 		
@@ -253,6 +255,7 @@ protected:
 		bool ExtendedLogToFile,
 		std::string ExtendedLogFile,
 		ProgressNotifier &rProgressNotifier,
+		SyncResumeInfo &rSyncResumeInfo,
 		bool TcpNiceMode
 	);
 
@@ -296,9 +299,7 @@ public:
 
 private:
 	int mState;		// what the daemon is currently doing
-
 	Locations mLocations;
-	
 	std::vector<std::string> mIDMapMounts;
 	std::vector<BackupClientInodeToIDMap *> mCurrentIDMaps;
 	std::vector<BackupClientInodeToIDMap *> mNewIDMaps;
@@ -373,6 +374,7 @@ private:
 	LocationResolver* mpLocationResolver;
 	RunStatusProvider* mpRunStatusProvider;
 	SysadminNotifier* mpSysadminNotifier;
+	SyncResumeInfo* mpSyncResumeInfo;
 	std::auto_ptr<Timer> mapCommandSocketPollTimer;
 	std::auto_ptr<BackupClientContext> mapClientContext;
 

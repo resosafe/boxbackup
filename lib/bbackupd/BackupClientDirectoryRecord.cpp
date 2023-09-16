@@ -1904,39 +1904,38 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 
 
 		// Check if this is a new upload or continuing an old one
-
-		// 1. ask server
-		std::auto_ptr<BackupProtocolSuccess> resume(connection.QueryIsFileToBeResumed(mObjectID, AttributesHash));
-
-		// 2. get an offset
-		// uint64_t offset = resume->GetOffset();
-
-		// // 3. seek to that offset
-		// if (offset > 0)
-		// {
-		// 	apWrappedStream->Seek(offset, IOStream::Seek_Set);
+		SyncResumeInfo &infos = rContext.GetSyncResumeInfo();
+		uint64_t blocksOffset = infos.GetBlockCount(AttributesHash);
+		uint64_t bytesOffset = 0;
+		printf("blocksOffset: %llu\n", blocksOffset);
+		if(blocksOffset > 1 ) {
+			// we may have a to resume
 			
-		// 	// 4. upload with offset
-		// 	std::auto_ptr<BackupProtocolSuccess> stored(
-		// 		connection.QueryResumeStoreFile(mObjectID, ModificationTime,
-		// 			AttributesHash, diffFromID, rStoreFilename,
-		// 			apWrappedStream));
-		// } else {
-		// 	// Send to store
-		// 	std::auto_ptr<BackupProtocolSuccess> stored(
-		// 		connection.QueryStoreFile(mObjectID, ModificationTime,
-		// 			AttributesHash, diffFromID, rStoreFilename,
-		// 			apWrappedStream));
-		// }
- 
-	
+			// we want the last successfully sent block
+			bytesOffset = apStreamToUpload->SeekToBlockOffset(blocksOffset - 2);
+			printf("bytesOffset: %llu\n", bytesOffset);
+			// prepare the resume on the server
+			// std::auto_ptr<BackupProtocolSuccess> resume(connection.QueryPrepareResumeSync(mObjectID, AttributesHash, apWrappedStream->GetAbsolutePosition()));
+			// if(resume->GetSuccess() == false) {
+			// 	apWrappedStream.reset(new BufferedStream(
+			// 		*apStreamToUpload));
+			// }
 
 
+
+		} else {
+			infos.Clear();
+			infos.WriteAttributes(AttributesHash);
+
+		}
+
+		
+		// Send to store
 		std::auto_ptr<BackupProtocolSuccess> stored(
-				connection.QueryStoreFile(mObjectID, ModificationTime,
-					AttributesHash, diffFromID, rStoreFilename,
-					apWrappedStream));
-
+			connection.QueryStoreFileWithResume(mObjectID, ModificationTime,
+				AttributesHash, diffFromID, bytesOffset, rStoreFilename,
+				apWrappedStream));
+	 
 		rContext.SetNiceMode(false);
 
 		// Get object ID from the result

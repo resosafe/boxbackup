@@ -51,6 +51,7 @@ BackupClientContext::BackupClientContext
 	bool ExtendedLogToFile,
 	std::string ExtendedLogFile,
 	ProgressNotifier& rProgressNotifier,
+	SyncResumeInfo& rSyncResumeInfo,
 	bool TcpNiceMode
 )
 : mExperimentalSnapshotMode(false),
@@ -73,6 +74,7 @@ BackupClientContext::BackupClientContext
   mKeepAliveTimer(0, "KeepAliveTime"),
   mbIsManaged(false),
   mrProgressNotifier(rProgressNotifier),
+  mrSyncResumeInfo(rSyncResumeInfo),
   mTcpNiceMode(TcpNiceMode),
   mpNice(NULL)
 {

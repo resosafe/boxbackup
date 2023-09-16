@@ -28,6 +28,52 @@ class BackupStoreFilenameClear;
 
 #include <string>
 
+class SyncResumeInfo: public FileStream {
+	public: 
+		SyncResumeInfo(std::string filename): FileStream(filename, (O_RDWR | O_BINARY | O_CREAT)) {};
+		
+		void WriteAttributes(uint64_t AttributesHash) {
+			Seek(0, IOStream::SeekType_Absolute);
+			Write(&AttributesHash, sizeof(AttributesHash));
+		}
+
+		bool AttributesMatch(uint64_t AttributesHash) {
+			return AttributesHash == GetAttributes();
+		}
+
+		uint64_t GetAttributes() {
+			Seek(0, IOStream::SeekType_Absolute);
+			uint64_t attributesHash;
+			Read(&attributesHash, sizeof(attributesHash));
+			return attributesHash;
+		}
+
+		void WriteBlockCount(uint64_t BlockCount) {
+			Seek(sizeof(uint64_t), IOStream::SeekType_Absolute);
+			Write(&BlockCount, sizeof(BlockCount));
+		}
+
+		uint64_t GetBlockCount(uint64_t AttributesHash) 
+		{
+			uint64_t blocksCount = 0;
+			Seek(0, IOStream::SeekType_Absolute);
+			uint64_t attributesHash;
+			Read(&attributesHash, sizeof(attributesHash));
+			if(attributesHash == AttributesHash) {
+				Read(&blocksCount, sizeof(blocksCount));
+				
+			}
+			return blocksCount;
+		}
+
+		void Clear() {
+			uint64_t zero = 0;
+			WriteAttributes(zero);
+			WriteBlockCount(zero);
+		}
+
+};
+
 
 // --------------------------------------------------------------------------
 //
@@ -51,6 +97,7 @@ public:
 		bool ExtendedLogToFile,
 		std::string ExtendedLogFile,
 		ProgressNotifier &rProgressNotifier,
+		SyncResumeInfo &rSyncResumeInfo,
 		bool TcpNiceMode
 	);
 	virtual ~BackupClientContext();
@@ -212,6 +259,11 @@ public:
 		return mrProgressNotifier;
 	}
 	
+	SyncResumeInfo& GetSyncResumeInfo() const 
+	{ 
+		return mrSyncResumeInfo;
+	}
+
 	void SetNiceMode(bool enabled)
 	{
 		if(mTcpNiceMode)
@@ -245,6 +297,7 @@ private:
 	int mKeepAliveTime;
 	int mMaximumDiffingTime;
 	ProgressNotifier &mrProgressNotifier;
+	SyncResumeInfo &mrSyncResumeInfo;
 	bool mTcpNiceMode;
 	NiceSocketStream *mpNice;
 };

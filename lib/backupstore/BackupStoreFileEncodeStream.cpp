@@ -326,7 +326,7 @@ void BackupStoreFileEncodeStream::CalculateBlockSizes(int64_t DataSize, int64_t 
 }
 
 
-
+#include <iostream>
 // --------------------------------------------------------------------------
 //
 // Function
@@ -337,6 +337,7 @@ void BackupStoreFileEncodeStream::CalculateBlockSizes(int64_t DataSize, int64_t 
 // --------------------------------------------------------------------------
 int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 {
+
 	// Check there's something to do.
 	if(mStatus == Status_Finished)
 	{
@@ -353,8 +354,9 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 		BackgroundTask::State state = (mpRecipe->at(0).mBlocks == 0)
 			? BackgroundTask::Uploading_Full
 			: BackgroundTask::Uploading_Patch;
-		if(!mpBackgroundTask->RunBackgroundTask(state, mBytesUploaded,
-			mBytesToUpload))
+
+		if(!mpBackgroundTask->RunBackgroundTask(state, mCurrentBlock,
+			mNumBlocks))
 		{
 			THROW_EXCEPTION(BackupStoreException,
 				CancelledByBackgroundTask);
@@ -372,7 +374,9 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 
 			// Send bytes from the data buffer
 			int b = mData.Read(buffer, bytesToRead, Timeout);
+			printf("b = %llu\n", b);
 			bytesToRead -= b;
+		
 			buffer += b;
 
 			// Check to see if all the data has been used from this stream
@@ -418,6 +422,7 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 				// Next block!
 				++mCurrentBlock;
 				++mAbsoluteBlockNumber;
+				printf("mCurrentBlock = %llu mNumBlocks=%llu\n", mCurrentBlock, mNumBlocks);
 				if(mCurrentBlock >= mNumBlocks)
 				{
 					// Output extra blocks for this instruction and move forward in file
@@ -471,6 +476,8 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 
 				// Update variables
 				bytesToRead -= s;
+			
+
 				buffer += s;
 				mPositionInCurrentBlock += s;
 			}
@@ -485,6 +492,7 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 	// Add encoded size to stats
 	BackupStoreFile::msStats.mTotalFileStreamSize += (NBytes - bytesToRead);
 	mTotalBytesSent += (NBytes - bytesToRead);
+		
 
 	// Return size of data to caller
 	return NBytes - bytesToRead;
@@ -686,6 +694,144 @@ bool BackupStoreFileEncodeStream::StreamDataLeft()
 	return (mStatus != Status_Finished);
 }
 
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupStoreFileEncodeStream::Seek(pos_type, int)
+//		Purpose: Seek to a position (in blocks)
+//		Created: 12/09/23
+//
+// --------------------------------------------------------------------------
+uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
+
+
+	// int block_size = 1;
+	// uint8_t *block = (uint8_t *)malloc(block_size);
+	// if(block == 0)
+	// {
+	// 	throw std::bad_alloc();
+	// }
+	// uint64_t bytesRead = 0;
+	// while(mCurrentBlock<=BlockOffset && this->StreamDataLeft())
+	// {
+	// 	// Read some of it
+	// 	bytesRead += this->Read((void*)block, block_size, -1);
+	// }
+
+	// return bytesRead;
+
+
+	// file_StreamFormat hdr;
+	// if(!mData.ReadFullBuffer(&hdr, sizeof(hdr),
+	// 	0 /* not interested in bytes read if this fails */, IOStream::TimeOutInfinite))
+	// {
+	// 	// Couldn't read header
+	// 	THROW_EXCEPTION(BackupStoreException, WhenDecodingExpectedToReadButCouldnt)
+	// }
+
+	// // Read the next two objects
+	// BackupStoreFilename fn;
+	// fn.ReadFromStream(mData, IOStream::TimeOutInfinite);
+
+	// BackupClientFileAttributes attr;
+	// attr.ReadFromStream(mData, IOStream::TimeOutInfinite);
+	
+	mCurrentBlock = -1;
+
+	// test if we didn't read already
+
+	uint64_t totalBytes = mData.GetSize();
+	mData.Reset();
+	file_BlockIndexHeader blkhdr;
+	blkhdr.mMagicValue = htonl(OBJECTMAGIC_FILE_BLOCKS_MAGIC_VALUE_V1);
+	ASSERT(mpRecipe != 0);
+	blkhdr.mOtherFileID = box_hton64(mpRecipe->GetOtherFileID());
+	blkhdr.mNumBlocks = box_hton64(mTotalBlocks);
+
+	// Generate the IV base
+	Random::Generate(&mEntryIVBase, sizeof(mEntryIVBase));
+	blkhdr.mEntryIVBase = box_hton64(mEntryIVBase);
+
+	mData.Write(&blkhdr, sizeof(blkhdr));
+	printf("totalBytes: %llu\n", totalBytes);
+	mStatus = Status_Blocks;
+
+
+	while(mCurrentBlock <= BlockOffset && mStatus == Status_Blocks)
+	{
+
+			// Block sending phase
+
+			
+				// Next block!
+				++mCurrentBlock;
+				++mAbsoluteBlockNumber;
+				printf("mCurrentBlock = %llu mNumBlocks=%llu\n", mCurrentBlock, mNumBlocks);
+
+				if(mCurrentBlock >= mNumBlocks)
+				{
+					printf("mNumblocks: %llu\n", mNumBlocks);
+					// Output extra blocks for this instruction and move forward in file
+					if(mInstructionNumber >= 0)
+					{
+						printf("skip1\n");
+						SkipPreviousBlocksInInstruction();
+					}
+
+					// Is there another instruction to go?
+					++mInstructionNumber;
+
+					// Skip instructions which don't contain any data
+					while(mInstructionNumber < static_cast<int64_t>(mpRecipe->size())
+						&& (*mpRecipe)[mInstructionNumber].mSpaceBefore == 0)
+					{
+						printf("skip2\n");
+						SkipPreviousBlocksInInstruction();
+						++mInstructionNumber;
+					}
+
+					if(mInstructionNumber >= static_cast<int64_t>(mpRecipe->size()))
+					{
+						// mData.SetForReading();
+printf("skip3\n");
+						// End of blocks, go to next phase
+						++mStatus;
+						// return totalBytes;
+					}
+					else
+					{
+						// Get ready for this instruction
+						printf("skip4\n");
+						SetForInstruction();
+					}
+				}
+				printf("mCurrentBlock = %llu mNumBlocks=%llu\n", mCurrentBlock, mNumBlocks);
+
+				// Can't use 'else' here as SetForInstruction() will change this
+				if(mCurrentBlock < mNumBlocks)
+				{
+					EncodeCurrentBlock();
+					printf("mCurrentBlockEncodedSize: %llu (%d)\n", mCurrentBlockEncodedSize, mCurrentBlock);
+					totalBytes += mCurrentBlockEncodedSize;
+				} else {
+					printf("SKIPPED mCurrentBlockEncodedSize: %llu (%d)\n", mCurrentBlockEncodedSize, mCurrentBlock);
+				}
+			
+		
+	}
+	// Add encoded size to stats
+	BackupStoreFile::msStats.mTotalFileStreamSize = totalBytes;
+	BackupStoreFile::msStats.mBytesAlreadyOnServer = totalBytes;
+
+	mTotalBytesSent = totalBytes;
+		
+	printf("totalBytes2: %llu\n", totalBytes);
+
+	// Return size of data to caller
+	return totalBytes;
+				
+}
 
 // --------------------------------------------------------------------------
 //

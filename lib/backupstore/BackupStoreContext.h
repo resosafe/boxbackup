@@ -179,7 +179,8 @@ public:
 		int64_t AttributesHash,
 		int64_t DiffFromFileID,
 		const BackupStoreFilename &rFilename,
-		bool MarkFileWithSameNameAsOldVersions);
+		bool MarkFileWithSameNameAsOldVersions,
+		uint64_t ResumeOffset);
 	int64_t AddDirectory(int64_t InDirectory,
 		const BackupStoreFilename &rFilename,
 		const StreamableMemBlock &Attributes,
@@ -192,7 +193,7 @@ public:
 	bool UndeleteFile(int64_t ObjectID, int64_t InDirectory);
 	void DeleteDirectory(int64_t ObjectID, bool Undelete = false, bool RemoveASAP = false);
 	void MoveObject(int64_t ObjectID, int64_t MoveFromDirectory, int64_t MoveToDirectory, const BackupStoreFilename &rNewFilename, bool MoveAllWithSameName, bool AllowMoveOverDeletedObject);
-	bool IsFileToBeResumed(int64_t AttributesHash, uint64_t &offset);
+	bool IsFileToBeResumed(int64_t AttributesHash, int64_t &offset);
 	
 	// Manipulating objects
 	enum

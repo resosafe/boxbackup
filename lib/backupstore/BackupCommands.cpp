@@ -311,13 +311,55 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFile::DoCommand(
 	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
 		mModificationTime, mAttributesHash, mDiffFromFileID,
 		mFilename,
-		true /* mark files with same name as old versions */);
+		true /* mark files with same name as old versions */,
+		false /* don't support resuming */);
 
 	// Tell the caller what the file ID was
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(id));
 }
 
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolStoreFileWithResume::DoCommand(Protocol &, BackupStoreContext &)
+//		Purpose: Command to store a file on the server with an optional resumable status
+//		Created: 2023/09/11
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFileWithResume::DoCommand(
+	BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext,
+	IOStream& rDataStream) const
+{
+	CHECK_PHASE(Phase_Commands)
+	CHECK_WRITEABLE_SESSION
 
+	std::auto_ptr<BackupProtocolMessage> hookResult =
+		rContext.StartCommandHook(*this);
+	if(hookResult.get())
+	{
+		return hookResult;
+	}
+
+	// Check that the diff from file actually exists, if it's specified
+	if(mDiffFromFileID != 0)
+	{
+		if(!rContext.ObjectExists(mDiffFromFileID,
+			BackupStoreContext::ObjectExists_File))
+		{
+			return PROTOCOL_ERROR(Err_DiffFromFileDoesNotExist);
+		}
+	}
+
+	// Ask the context to store it
+	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
+		mModificationTime, mAttributesHash, mDiffFromFileID,
+		mFilename,
+		true /* mark files with same name as old versions */,
+		mResumeOffset);
+
+	// Tell the caller what the file ID was
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(id));
+}
 
 
 // --------------------------------------------------------------------------
@@ -669,23 +711,31 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolDeleteFileASAP::DoCommand(Bac
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupProtocolIsFileToBeResumed::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
+//		Name:    BackupProtocolPrepareResumeSync::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
 //		Purpose: Check if a file is to be resumed
 //		Created: 2023/09/07
 //
 // --------------------------------------------------------------------------
-std::auto_ptr<BackupProtocolMessage> BackupProtocolIsFileToBeResumed::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
-{
-	CHECK_PHASE(Phase_Commands)
-	CHECK_WRITEABLE_SESSION
+// std::auto_ptr<BackupProtocolMessage> BackupProtocolPrepareResumeSync::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+// {
+// 	CHECK_PHASE(Phase_Commands)
+// 	CHECK_WRITEABLE_SESSION
 
-	// Context handles this
-	uint64_t offset = 0;
-	rContext.IsFileToBeResumed(mAttributesHash, offset);
+// 	// Context handles this
+	
+// 	int64_t offset = 0;
+// 	try 
+// 	{
+// 		rContext.PrepareResumeSync(mObjectId, mAttributesHash, mResumeOffset);
+// 	} catch ( ... ) 
+// 	{
+// 	}
 
-	// return the object ID or zero for not found
-	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(offset));
-}
+// 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(objectID));
+
+	
+// }
+
 
 
 // --------------------------------------------------------------------------

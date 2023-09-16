@@ -12,7 +12,8 @@
 
 #include <string>
 #include "BoxPlatform.h"
-
+#include "BackupStoreContext.h"
+#include "IOStream.h"
 
 
 class BackupStoreResumeInfos {
@@ -22,7 +23,11 @@ class BackupStoreResumeInfos {
 
 	public:
 
-		
+		BackupStoreResumeInfos(BackupStoreResumeInfos &infos) {
+			mFilePath = infos.GetFilePath();
+			mAttributesHash = infos.GetAttributesHash();
+		}
+
 		BackupStoreResumeInfos(std::string filePath, int64_t attributesHash) {
 			mFilePath = filePath;
 			mAttributesHash = attributesHash;
@@ -59,14 +64,24 @@ class BackupStoreResumeFileInfo
 {
 	private:
 		std::string mFilePath;
+		BackupStoreResumeInfos *mInfos;
 
 	public:
 		BackupStoreResumeFileInfo(std::string filePath) {
 			mFilePath = filePath +"/resume.info";
+			mInfos = NULL;
 		}
+		~BackupStoreResumeFileInfo() {
+			if (mInfos != NULL) {
+				delete mInfos;
+			}
+		}
+
 		void Set(BackupStoreResumeInfos &infos);
-		BackupStoreResumeInfos Get();
-	
+		BackupStoreResumeInfos* Get();
+		int64_t GetFileToBeResumedSize(BackupStoreContext *Context, int64_t AttributesHash);
+		std::string GetFilePath();
+
 };
 
 

@@ -237,7 +237,8 @@ BackupDaemon::BackupDaemon()
 	  mpLocationResolver(this),
 	  mpRunStatusProvider(this),
 	  mpSysadminNotifier(this),
-	  mapCommandSocketPollTimer(NULL)
+	  mapCommandSocketPollTimer(NULL),
+	  mpSyncResumeInfo(NULL)
 	#ifdef WIN32
 	, mInstallService(false),
 	  mRemoveService(false),
@@ -933,13 +934,14 @@ std::auto_ptr<BackupClientContext> BackupDaemon::GetNewContext
 	bool ExtendedLogToFile,
 	std::string ExtendedLogFile,
 	ProgressNotifier &rProgressNotifier,
+	SyncResumeInfo &rSyncResumeInfo,
 	bool TcpNiceMode
 )
 {
 	std::auto_ptr<BackupClientContext> context(new BackupClientContext(
 		rResolver, rTLSContext, rHostname, Port, AccountNumber,
 		ExtendedLogging, ExtendedLogToFile, ExtendedLogFile,
-		rProgressNotifier, TcpNiceMode));
+		rProgressNotifier, rSyncResumeInfo, TcpNiceMode));
 	return context;
 }
 
@@ -1005,6 +1007,18 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
     if ( mStatsHistoryLength<1)
         mStatsHistoryLength=1;  // should at least contains the current sync
 
+
+	if(conf.KeyExists("SyncResumeFile"))
+	{
+		// Load the sync resume info
+		mpSyncResumeInfo = new SyncResumeInfo(conf.GetKeyValue("SyncResumeFile"));
+	} 
+	else 
+	{
+		// No sync resume file, so create a new one
+		mpSyncResumeInfo = new SyncResumeInfo("/tmp/resume.dat");
+	}
+
 	// Then create a client context object (don't
 	// just connect, as this may be unnecessary)
 	mapClientContext = GetNewContext(
@@ -1017,6 +1031,7 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
 		conf.KeyExists("ExtendedLogFile"),
 		extendedLogFile,
 		*mpProgressNotifier,
+		*mpSyncResumeInfo,
 		conf.GetKeyValueBool("TcpNice")
 	);
 
@@ -2039,6 +2054,11 @@ bool BackupDaemon::RunBackgroundTask(State state, uint64_t progress,
 {
 	BOX_TRACE("BackupDaemon::RunBackgroundTask: state = " << state <<
 		", progress = " << progress << "/" << maximum);
+
+
+	if( state == State::Uploading_Full || state == Uploading_Patch ) {
+		mpSyncResumeInfo->WriteBlockCount(progress);
+	}
 
 	if(!mapCommandSocketPollTimer.get())
 	{
