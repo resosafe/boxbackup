@@ -65,12 +65,18 @@ int64_t BackupStoreResumeFileInfo::GetFileToBeResumedSize(BackupStoreContext *Co
 	
             return st.st_size;
         } else {
+            Delete();
             THROW_EXCEPTION(BackupStoreException, BackupStoreException::OSFileError);
         }
     } else {
+        Delete();
         THROW_EXCEPTION(BackupStoreException, AttributesNotUnderstood);
     }
     
+}
+
+void BackupStoreResumeFileInfo::Delete() {
+    ::unlink(mFilePath.c_str());
 }
 
 std::string BackupStoreResumeFileInfo::GetFilePath() {

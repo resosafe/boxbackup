@@ -2057,7 +2057,8 @@ bool BackupDaemon::RunBackgroundTask(State state, uint64_t progress,
 
 
 	if( state == State::Uploading_Full || state == Uploading_Patch ) {
-		mpSyncResumeInfo->WriteBlockCount(progress);
+		// record the block number sent
+		mpSyncResumeInfo->WriteBlockCount(progress - 1);
 	}
 
 	if(!mapCommandSocketPollTimer.get())

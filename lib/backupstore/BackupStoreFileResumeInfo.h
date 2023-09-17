@@ -81,6 +81,7 @@ class BackupStoreResumeFileInfo
 		BackupStoreResumeInfos* Get();
 		int64_t GetFileToBeResumedSize(BackupStoreContext *Context, int64_t AttributesHash);
 		std::string GetFilePath();
+		void Delete();
 
 };
 

@@ -124,7 +124,7 @@ void BackupStoreFileEncodeStream::Setup(const std::string& Filename,
 {
 	// Pointer to a blank recipe which we might create
 	BackupStoreFileEncodeStream::Recipe *pblankRecipe = 0;
-
+mTotalBlocksBytesSent = 0;
 	try
 	{
 		// Get file attributes
@@ -354,7 +354,7 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 		BackgroundTask::State state = (mpRecipe->at(0).mBlocks == 0)
 			? BackgroundTask::Uploading_Full
 			: BackgroundTask::Uploading_Patch;
-
+printf("Send block %llu (%llu)\n", mCurrentBlock, mTotalBlocksBytesSent);
 		if(!mpBackgroundTask->RunBackgroundTask(state, mCurrentBlock,
 			mNumBlocks))
 		{
@@ -374,7 +374,7 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 
 			// Send bytes from the data buffer
 			int b = mData.Read(buffer, bytesToRead, Timeout);
-			printf("b = %llu\n", b);
+			mTotalBlocksBytesSent += b;
 			bytesToRead -= b;
 		
 			buffer += b;
@@ -461,6 +461,7 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 				if(mCurrentBlock < mNumBlocks)
 				{
 					EncodeCurrentBlock();
+					mTotalBlocksBytesSent += mCurrentBlockEncodedSize;
 				}
 			}
 
@@ -492,7 +493,7 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 	// Add encoded size to stats
 	BackupStoreFile::msStats.mTotalFileStreamSize += (NBytes - bytesToRead);
 	mTotalBytesSent += (NBytes - bytesToRead);
-		
+
 
 	// Return size of data to caller
 	return NBytes - bytesToRead;
@@ -743,6 +744,8 @@ uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
 
 	uint64_t totalBytes = mData.GetSize();
 	mData.Reset();
+
+
 	file_BlockIndexHeader blkhdr;
 	blkhdr.mMagicValue = htonl(OBJECTMAGIC_FILE_BLOCKS_MAGIC_VALUE_V1);
 	ASSERT(mpRecipe != 0);
@@ -758,7 +761,7 @@ uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
 	mStatus = Status_Blocks;
 
 
-	while(mCurrentBlock <= BlockOffset && mStatus == Status_Blocks)
+	while(mCurrentBlock < BlockOffset && mStatus == Status_Blocks)
 	{
 
 			// Block sending phase
@@ -767,7 +770,6 @@ uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
 				// Next block!
 				++mCurrentBlock;
 				++mAbsoluteBlockNumber;
-				printf("mCurrentBlock = %llu mNumBlocks=%llu\n", mCurrentBlock, mNumBlocks);
 
 				if(mCurrentBlock >= mNumBlocks)
 				{
@@ -802,11 +804,16 @@ printf("skip3\n");
 					else
 					{
 						// Get ready for this instruction
-						printf("skip4\n");
+						printf("SetForInstruction\n");
 						SetForInstruction();
 					}
+
+
+					printf("mNumBlocks: %llu, mBlockSize: %llu, mLastBlockSize: %llu", mNumBlocks, mBlockSize, mLastBlockSize);
+					printf("mCurrentBlock = %llu, mCurrentBlockEncodedSize = %llu, mPositionInCurrentBlock = %llu\n", mCurrentBlock, mCurrentBlockEncodedSize, mPositionInCurrentBlock);
+					
+
 				}
-				printf("mCurrentBlock = %llu mNumBlocks=%llu\n", mCurrentBlock, mNumBlocks);
 
 				// Can't use 'else' here as SetForInstruction() will change this
 				if(mCurrentBlock < mNumBlocks)
@@ -814,6 +821,7 @@ printf("skip3\n");
 					EncodeCurrentBlock();
 					printf("mCurrentBlockEncodedSize: %llu (%d)\n", mCurrentBlockEncodedSize, mCurrentBlock);
 					totalBytes += mCurrentBlockEncodedSize;
+					mPositionInCurrentBlock = mCurrentBlockEncodedSize = 0;
 				} else {
 					printf("SKIPPED mCurrentBlockEncodedSize: %llu (%d)\n", mCurrentBlockEncodedSize, mCurrentBlock);
 				}

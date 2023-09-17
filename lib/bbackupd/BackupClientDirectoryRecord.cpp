@@ -1912,7 +1912,7 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 			// we may have a to resume
 			
 			// we want the last successfully sent block
-			bytesOffset = apStreamToUpload->SeekToBlockOffset(blocksOffset - 2);
+			bytesOffset = apStreamToUpload->SeekToBlockOffset(blocksOffset);
 			printf("bytesOffset: %llu\n", bytesOffset);
 			// prepare the resume on the server
 			// std::auto_ptr<BackupProtocolSuccess> resume(connection.QueryPrepareResumeSync(mObjectID, AttributesHash, apWrappedStream->GetAbsolutePosition()));
@@ -1920,7 +1920,6 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 			// 	apWrappedStream.reset(new BufferedStream(
 			// 		*apStreamToUpload));
 			// }
-
 
 
 		} else {

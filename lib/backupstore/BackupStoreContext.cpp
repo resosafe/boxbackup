@@ -539,6 +539,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		if(ResumeOffset > 0) {
 			// will throw an exception if the file cannot be resumed
 			if( resume.GetFileToBeResumedSize(this, AttributesHash) < ResumeOffset) {
+				resume.Delete();
 				THROW_EXCEPTION(BackupStoreException, CannotResumeFile);
 			}
 		}
