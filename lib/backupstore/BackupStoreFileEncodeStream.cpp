@@ -124,7 +124,6 @@ void BackupStoreFileEncodeStream::Setup(const std::string& Filename,
 {
 	// Pointer to a blank recipe which we might create
 	BackupStoreFileEncodeStream::Recipe *pblankRecipe = 0;
-mTotalBlocksBytesSent = 0;
 	try
 	{
 		// Get file attributes
@@ -354,8 +353,7 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 		BackgroundTask::State state = (mpRecipe->at(0).mBlocks == 0)
 			? BackgroundTask::Uploading_Full
 			: BackgroundTask::Uploading_Patch;
-printf("Send block %llu (%llu)\n", mCurrentBlock, mTotalBlocksBytesSent);
-		if(!mpBackgroundTask->RunBackgroundTask(state, mCurrentBlock,
+		if(!mpBackgroundTask->RunBackgroundTask(state, mCurrentBlock >= 0 ? mCurrentBlock : 0,
 			mNumBlocks))
 		{
 			THROW_EXCEPTION(BackupStoreException,
@@ -374,7 +372,6 @@ printf("Send block %llu (%llu)\n", mCurrentBlock, mTotalBlocksBytesSent);
 
 			// Send bytes from the data buffer
 			int b = mData.Read(buffer, bytesToRead, Timeout);
-			mTotalBlocksBytesSent += b;
 			bytesToRead -= b;
 		
 			buffer += b;
@@ -422,7 +419,6 @@ printf("Send block %llu (%llu)\n", mCurrentBlock, mTotalBlocksBytesSent);
 				// Next block!
 				++mCurrentBlock;
 				++mAbsoluteBlockNumber;
-				printf("mCurrentBlock = %llu mNumBlocks=%llu\n", mCurrentBlock, mNumBlocks);
 				if(mCurrentBlock >= mNumBlocks)
 				{
 					// Output extra blocks for this instruction and move forward in file
@@ -461,7 +457,6 @@ printf("Send block %llu (%llu)\n", mCurrentBlock, mTotalBlocksBytesSent);
 				if(mCurrentBlock < mNumBlocks)
 				{
 					EncodeCurrentBlock();
-					mTotalBlocksBytesSent += mCurrentBlockEncodedSize;
 				}
 			}
 
@@ -707,136 +702,83 @@ bool BackupStoreFileEncodeStream::StreamDataLeft()
 uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
 
 
-	// int block_size = 1;
-	// uint8_t *block = (uint8_t *)malloc(block_size);
-	// if(block == 0)
-	// {
-	// 	throw std::bad_alloc();
-	// }
-	// uint64_t bytesRead = 0;
-	// while(mCurrentBlock<=BlockOffset && this->StreamDataLeft())
-	// {
-	// 	// Read some of it
-	// 	bytesRead += this->Read((void*)block, block_size, -1);
-	// }
+	// Trying to seek if we started reading already will break everything
+	if(mCurrentBlock != -1) {
+		THROW_EXCEPTION(BackupStoreException, CannotSeekToBlockOffset);
+	}
 
-	// return bytesRead;
+	// go directly in block reading
+	mStatus = Status_Blocks;
 
-
-	// file_StreamFormat hdr;
-	// if(!mData.ReadFullBuffer(&hdr, sizeof(hdr),
-	// 	0 /* not interested in bytes read if this fails */, IOStream::TimeOutInfinite))
-	// {
-	// 	// Couldn't read header
-	// 	THROW_EXCEPTION(BackupStoreException, WhenDecodingExpectedToReadButCouldnt)
-	// }
-
-	// // Read the next two objects
-	// BackupStoreFilename fn;
-	// fn.ReadFromStream(mData, IOStream::TimeOutInfinite);
-
-	// BackupClientFileAttributes attr;
-	// attr.ReadFromStream(mData, IOStream::TimeOutInfinite);
-	
-	mCurrentBlock = -1;
-
-	// test if we didn't read already
-
+	// go through the headers
 	uint64_t totalBytes = mData.GetSize();
 	mData.Reset();
 
-
+	// we are in "block phase", prepare the block index header
 	file_BlockIndexHeader blkhdr;
 	blkhdr.mMagicValue = htonl(OBJECTMAGIC_FILE_BLOCKS_MAGIC_VALUE_V1);
 	ASSERT(mpRecipe != 0);
 	blkhdr.mOtherFileID = box_hton64(mpRecipe->GetOtherFileID());
 	blkhdr.mNumBlocks = box_hton64(mTotalBlocks);
-
-	// Generate the IV base
 	Random::Generate(&mEntryIVBase, sizeof(mEntryIVBase));
 	blkhdr.mEntryIVBase = box_hton64(mEntryIVBase);
-
 	mData.Write(&blkhdr, sizeof(blkhdr));
-	printf("totalBytes: %llu\n", totalBytes);
-	mStatus = Status_Blocks;
+
+
 
 
 	while(mCurrentBlock < BlockOffset && mStatus == Status_Blocks)
-	{
+	{	
+		// Next block!
+		++mCurrentBlock;
+		++mAbsoluteBlockNumber;
 
-			// Block sending phase
+		if(mCurrentBlock >= mNumBlocks)
+		{
+			// Output extra blocks for this instruction and move forward in file
+			if(mInstructionNumber >= 0)
+			{
+				SkipPreviousBlocksInInstruction();
+			}
 
-			
-				// Next block!
-				++mCurrentBlock;
-				++mAbsoluteBlockNumber;
+			// Is there another instruction to go?
+			++mInstructionNumber;
 
-				if(mCurrentBlock >= mNumBlocks)
-				{
-					printf("mNumblocks: %llu\n", mNumBlocks);
-					// Output extra blocks for this instruction and move forward in file
-					if(mInstructionNumber >= 0)
-					{
-						printf("skip1\n");
-						SkipPreviousBlocksInInstruction();
-					}
+			// Skip instructions which don't contain any data
+			while(mInstructionNumber < static_cast<int64_t>(mpRecipe->size())
+				&& (*mpRecipe)[mInstructionNumber].mSpaceBefore == 0)
+			{
+				SkipPreviousBlocksInInstruction();
+				++mInstructionNumber;
+			}
 
-					// Is there another instruction to go?
-					++mInstructionNumber;
+			if(mInstructionNumber >= static_cast<int64_t>(mpRecipe->size()))
+			{
+				// End of blocks, go to next phase
+				++mStatus;
+			}
+			else
+			{
+				// Get ready for this instruction
+				SetForInstruction();
+			}
+		}
 
-					// Skip instructions which don't contain any data
-					while(mInstructionNumber < static_cast<int64_t>(mpRecipe->size())
-						&& (*mpRecipe)[mInstructionNumber].mSpaceBefore == 0)
-					{
-						printf("skip2\n");
-						SkipPreviousBlocksInInstruction();
-						++mInstructionNumber;
-					}
-
-					if(mInstructionNumber >= static_cast<int64_t>(mpRecipe->size()))
-					{
-						// mData.SetForReading();
-printf("skip3\n");
-						// End of blocks, go to next phase
-						++mStatus;
-						// return totalBytes;
-					}
-					else
-					{
-						// Get ready for this instruction
-						printf("SetForInstruction\n");
-						SetForInstruction();
-					}
-
-
-					printf("mNumBlocks: %llu, mBlockSize: %llu, mLastBlockSize: %llu", mNumBlocks, mBlockSize, mLastBlockSize);
-					printf("mCurrentBlock = %llu, mCurrentBlockEncodedSize = %llu, mPositionInCurrentBlock = %llu\n", mCurrentBlock, mCurrentBlockEncodedSize, mPositionInCurrentBlock);
-					
-
-				}
-
-				// Can't use 'else' here as SetForInstruction() will change this
-				if(mCurrentBlock < mNumBlocks)
-				{
-					EncodeCurrentBlock();
-					printf("mCurrentBlockEncodedSize: %llu (%d)\n", mCurrentBlockEncodedSize, mCurrentBlock);
-					totalBytes += mCurrentBlockEncodedSize;
-					mPositionInCurrentBlock = mCurrentBlockEncodedSize = 0;
-				} else {
-					printf("SKIPPED mCurrentBlockEncodedSize: %llu (%d)\n", mCurrentBlockEncodedSize, mCurrentBlock);
-				}
-			
-		
+		if(mCurrentBlock < mNumBlocks)
+		{
+			// encode and reset some variables
+			EncodeCurrentBlock();
+			totalBytes += mCurrentBlockEncodedSize;
+			mPositionInCurrentBlock = mCurrentBlockEncodedSize = 0;
+		} 	
 	}
-	// Add encoded size to stats
+
+	// some stats
 	BackupStoreFile::msStats.mTotalFileStreamSize = totalBytes;
 	BackupStoreFile::msStats.mBytesAlreadyOnServer = totalBytes;
 
 	mTotalBytesSent = totalBytes;
 		
-	printf("totalBytes2: %llu\n", totalBytes);
-
-	// Return size of data to caller
 	return totalBytes;
 				
 }

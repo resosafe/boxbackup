@@ -99,6 +99,10 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolReplyable::HandleException(Bo
 		{
 			return PROTOCOL_ERROR(Err_PatchConsistencyError);
 		}
+		else if(e.GetSubType() == BackupStoreException::CannotResumeUpload)
+		{
+			return PROTOCOL_ERROR(Err_CannotResumeUpload);
+		}
 	}
 
 	throw;

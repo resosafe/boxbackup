@@ -193,7 +193,6 @@ public:
 	bool UndeleteFile(int64_t ObjectID, int64_t InDirectory);
 	void DeleteDirectory(int64_t ObjectID, bool Undelete = false, bool RemoveASAP = false);
 	void MoveObject(int64_t ObjectID, int64_t MoveFromDirectory, int64_t MoveToDirectory, const BackupStoreFilename &rNewFilename, bool MoveAllWithSameName, bool AllowMoveOverDeletedObject);
-	bool IsFileToBeResumed(int64_t AttributesHash, int64_t &offset);
 	
 	// Manipulating objects
 	enum

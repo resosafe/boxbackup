@@ -20,16 +20,19 @@ class BackupStoreResumeInfos {
 	private:
 		std::string mFilePath;
 		int64_t mAttributesHash;
+		int64_t mObjectID;
 
 	public:
 
 		BackupStoreResumeInfos(BackupStoreResumeInfos &infos) {
 			mFilePath = infos.GetFilePath();
 			mAttributesHash = infos.GetAttributesHash();
+			mObjectID = infos.GetObjectID();
 		}
 
-		BackupStoreResumeInfos(std::string filePath, int64_t attributesHash) {
+		BackupStoreResumeInfos(std::string filePath, int64_t ObjectID, int64_t attributesHash) {
 			mFilePath = filePath;
+			mObjectID = ObjectID;
 			mAttributesHash = attributesHash;
 		}
 
@@ -47,6 +50,10 @@ class BackupStoreResumeInfos {
 
 		int64_t GetAttributesHash() {
 			return mAttributesHash;
+		}
+
+		int64_t GetObjectID() {
+			return mObjectID;
 		}
 
 } ;
@@ -77,9 +84,9 @@ class BackupStoreResumeFileInfo
 			}
 		}
 
-		void Set(BackupStoreResumeInfos &infos);
+		void Set(BackupStoreResumeInfos* infos);
 		BackupStoreResumeInfos* Get();
-		int64_t GetFileToBeResumedSize(BackupStoreContext *Context, int64_t AttributesHash);
+		int64_t GetFileToBeResumedSize(BackupStoreContext *Context, int64_t ObjectID, int64_t AttributesHash);
 		std::string GetFilePath();
 		void Delete();
 

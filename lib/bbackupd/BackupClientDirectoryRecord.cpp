@@ -1904,27 +1904,41 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 
 
 		// Check if this is a new upload or continuing an old one
-		SyncResumeInfo &infos = rContext.GetSyncResumeInfo();
-		uint64_t blocksOffset = infos.GetBlockCount(AttributesHash);
-		uint64_t bytesOffset = 0;
+		SyncResumeInfo &resumeInfos = rContext.GetSyncResumeInfo();
+		uint64_t blocksOffset = resumeInfos.GetBlocksCount(AttributesHash);
 		printf("blocksOffset: %llu\n", blocksOffset);
+		uint64_t resumeBytesOffset = 0;
+
 		if(blocksOffset > 1 ) {
 			// we may have a to resume
 			
-			// we want the last successfully sent block
-			bytesOffset = apStreamToUpload->SeekToBlockOffset(blocksOffset);
-			printf("bytesOffset: %llu\n", bytesOffset);
-			// prepare the resume on the server
-			// std::auto_ptr<BackupProtocolSuccess> resume(connection.QueryPrepareResumeSync(mObjectID, AttributesHash, apWrappedStream->GetAbsolutePosition()));
-			// if(resume->GetSuccess() == false) {
-			// 	apWrappedStream.reset(new BufferedStream(
-			// 		*apStreamToUpload));
-			// }
+			try {
+				// we want the last successfully sent block
+				BOX_NOTICE("Trying to resume backup. Seeking to block " << blocksOffset - 1);
+				resumeBytesOffset = apStreamToUpload->SeekToBlockOffset(blocksOffset - 1);
+				BOX_NOTICE(resumeBytesOffset << " bytes possibly sent already")
+			} catch (BoxException &e) {
+				// we can't seek to the block, so we have to start from the beginning
+				BOX_ERROR("Failed to seek to resume block. Starting from the beginning");
+				resumeInfos.Clear();
 
+				return UploadFile(
+					rParams,
+					rLocalPath,
+					rNonVssFilePath,
+					rRemotePath,
+					rStoreFilename,
+					FileSize,
+					ModificationTime,
+					AttributesHash,
+					NoPreviousVersionOnServer);
+			
+			}
+			
 
 		} else {
-			infos.Clear();
-			infos.WriteAttributes(AttributesHash);
+			resumeInfos.Clear();
+			resumeInfos.SetAttributes(AttributesHash);
 
 		}
 
@@ -1932,15 +1946,17 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 		// Send to store
 		std::auto_ptr<BackupProtocolSuccess> stored(
 			connection.QueryStoreFileWithResume(mObjectID, ModificationTime,
-				AttributesHash, diffFromID, bytesOffset, rStoreFilename,
+				AttributesHash, diffFromID, resumeBytesOffset, rStoreFilename,
 				apWrappedStream));
-	 
 		rContext.SetNiceMode(false);
 
 		// Get object ID from the result
 		objID = stored->GetObjectID();
 		uploadedSize = apStreamToUpload->GetTotalBytesSent();
-	}
+
+		// done with the resume
+		resumeInfos.Clear();
+	} 
 	catch(BoxException &e)
 	{
 		rContext.UnManageDiffProcess();
@@ -1953,17 +1969,39 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 			int type, subtype;
 			if(connection.GetLastError(type, subtype))
 			{
-				if(type == BackupProtocolError::ErrorType
-				&& subtype == BackupProtocolError::Err_StorageLimitExceeded)
+				if(type == BackupProtocolError::ErrorType)
 				{
-					// The hard limit was exceeded on the server, notify!
-					rParams.mrSysadminNotifier.NotifySysadmin(
-						SysadminNotifier::StoreFull);
-					// return an error code instead of
-					// throwing an exception that we
-					// can't debug.
-					return 0;
+					switch(subtype)
+					{
+						case BackupProtocolError::Err_StorageLimitExceeded:
+							// The hard limit was exceeded on the server, notify!
+							rParams.mrContext.SetStorageLimitExceeded();
+							rParams.mrSysadminNotifier.NotifySysadmin(
+								SysadminNotifier::StoreFull);
+							break;
+
+						case BackupProtocolError::Err_CannotResumeUpload:
+							BOX_ERROR("Failed to resume backup. Starting from the beginning");
+
+							// we failed to upload the file, so we have to start from the beginning
+							rContext.GetSyncResumeInfo().Clear();
+
+							return UploadFile(
+								rParams,
+								rLocalPath,
+								rNonVssFilePath,
+								rRemotePath,
+								rStoreFilename,
+								FileSize,
+								ModificationTime,
+								AttributesHash,
+								NoPreviousVersionOnServer);
+					}
 				}
+
+
+
+				
 				rNotifier.NotifyFileUploadServerError(this,
 					rNonVssFilePath, type, subtype);
 			}

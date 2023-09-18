@@ -3,31 +3,34 @@
 #include "BackupStoreFileResumeInfo.h"
 #include "BackupStoreException.h"
 #include "autogen_BackupStoreException.h"
+#include "RaidFileController.h"
 
 #include "FileStream.h"
 
-void BackupStoreResumeFileInfo::Set(BackupStoreResumeInfos &infos) {
-
-    if(mInfos == NULL) {
-        mInfos = new BackupStoreResumeInfos(infos);
-    } else {
-        *mInfos = infos;
-    }
-
-    FileStream resume(mFilePath.c_str(), O_BINARY | O_RDWR | O_CREAT);
-
-    int64_t val = infos.GetAttributesHash();
-    resume.Write(&val, sizeof(val));
-    resume.Write(infos.GetFilePath().c_str(), infos.GetFilePath().size());
+void BackupStoreResumeFileInfo::Set(BackupStoreResumeInfos *infos)
+{
+    mInfos = infos;
+  
+    // and write it to disk
+    FileStream resume(mFilePath.c_str(), O_BINARY | O_RDWR | O_CREAT | O_TRUNC);
+    int64_t oid = infos->GetObjectID();
+    resume.Write(&oid, sizeof(oid));
+    int64_t attrs = infos->GetAttributesHash();
+    resume.Write(&attrs, sizeof(attrs));
+    resume.Write(infos->GetFilePath().c_str(), infos->GetFilePath().size());
     resume.Close();
 }
 	
 
-BackupStoreResumeInfos* BackupStoreResumeFileInfo::Get() {
+BackupStoreResumeInfos* BackupStoreResumeFileInfo::Get()
+{
 
    if(mInfos == NULL)
    {
         FileStream resume(mFilePath.c_str());
+
+        int64_t oid ;
+        resume.Read(&oid, sizeof(oid));
 
         int64_t attrs;
         resume.Read(&attrs, sizeof(attrs));
@@ -35,25 +38,27 @@ BackupStoreResumeInfos* BackupStoreResumeFileInfo::Get() {
         std::string filePath;	
         char buf[256];
         int nread;
-        while ((nread = resume.Read(buf, sizeof(buf))) > 0) {
+        while ((nread = resume.Read(buf, sizeof(buf))) > 0)
+        {
             filePath.append(buf, nread);
         }
 
-        mInfos = new BackupStoreResumeInfos(filePath, attrs);
+        mInfos = new BackupStoreResumeInfos(filePath, oid, attrs);
     }
 
     return mInfos;
 }
 
-#include <iostream>
-#include "RaidFileController.h"
-int64_t BackupStoreResumeFileInfo::GetFileToBeResumedSize(BackupStoreContext *Context, int64_t AttributesHash) {
+int64_t BackupStoreResumeFileInfo::GetFileToBeResumedSize(BackupStoreContext *Context, int64_t ObjectID, int64_t AttributesHash)
+{
     BackupStoreResumeInfos* infos = Get();
 
-    if (AttributesHash == infos->GetAttributesHash()) {
-
+    if(ObjectID == infos->GetObjectID() && AttributesHash == infos->GetAttributesHash())
+    {
+        // infos match, check if file exists
         EMU_STRUCT_STAT st;
-        if (EMU_LSTAT(infos->GetFilePath().c_str(), &st) == 0) {
+        if(EMU_LSTAT(infos->GetFilePath().c_str(), &st) == 0)
+        {
             // file exists, we may be able to resume
             // Get store info from context
             const BackupStoreInfo &rinfo(Context->GetBackupStoreInfo());
@@ -61,25 +66,27 @@ int64_t BackupStoreResumeFileInfo::GetFileToBeResumedSize(BackupStoreContext *Co
             // Find block size
             RaidFileController &rcontroller(RaidFileController::GetController());
             RaidFileDiscSet &rdiscSet(rcontroller.GetDiscSet(rinfo.GetDiscSetNumber()));
-
-	
             return st.st_size;
-        } else {
-            Delete();
-            THROW_EXCEPTION(BackupStoreException, BackupStoreException::OSFileError);
+        } 
+        else
+        {
+            THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
         }
-    } else {
-        Delete();
-        THROW_EXCEPTION(BackupStoreException, AttributesNotUnderstood);
+    } 
+    else
+    {
+        THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
     }
     
 }
 
-void BackupStoreResumeFileInfo::Delete() {
-    ::unlink(mFilePath.c_str());
+void BackupStoreResumeFileInfo::Delete()
+{
+    EMU_UNLINK(mFilePath.c_str());
 }
 
-std::string BackupStoreResumeFileInfo::GetFilePath() {
+std::string BackupStoreResumeFileInfo::GetFilePath()
+{
     BackupStoreResumeInfos* infos = Get();
     return infos->GetFilePath();
 }

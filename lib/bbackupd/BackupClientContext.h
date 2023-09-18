@@ -28,48 +28,60 @@ class BackupStoreFilenameClear;
 
 #include <string>
 
-class SyncResumeInfo: public FileStream {
+class SyncResumeInfo: public FileStream
+{
+	private:
+		uint64_t mAttributesHash;
+		uint64_t mBlocksCount;
+
 	public: 
-		SyncResumeInfo(std::string filename): FileStream(filename, (O_RDWR | O_BINARY | O_CREAT)) {};
+		SyncResumeInfo(std::string filename): FileStream(filename, (O_RDWR | O_BINARY | O_CREAT)), mAttributesHash(0), mBlocksCount(0)
+		{
+			try
+			{
+				Read(&mAttributesHash, sizeof(mAttributesHash));
+				Read(&mBlocksCount, sizeof(mBlocksCount));
+			}
+			catch(...)
+			{
+				// ignore
+			}
+
+		};
 		
-		void WriteAttributes(uint64_t AttributesHash) {
+		void SetAttributes(uint64_t AttributesHash)
+		{
+			mAttributesHash = AttributesHash;
 			Seek(0, IOStream::SeekType_Absolute);
 			Write(&AttributesHash, sizeof(AttributesHash));
 		}
 
-		bool AttributesMatch(uint64_t AttributesHash) {
-			return AttributesHash == GetAttributes();
-		}
-
-		uint64_t GetAttributes() {
-			Seek(0, IOStream::SeekType_Absolute);
-			uint64_t attributesHash;
-			Read(&attributesHash, sizeof(attributesHash));
-			return attributesHash;
-		}
-
-		void WriteBlockCount(uint64_t BlockCount) {
-			Seek(sizeof(uint64_t), IOStream::SeekType_Absolute);
-			Write(&BlockCount, sizeof(BlockCount));
-		}
-
-		uint64_t GetBlockCount(uint64_t AttributesHash) 
+		bool AttributesMatch(uint64_t AttributesHash)
 		{
-			uint64_t blocksCount = 0;
-			Seek(0, IOStream::SeekType_Absolute);
-			uint64_t attributesHash;
-			Read(&attributesHash, sizeof(attributesHash));
-			if(attributesHash == AttributesHash) {
-				Read(&blocksCount, sizeof(blocksCount));
-				
-			}
-			return blocksCount;
+			return AttributesHash == mAttributesHash;
 		}
 
-		void Clear() {
-			uint64_t zero = 0;
-			WriteAttributes(zero);
-			WriteBlockCount(zero);
+		uint64_t GetAttributes()
+		{
+			return mAttributesHash;
+		}
+
+		void SetBlocksCount(uint64_t BlocksCount)
+		{
+			mBlocksCount = BlocksCount;
+			Seek(sizeof(uint64_t), IOStream::SeekType_Absolute);
+			Write(&BlocksCount, sizeof(BlocksCount));
+		}
+
+		uint64_t GetBlocksCount(uint64_t AttributesHash) 
+		{
+			return AttributesMatch(AttributesHash) ? mBlocksCount : 0;
+		}
+
+		void Clear()
+		{
+			SetAttributes(0);
+			SetBlocksCount(0);
 		}
 
 };

@@ -467,29 +467,6 @@ int64_t BackupStoreContext::AllocateObjectID()
 }
 
 
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupStoreContext::IsFileToBeResumed(int64_t, int64_t &)
-//		Purpose: Check if the upload can be resumed, set the corresponding offset 
-//           and return true if the resume can take place
-//		Created: 2003/09/03
-//
-// --------------------------------------------------------------------------
-bool BackupStoreContext::IsFileToBeResumed(int64_t AttributesHash, int64_t &offset) {
-	
-	try {
-		BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
-		offset = resume.GetFileToBeResumedSize(this, AttributesHash);
-	} catch(BoxException &e) {
-		offset = -1;
-		return false;
-	}
-
-	return true;
-}
-
-
 
 int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	int64_t ModificationTime, int64_t AttributesHash,
@@ -534,39 +511,62 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	IOStream::pos_type offset = 0;
 	try
 	{
-		printf("ResumeOffset = %llu\n", ResumeOffset);
 		BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
-		if(ResumeOffset > 0) {
-			// will throw an exception if the file cannot be resumed
-			if( resume.GetFileToBeResumedSize(this, AttributesHash) < ResumeOffset) {
-				resume.Delete();
-				THROW_EXCEPTION(BackupStoreException, CannotResumeFile);
+		if(ResumeOffset > 0) 
+		{
+			BOX_NOTICE("Asked upload file with resume offset of " << ResumeOffset << "B");
+
+			uint64_t bytesOffset = 0;
+			try 
+			{
+				bytesOffset = resume.GetFileToBeResumedSize(this, id, AttributesHash);
+				BOX_NOTICE("Found resume for file " << resume.GetFilePath() << " with size " << bytesOffset);
+			} catch(BoxException &e) {
+				BOX_ERROR("Cannot get resume status on the server for this file.");
 			}
+
+			
+			// will throw an exception if the file cannot be resumed
+			if( bytesOffset < ResumeOffset)
+			{
+				BOX_ERROR("Resume offset requested is higher than the offset found on the server ! Cannot resume.");
+				resume.Delete(); // cleanup for next pass
+				THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
+			}
+
+			BOX_INFO("Going to resume transfert of ObjectID "<< id << " in " << resume.GetFilePath() << " at offset " << ResumeOffset);
+
+			
 		}
 
 
 		RaidFileWrite storeFile(mStoreDiscSet, fn);
-		storeFile.Open(false /* no overwriting */, ResumeOffset > 0);
+		storeFile.Open(false /* no overwriting */, ResumeOffset > 0 /* no truncate if resuming*/);
 		storeFile.SetDiscardable(false);
 		int64_t spaceSavedByConversionToPatch = 0;
 
 		// Diff or full file?
 		if(DiffFromFileID == 0)
 		{
-			if(ResumeOffset > 0) {
-				BOX_INFO("Resuming transfert of file " << storeFile.GetTempFilename() << " at offset " << ResumeOffset);
+			if(ResumeOffset > 0)
+			{
+				// resuming...
 				storeFile.Seek(ResumeOffset, IOStream::SeekType_Absolute);
-			} else {
-				BackupStoreResumeInfos infos(storeFile.GetTempFilename(), AttributesHash);
-				resume.Set(infos);
 			}
-
+			else
+			{
+				// preparing for resuming
+				resume.Set(new BackupStoreResumeInfos(storeFile.GetTempFilename(), id, AttributesHash));
+			}
 		
 			// A full file, just store to disc
 			if(!rFile.CopyStreamTo(storeFile, BACKUP_STORE_TIMEOUT))
 			{
 				THROW_EXCEPTION(BackupStoreException, ReadFileFromStreamTimedOut)
 			}
+
+			// transfert is done, delete the resume file
+			resume.Delete();
 		}
 		else
 		{
@@ -587,12 +587,14 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				FileStream diff(tempFn.c_str(), O_RDWR | O_CREAT | O_EXCL);
 				FileStream diff2(tempFn.c_str(), O_RDONLY);
 
-				if(ResumeOffset > 0) {
-					BOX_INFO("Resuming transfert of file " << tempFn.c_str() << " at offset " << ResumeOffset);
+				if(ResumeOffset > 0)
+				{
+					// resuming diff transfert
 					diff.Seek(ResumeOffset, IOStream::SeekType_Absolute);
-				} else {
-					BackupStoreResumeInfos infos(tempFn, AttributesHash);
-					resume.Set(infos);
+				} 
+				else 
+				{
+					resume.Set(new BackupStoreResumeInfos(tempFn, id, AttributesHash));
 				}
 
 				// Stream the incoming diff to this temporary file
@@ -600,6 +602,9 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				{
 					THROW_EXCEPTION(BackupStoreException, ReadFileFromStreamTimedOut)
 				}
+			
+				// transfert is done, delete the resume file
+				resume.Delete();
 
 				// Unlink here as we want to keep the file for resuming
 				if(::unlink(tempFn.c_str()) != 0)
