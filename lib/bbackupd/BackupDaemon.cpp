@@ -1008,16 +1008,10 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
         mStatsHistoryLength=1;  // should at least contains the current sync
 
 
-	if(conf.KeyExists("SyncResumeFile"))
-	{
-		// Load the sync resume info
-		mpSyncResumeInfo = new SyncResumeInfo(conf.GetKeyValue("SyncResumeFile"));
-	}
-	else
-	{
-		// No sync resume file, so create a new one
-		mpSyncResumeInfo = new SyncResumeInfo("/tmp/resume.dat");
-	}
+	// prepare the resume info object
+	std::string resumeFilename(conf.GetKeyValue("DataDirectory") + DIRECTORY_SEPARATOR_ASCHAR);
+	resumeFilename += "resume.dat";
+	mpSyncResumeInfo = new SyncResumeInfo(resumeFilename);
 
 	// Then create a client context object (don't
 	// just connect, as this may be unnecessary)
