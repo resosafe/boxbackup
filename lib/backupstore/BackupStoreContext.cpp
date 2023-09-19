@@ -509,7 +509,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
 	if(ResumeOffset > 0) 
 	{
-		BOX_NOTICE("Asked upload file with resume offset of " << ResumeOffset << "B");
+		BOX_NOTICE("Asked upload file with resume offset of " << ResumeOffset);
 
 		uint64_t bytesOffset = 0;
 		try
@@ -610,7 +610,12 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			try
 			{
 				// Open it twice
-				FileStream diff(tempFn.c_str(), O_RDWR | O_CREAT | O_EXCL);
+				int flags = O_RDWR | O_CREAT;
+				if (ResumeOffset == 0) {
+					flags |= O_TRUNC;
+				}
+
+				FileStream diff(tempFn.c_str(), flags);
 				FileStream diff2(tempFn.c_str(), O_RDONLY);
 
 				if(ResumeOffset > 0)
@@ -691,7 +696,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			catch(...)
 			{
 				// Be very paranoid about deleting this temp file -- we could only leave a zero byte file anyway
-				::unlink(tempFn.c_str());
+				// ::unlink(tempFn.c_str());
 				throw;
 			}
 		}

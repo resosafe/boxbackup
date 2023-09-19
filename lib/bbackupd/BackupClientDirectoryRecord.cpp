@@ -1906,7 +1906,6 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 		// Check if this is a new upload or continuing an old one
 		SyncResumeInfo &resumeInfos = rContext.GetSyncResumeInfo();
 		uint64_t blocksOffset = resumeInfos.GetBlocksCount(AttributesHash);
-		printf("blocksOffset: %llu\n", blocksOffset);
 		uint64_t resumeBytesOffset = 0;
 
 		if(blocksOffset > 1 ) {
