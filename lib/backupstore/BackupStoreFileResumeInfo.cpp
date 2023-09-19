@@ -74,7 +74,8 @@ int64_t BackupStoreResumeFileInfo::GetFileToBeResumedSize(BackupStoreContext *Co
 
 void BackupStoreResumeFileInfo::Cleanup()
 {
-    try {
+    try
+    {
         Delete();
         EMU_UNLINK(Get()->GetFilePath().c_str());
     }
@@ -87,11 +88,11 @@ void BackupStoreResumeFileInfo::Cleanup()
 
 void BackupStoreResumeFileInfo::Delete()
 {
-    try {
-        EMU_UNLINK(mFilePath.c_str());
-    }
-    catch (...)
+    delete mInfos;
+    mInfos = NULL;
+    int r = EMU_UNLINK(mFilePath.c_str());
+    if(r != 0)
     {
-        // ignore
+        printf("%m\n");
     }
 }

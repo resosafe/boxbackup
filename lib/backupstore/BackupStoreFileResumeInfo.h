@@ -75,7 +75,7 @@ class BackupStoreResumeFileInfo
 
 	public:
 		BackupStoreResumeFileInfo(std::string filePath) {
-			mFilePath = filePath +"/resume.dat";
+			mFilePath = filePath +"resume.dat";
 			mInfos = NULL;
 		}
 		~BackupStoreResumeFileInfo() {
