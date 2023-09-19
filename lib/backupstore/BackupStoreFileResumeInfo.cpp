@@ -49,23 +49,16 @@ BackupStoreResumeInfos* BackupStoreResumeFileInfo::Get()
     return mInfos;
 }
 
-int64_t BackupStoreResumeFileInfo::GetFileToBeResumedSize(BackupStoreContext *Context, int64_t ObjectID, int64_t AttributesHash)
+int64_t BackupStoreResumeFileInfo::GetFileToBeResumedSize(BackupStoreContext *Context, int64_t AttributesHash)
 {
     BackupStoreResumeInfos* infos = Get();
 
-    if(ObjectID == infos->GetObjectID() && AttributesHash == infos->GetAttributesHash())
+    if(AttributesHash == infos->GetAttributesHash())
     {
         // infos match, check if file exists
         EMU_STRUCT_STAT st;
         if(EMU_LSTAT(infos->GetFilePath().c_str(), &st) == 0)
         {
-            // file exists, we may be able to resume
-            // Get store info from context
-            const BackupStoreInfo &rinfo(Context->GetBackupStoreInfo());
-
-            // Find block size
-            RaidFileController &rcontroller(RaidFileController::GetController());
-            RaidFileDiscSet &rdiscSet(rcontroller.GetDiscSet(rinfo.GetDiscSetNumber()));
             return st.st_size;
         } 
         else
@@ -80,13 +73,28 @@ int64_t BackupStoreResumeFileInfo::GetFileToBeResumedSize(BackupStoreContext *Co
     
 }
 
-void BackupStoreResumeFileInfo::Delete()
+void BackupStoreResumeFileInfo::Cleanup()
 {
-    EMU_UNLINK(mFilePath.c_str());
+    try {
+        Delete();
+        EMU_UNLINK(Get()->GetFilePath().c_str());
+    }
+    catch (...)
+    {
+        // ignore
+    }
+    
 }
 
-std::string BackupStoreResumeFileInfo::GetFilePath()
+
+void BackupStoreResumeFileInfo::Delete()
 {
-    BackupStoreResumeInfos* infos = Get();
-    return infos->GetFilePath();
+    try {
+        EMU_UNLINK(mFilePath.c_str());
+    }
+    catch (...)
+    {
+        // ignore
+    }
+    
 }

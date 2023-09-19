@@ -493,11 +493,53 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	// and the object ID allocation code is tolerant of missed IDs.
 	// (the info is written lazily, so these are necessary)
 
+
+
+	// Checking the resume before any ID allocation
+	BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
+	if(ResumeOffset > 0) 
+	{
+		BOX_NOTICE("Asked upload file with resume offset of " << ResumeOffset << "B");
+
+		uint64_t bytesOffset = 0;
+		try 
+		{
+			bytesOffset = resume.GetFileToBeResumedSize(this, AttributesHash);
+			BOX_NOTICE("Found resume for file " << resume.GetFilePath() << " with size " << bytesOffset);
+		
+		} catch(BoxException &e) {
+			BOX_ERROR("Cannot get resume status on the server for this file.");
+		}
+
+		
+		// will throw an exception if the file cannot be resumed
+		if( bytesOffset < ResumeOffset)
+		{
+			BOX_ERROR("Resume offset requested is higher than the offset found on the server ! Cannot resume.");
+			resume.Cleanup(); // cleanup for next pass
+			THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
+		}
+
+		BOX_INFO("Going to try resume transfert of " << resume.GetFilePath() << " at offset " << ResumeOffset);
+	}
+
+
 	// Get the directory we want to modify
 	BackupStoreDirectory &dir(GetDirectoryInternal(InDirectory));
 
 	// Allocate the next ID
 	int64_t id = AllocateObjectID();
+
+	// check that the id match the resume file
+	if(ResumeOffset > 0 && id != resume.GetObjectID())
+	{
+		// Ids don't match. We'll lost an allocated ID but that's ok.
+		BOX_ERROR("Resume file ID does not match the ID of the file to be uploaded");
+		resume.Cleanup(); // cleanup for next pass
+		THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
+	}
+
+
 
 	// Stream the file to disc
 	std::string fn;
@@ -509,37 +551,13 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	BackupStoreInfo::Adjustment adjustment = {};
 	bool isVersionned = mapStoreInfo->GetVersionCountLimit()!=1;
 	IOStream::pos_type offset = 0;
+
+
+
+
 	try
 	{
-		BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
-		if(ResumeOffset > 0) 
-		{
-			BOX_NOTICE("Asked upload file with resume offset of " << ResumeOffset << "B");
-
-			uint64_t bytesOffset = 0;
-			try 
-			{
-				bytesOffset = resume.GetFileToBeResumedSize(this, id, AttributesHash);
-				BOX_NOTICE("Found resume for file " << resume.GetFilePath() << " with size " << bytesOffset);
-			} catch(BoxException &e) {
-				BOX_ERROR("Cannot get resume status on the server for this file.");
-			}
-
-			
-			// will throw an exception if the file cannot be resumed
-			if( bytesOffset < ResumeOffset)
-			{
-				BOX_ERROR("Resume offset requested is higher than the offset found on the server ! Cannot resume.");
-				resume.Delete(); // cleanup for next pass
-				THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
-			}
-
-			BOX_INFO("Going to resume transfert of ObjectID "<< id << " in " << resume.GetFilePath() << " at offset " << ResumeOffset);
-
-			
-		}
-
-
+		
 		RaidFileWrite storeFile(mStoreDiscSet, fn);
 		storeFile.Open(false /* no overwriting */, ResumeOffset > 0 /* no truncate if resuming*/);
 		storeFile.SetDiscardable(false);
@@ -603,15 +621,8 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 					THROW_EXCEPTION(BackupStoreException, ReadFileFromStreamTimedOut)
 				}
 			
-				// transfert is done, delete the resume file
-				resume.Delete();
-
-				// Unlink here as we want to keep the file for resuming
-				if(::unlink(tempFn.c_str()) != 0)
-				{
-					THROW_EXCEPTION(CommonException, OSFileError);
-				}
-
+				// transfert is done, delete the temporaty and resume files
+				resume.Cleanup();
 
 				// Verify the diff
 				diff.Seek(0, IOStream::SeekType_Absolute);

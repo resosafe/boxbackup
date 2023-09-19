@@ -316,7 +316,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFile::DoCommand(
 		mModificationTime, mAttributesHash, mDiffFromFileID,
 		mFilename,
 		true /* mark files with same name as old versions */,
-		false /* don't support resuming */);
+		0 /* don't support resuming */);
 
 	// Tell the caller what the file ID was
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(id));
