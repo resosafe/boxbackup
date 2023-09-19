@@ -233,18 +233,7 @@ DeleteFileASAP	37	Command(Success)
 	# will return 0 if the object couldn't be found in the specified directory
 
 
-#PrepareResumeStoreFile	38	Command(Success)
-	#int64		DirectoryObjectID
-	#int64		AttributesHash
-	#int64		ResumeOffset
-	# will return the temporary file offset 
-
-
-#FileToBeResumed 39 Reply
-#	int64 		Offset
-
-
-StoreFileWithResume	40	Command(Success)	StreamWithCommand
+StoreFileWithResume	38	Command(Success)	StreamWithCommand
 	int64		DirectoryObjectID
 	int64		ModificationTime
 	int64		AttributesHash
