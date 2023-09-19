@@ -467,7 +467,17 @@ int64_t BackupStoreContext::AllocateObjectID()
 }
 
 
-
+// --------------------------------------------------------------------------
+//
+// Function
+//             Name:    BackupStoreContext::AddFile(IOStream &, int64_t,
+//                      int64_t, int64_t, const BackupStoreFilename &, bool, uint64_t)
+//             Purpose: Add a file to the store, from a given stream, into
+//                      a specified directory. Returns object ID of the new
+//                      file.
+//             Created: 2003/09/03
+//
+// --------------------------------------------------------------------------
 int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	int64_t ModificationTime, int64_t AttributesHash,
 	int64_t DiffFromFileID, const BackupStoreFilename &rFilename,
@@ -502,16 +512,14 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		BOX_NOTICE("Asked upload file with resume offset of " << ResumeOffset << "B");
 
 		uint64_t bytesOffset = 0;
-		try 
+		try
 		{
 			bytesOffset = resume.GetFileToBeResumedSize(this, AttributesHash);
 			BOX_NOTICE("Found resume for file " << resume.GetFilePath() << " with size " << bytesOffset);
-		
 		} catch(BoxException &e) {
 			BOX_ERROR("Cannot get resume status on the server for this file.");
 		}
 
-		
 		// will throw an exception if the file cannot be resumed
 		if( bytesOffset < ResumeOffset)
 		{
@@ -557,8 +565,8 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 
 	try
 	{
-		
 		RaidFileWrite storeFile(mStoreDiscSet, fn);
+
 		storeFile.Open(false /* no overwriting */, ResumeOffset > 0 /* no truncate if resuming*/);
 		storeFile.SetDiscardable(false);
 		int64_t spaceSavedByConversionToPatch = 0;
@@ -576,7 +584,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				// preparing for resuming
 				resume.Set(new BackupStoreResumeInfos(storeFile.GetTempFilename(), id, AttributesHash));
 			}
-		
+
 			// A full file, just store to disc
 			if(!rFile.CopyStreamTo(storeFile, BACKUP_STORE_TIMEOUT))
 			{
@@ -609,8 +617,8 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				{
 					// resuming diff transfert
 					diff.Seek(ResumeOffset, IOStream::SeekType_Absolute);
-				} 
-				else 
+				}
+				else
 				{
 					resume.Set(new BackupStoreResumeInfos(tempFn, id, AttributesHash));
 				}
@@ -731,7 +739,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		{
 			// Error! Delete the file
 			RaidFileWrite del(mStoreDiscSet, fn);
-			//del.Delete();
+			del.Delete();
 
 			// Exception
 			THROW_EXCEPTION(BackupStoreException, AddedFileDoesNotVerify)

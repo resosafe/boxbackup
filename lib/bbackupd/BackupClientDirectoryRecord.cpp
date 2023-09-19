@@ -1911,7 +1911,7 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 
 		if(blocksOffset > 1 ) {
 			// we may have a to resume
-			
+
 			try {
 				// we want the last successfully sent block
 				BOX_NOTICE("Trying to resume backup. Seeking to block " << blocksOffset - 1);
@@ -1932,9 +1932,8 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 					ModificationTime,
 					AttributesHash,
 					NoPreviousVersionOnServer);
-			
+
 			}
-			
 
 		} else {
 			resumeInfos.Clear();
@@ -1942,7 +1941,6 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 
 		}
 
-		
 		// Send to store
 		std::auto_ptr<BackupProtocolSuccess> stored(
 			connection.QueryStoreFileWithResume(mObjectID, ModificationTime,
@@ -1956,7 +1954,7 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 
 		// done with the resume
 		resumeInfos.Clear();
-	} 
+	}
 	catch(BoxException &e)
 	{
 		rContext.UnManageDiffProcess();
@@ -1999,9 +1997,6 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 					}
 				}
 
-
-
-				
 				rNotifier.NotifyFileUploadServerError(this,
 					rNonVssFilePath, type, subtype);
 			}

@@ -10,7 +10,7 @@
 void BackupStoreResumeFileInfo::Set(BackupStoreResumeInfos *infos)
 {
     mInfos = infos;
-  
+
     // and write it to disk
     FileStream resume(mFilePath.c_str(), O_BINARY | O_RDWR | O_CREAT | O_TRUNC);
     int64_t oid = infos->GetObjectID();
@@ -20,7 +20,7 @@ void BackupStoreResumeFileInfo::Set(BackupStoreResumeInfos *infos)
     resume.Write(infos->GetFilePath().c_str(), infos->GetFilePath().size());
     resume.Close();
 }
-	
+
 
 BackupStoreResumeInfos* BackupStoreResumeFileInfo::Get()
 {
@@ -35,7 +35,7 @@ BackupStoreResumeInfos* BackupStoreResumeFileInfo::Get()
         int64_t attrs;
         resume.Read(&attrs, sizeof(attrs));
 
-        std::string filePath;	
+        std::string filePath;
         char buf[256];
         int nread;
         while ((nread = resume.Read(buf, sizeof(buf))) > 0)
@@ -60,17 +60,16 @@ int64_t BackupStoreResumeFileInfo::GetFileToBeResumedSize(BackupStoreContext *Co
         if(EMU_LSTAT(infos->GetFilePath().c_str(), &st) == 0)
         {
             return st.st_size;
-        } 
+        }
         else
         {
             THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
         }
-    } 
+    }
     else
     {
         THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
     }
-    
 }
 
 void BackupStoreResumeFileInfo::Cleanup()
@@ -83,7 +82,6 @@ void BackupStoreResumeFileInfo::Cleanup()
     {
         // ignore
     }
-    
 }
 
 
@@ -96,5 +94,4 @@ void BackupStoreResumeFileInfo::Delete()
     {
         // ignore
     }
-    
 }

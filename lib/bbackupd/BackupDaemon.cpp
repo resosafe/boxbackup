@@ -1012,8 +1012,8 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
 	{
 		// Load the sync resume info
 		mpSyncResumeInfo = new SyncResumeInfo(conf.GetKeyValue("SyncResumeFile"));
-	} 
-	else 
+	}
+	else
 	{
 		// No sync resume file, so create a new one
 		mpSyncResumeInfo = new SyncResumeInfo("/tmp/resume.dat");

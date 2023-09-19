@@ -34,7 +34,7 @@ class SyncResumeInfo: public FileStream
 		uint64_t mAttributesHash;
 		uint64_t mBlocksCount;
 
-	public: 
+	public:
 		SyncResumeInfo(std::string filename): FileStream(filename, (O_RDWR | O_BINARY | O_CREAT)), mAttributesHash(0), mBlocksCount(0)
 		{
 			try
@@ -48,7 +48,7 @@ class SyncResumeInfo: public FileStream
 			}
 
 		};
-		
+
 		void SetAttributes(uint64_t AttributesHash)
 		{
 			mAttributesHash = AttributesHash;
@@ -73,7 +73,7 @@ class SyncResumeInfo: public FileStream
 			Write(&BlocksCount, sizeof(BlocksCount));
 		}
 
-		uint64_t GetBlocksCount(uint64_t AttributesHash) 
+		uint64_t GetBlocksCount(uint64_t AttributesHash)
 		{
 			return AttributesMatch(AttributesHash) ? mBlocksCount : 0;
 		}
@@ -271,8 +271,8 @@ public:
 		return mrProgressNotifier;
 	}
 	
-	SyncResumeInfo& GetSyncResumeInfo() const 
-	{ 
+	SyncResumeInfo& GetSyncResumeInfo() const
+	{
 		return mrSyncResumeInfo;
 	}
 

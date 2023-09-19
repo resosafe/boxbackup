@@ -248,10 +248,10 @@ StoreFileWithResume	38	Command(Success)	StreamWithCommand
 #  Information commands
 # -------------------------------------------------------------------------------------
 
-GetAccountUsage	50	Command(AccountUsage)
+GetAccountUsage	40	Command(AccountUsage)
 	# no data members
 
-AccountUsage	51	Reply
+AccountUsage	41	Reply
 	int64	BlocksUsed
 	int64	BlocksInOldFiles
 	int64	BlocksInDeletedFiles
@@ -260,16 +260,16 @@ AccountUsage	51	Reply
 	int64	BlocksHardLimit
 	int32	BlockSize
 
-GetIsAlive	52	Command(IsAlive)
+GetIsAlive	42	Command(IsAlive)
 	# no data members
 
-IsAlive	53	Reply
+IsAlive	43	Reply
 	# no data members
 
-GetAccountUsage2	54	Command(AccountUsage2)
+GetAccountUsage2	44	Command(AccountUsage2)
 	# no data members
 
-AccountUsage2	55	Reply
+AccountUsage2	4q5	Reply
 	String	AccountName
 	bool	AccountEnabled
 	int64	ClientStoreMarker

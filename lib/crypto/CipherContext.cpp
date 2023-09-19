@@ -603,12 +603,9 @@ const void *CipherContext::SetRandomIV(int &rLengthOut)
 		THROW_EXCEPTION(CipherException, IVSizeImplementationLimitExceeded)
 	}
 	
-	
 	// Generate some random data
 	Random::Generate(mGeneratedIV, ivLen);
 	SetIV(mGeneratedIV);
-
-	
 
 	// Return the IV and it's length
 	rLengthOut = ivLen;

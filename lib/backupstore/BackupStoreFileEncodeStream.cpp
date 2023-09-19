@@ -325,7 +325,6 @@ void BackupStoreFileEncodeStream::CalculateBlockSizes(int64_t DataSize, int64_t 
 }
 
 
-#include <iostream>
 // --------------------------------------------------------------------------
 //
 // Function
@@ -373,7 +372,6 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 			// Send bytes from the data buffer
 			int b = mData.Read(buffer, bytesToRead, Timeout);
 			bytesToRead -= b;
-		
 			buffer += b;
 
 			// Check to see if all the data has been used from this stream
@@ -472,8 +470,6 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 
 				// Update variables
 				bytesToRead -= s;
-			
-
 				buffer += s;
 				mPositionInCurrentBlock += s;
 			}
@@ -728,7 +724,7 @@ uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
 
 
 	while(mCurrentBlock < BlockOffset && mStatus == Status_Blocks)
-	{	
+	{
 		// Next block!
 		++mCurrentBlock;
 		++mAbsoluteBlockNumber;
@@ -770,7 +766,7 @@ uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
 			EncodeCurrentBlock();
 			totalBytes += mCurrentBlockEncodedSize;
 			mPositionInCurrentBlock = mCurrentBlockEncodedSize = 0;
-		} 	
+		}
 	}
 
 	// some stats
@@ -778,9 +774,8 @@ uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
 	BackupStoreFile::msStats.mBytesAlreadyOnServer = totalBytes;
 
 	mTotalBytesSent = totalBytes;
-		
+
 	return totalBytes;
-				
 }
 
 // --------------------------------------------------------------------------
