@@ -956,13 +956,23 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 		// Iterate through directory, only looking at files which haven't been deleted
 		BackupStoreDirectory::Iterator i(dir);
 		BackupStoreDirectory::Entry *e = 0;
-		while((e = i.Next(BackupStoreDirectory::Entry::Flags_File,
-			BackupStoreDirectory::Entry::Flags_Deleted)) != 0)
+		while((e = i.Next(BackupStoreDirectory::Entry::Flags_File)) != 0)
 		{
 			// Compare name
 			if(e->GetName() == rFilename)
 			{
-				// Check that it's definately not already deleted
+
+				// if the file is already deleted, we may want to flag it as remove ASAP
+				if( e->IsDeleted() ) {
+					if ( RemoveASAP && !e->IsRemoveASAP() ) {
+						e->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
+						madeChanges = true;
+					}
+
+					continue;
+				}
+
+
 				ASSERT(!e->IsDeleted());
 				// Set deleted flag
 				e->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);

@@ -229,6 +229,11 @@ public:
 			ASSERT(!mInvalidated); // Compiled out of release builds
 			return GetFlags() & Flags_Deleted;
 		}
+		bool inline IsRemoveASAP()
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			return GetFlags() & Flags_RemoveASAP;
+		}
 		bool inline MatchesFlags(int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet)
 		{
 			ASSERT(!mInvalidated); // Compiled out of release builds
