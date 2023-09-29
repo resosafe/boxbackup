@@ -269,7 +269,7 @@ IsAlive	43	Reply
 GetAccountUsage2	44	Command(AccountUsage2)
 	# no data members
 
-AccountUsage2	4q5	Reply
+AccountUsage2	45	Reply
 	String	AccountName
 	bool	AccountEnabled
 	int64	ClientStoreMarker
