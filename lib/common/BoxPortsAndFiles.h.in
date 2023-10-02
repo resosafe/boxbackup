@@ -40,11 +40,11 @@ const int BOX_DEFAULT_SSL_SECURITY_LEVEL = -1;
 	#define BOX_FILE_RAIDFILE_OLD_CONFIG "@sysconfdir_expanded@/box/raidfile.conf"
 	#define BOX_FILE_BBSTORED_OLD_CONFIG "@sysconfdir_expanded@/box/bbstored.conf"
 	#define BOX_GET_DEFAULT_BBACKUPD_CONFIG_FILE \
-		std::string("@sysconfdir_expanded@/boxbackup/bbackupd.conf")
+		std::string("@sysconfdir_expanded@/boxbackup/boxbackup-client/bbackupd.conf")
 	#define BOX_GET_DEFAULT_RAIDFILE_CONFIG_FILE \
-		std::string("@sysconfdir_expanded@/boxbackup/raidfile.conf")
+		std::string("@sysconfdir_expanded@/boxbackup/boxbackup-server/raidfile.conf")
 	#define BOX_GET_DEFAULT_BBSTORED_CONFIG_FILE \
-		std::string("@sysconfdir_expanded@/boxbackup/bbstored.conf")
+		std::string("@sysconfdir_expanded@/boxbackup/boxbackup-server/bbstored.conf")
 #endif
 
 #endif // BOXPORTSANDFILES__H
