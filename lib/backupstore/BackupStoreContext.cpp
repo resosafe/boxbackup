@@ -1559,7 +1559,7 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 //		Created: 2003/09/06
 //
 // --------------------------------------------------------------------------
-void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime)
+void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime, int64_t ModificationTime)
 {
 	if(mapStoreInfo.get() == 0)
 	{
@@ -1577,6 +1577,18 @@ void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const Streamable
 
 		// Set attributes
 		dir.SetAttributes(Attributes, AttributesModTime);
+		
+		if (ModificationTime != 0) {
+				int64_t ContainerID = dir.GetContainerID();
+				BackupStoreDirectory& parent(
+					GetDirectoryInternal(ContainerID));
+			
+				BackupStoreDirectory::Entry* en =
+					parent.FindEntryByID(Directory);
+
+				en->SetModificationTime(ModificationTime);
+				std::cout << "Set modification time to " << ModificationTime << std::endl;
+		}
 
 		// Save back
 		SaveDirectory(dir);

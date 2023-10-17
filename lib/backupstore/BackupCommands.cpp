@@ -632,6 +632,33 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolChangeDirAttributes::DoComman
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(mObjectID));
 }
 
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolChangeDirAttributes2::DoCommand(Protocol &, BackupStoreContext &)
+//		Purpose: Change attributes on directory with modification time
+//		Created: 2003/09/06
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolChangeDirAttributes2::DoCommand(
+	BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext,
+	IOStream& rDataStream) const
+{
+	CHECK_PHASE(Phase_Commands)
+	CHECK_WRITEABLE_SESSION
+
+	// Collect the attributes -- do this now so no matter what the outcome,
+	// the data has been absorbed.
+	StreamableMemBlock attr;
+	attr.Set(rDataStream, rProtocol.GetTimeout());
+
+	// Get the context to do it's magic
+	rContext.ChangeDirAttributes(mObjectID, attr, mAttributesModTime, mModTime);
+
+	// Tell the caller what the file was
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(mObjectID));
+}
+
 
 // --------------------------------------------------------------------------
 //

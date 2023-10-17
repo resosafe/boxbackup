@@ -158,17 +158,22 @@ ChangeDirAttributes	22	Command(Success)	StreamWithCommand
 	int64		AttributesModTime
 	# stream following containing attributes
 
+ChangeDirAttributes2	23	Command(Success)	StreamWithCommand
+	int64		ObjectID
+	int64		AttributesModTime
+	int64       ModTime
+	# stream following containing attributes
 
-DeleteDirectory	23	Command(Success)
+DeleteDirectory	24	Command(Success)
 	int64		ObjectID
 
 
-UndeleteDirectory	24	Command(Success)
+UndeleteDirectory	25	Command(Success)
 	int64		ObjectID
 	# may not have exactly the desired effect if files within in have been deleted before the directory was deleted.
 
 
-DeleteDirectoryASAP	25	Command(Success)
+DeleteDirectoryASAP	26	Command(Success)
 	int64		ObjectID
 
 

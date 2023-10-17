@@ -367,7 +367,14 @@ void BackupClientDirectoryRecord::SyncDirectory(
 
 		if(download_dir)
 		{
+			std::cout << "Downloading directory listing of " << local_path_non_vss <<
+				" (" << BOX_FORMAT_OBJECTID(mObjectID) << ")" << std::endl;
 			apDirOnStore = FetchDirectoryListing(rParams);
+
+			BackupClientFileAttributes storeAttr(apDirOnStore->GetAttributes());
+			box_time_t t;
+			storeAttr.GetModificationTimes(&t, 0);
+			std::cout<< "1 TIME "<<t<<std::endl; 
 		}
 
 		// Make sure the attributes are up to date -- if there's space
@@ -378,6 +385,9 @@ void BackupClientDirectoryRecord::SyncDirectory(
 		if((!ThisDirHasJustBeenCreated) && checksumDifferent &&
 			!rParams.mrContext.StorageLimitExceeded())
 		{
+			std::cout << "Updating attributes of " << local_path_non_vss <<
+				" (" << BOX_FORMAT_OBJECTID(mObjectID) << " because they "
+				"have changed locally" << std::endl;
 			UpdateAttributes(rParams, apDirOnStore.get(), rLocalPath);
 		}
 		
@@ -699,6 +709,7 @@ BackupClientDirectoryRecord::FetchDirectoryListing(
 //		Created: 2003/10/09
 //
 // --------------------------------------------------------------------------
+#include <iostream>
 void BackupClientDirectoryRecord::UpdateAttributes(
 	BackupClientDirectoryRecord::SyncParams &rParams,
 	BackupStoreDirectory *pDirOnStore,
@@ -707,9 +718,15 @@ void BackupClientDirectoryRecord::UpdateAttributes(
 	// Get attributes for the directory
 	BackupClientFileAttributes attr;
 	box_time_t attrModTime = 0;
-	attr.ReadAttributes(rLocalPath.c_str(), true /* directories have zero mod times */,
-		0 /* no modification time */, &attrModTime);
+	box_time_t modTime = 0;
+	attr.ReadAttributes(rLocalPath.c_str(), false,
+		&modTime, &attrModTime);
+std::cout << "rLocalPath " << rLocalPath << std::endl;
 
+
+box_time_t modTime2 = 0;
+attr.GetModificationTimes(&modTime2, 0);
+std::cout << "modTime 2 "<< modTime2 << std::endl;
 	// Assume attributes need updating, unless proved otherwise
 	bool updateAttr = true;
 
@@ -720,10 +737,11 @@ void BackupClientDirectoryRecord::UpdateAttributes(
 		const StreamableMemBlock &storeAttrEnc(pDirOnStore->GetAttributes());
 		// Explict decryption
 		BackupClientFileAttributes storeAttr(storeAttrEnc);
-		
+		box_time_t t;
+		storeAttr.GetModificationTimes(&t, 0);
+		std::cout << "storeAttr date " << rLocalPath << " " << t << std::endl;
 		// Compare the attributes
-		if(attr.Compare(storeAttr, true,
-			true /* ignore both modification times */))
+		if(attr.Compare(storeAttr, true, false))
 		{
 			// No update necessary
 			updateAttr = false;
@@ -738,7 +756,9 @@ void BackupClientDirectoryRecord::UpdateAttributes(
 
 		// Exception thrown if this doesn't work
 		std::auto_ptr<IOStream> attrStream(new MemBlockStream(attr));
-		connection.QueryChangeDirAttributes(mObjectID, attrModTime, attrStream);
+		std::cout << "Updating attributes of " << rLocalPath <<
+			" (" << modTime << std::endl;
+		connection.QueryChangeDirAttributes2(mObjectID, attrModTime, modTime, attrStream);
 	}
 }
 
@@ -814,6 +834,14 @@ bool BackupClientDirectoryRecord::UpdateItems(
 				filenameClear = DecryptFilename(en,
 					rRemotePath);
 				decryptedEntries[filenameClear] = en;
+
+				std::cout << "DecryptFilename " << filenameClear << std::endl;		
+				const StreamableMemBlock &storeAttrEnc(en->GetAttributes());
+
+					// BackupClientFileAttributes storeAttr(storeAttrEnc);
+		// box_time_t t;
+		// storeAttr.GetModificationTimes(&t, 0);
+		// std::cout << "2 TIME "<<t<<std::endl;
 			}
 			catch (CipherException &e)
 			{
@@ -1610,6 +1638,7 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 {
 	// Get attributes
 	box_time_t attrModTime = 0;
+	box_time_t modTime = 0;
 	InodeRefType inodeNum = 0;
 	BackupClientFileAttributes attr;
 	*pHaveJustCreatedDirOnServer = false;
@@ -1619,7 +1648,7 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 	{
 		attr.ReadAttributes(localDirPath,
 			true /* directories have zero mod times */,
-			0 /* not interested in mod time */,
+			&modTime,
 			&attrModTime, 0 /* not file size */,
 			&inodeNum);
 	}
@@ -1703,8 +1732,8 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 		// Create a new directory
 		try
 		{
-			subDirObjectID = connection.QueryCreateDirectory(
-				mObjectID, attrModTime, storeFilename,
+			subDirObjectID = connection.QueryCreateDirectory2(
+				mObjectID, attrModTime, modTime, storeFilename,
 				attrStream)->GetObjectID();
 			// Flag as having done this for optimisation later
 			*pHaveJustCreatedDirOnServer = true;

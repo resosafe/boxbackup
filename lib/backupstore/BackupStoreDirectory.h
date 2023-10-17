@@ -110,6 +110,11 @@ public:
 			ASSERT(!mInvalidated); // Compiled out of release builds
 			return mModificationTime;
 		}
+		void SetModificationTime(box_time_t NewModificationTime)
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			mModificationTime = NewModificationTime;
+		}
 		int64_t GetObjectID() const
 		{
 			ASSERT(!mInvalidated); // Compiled out of release builds

@@ -319,7 +319,9 @@ static std::string GetTimeString(BackupStoreDirectory::Entry& en,
 	// there is no attribute modification time in the directory
 	// entry, unfortunately, so we can't display it.
 	originalTime = en.GetModificationTime();
-	out << BoxTimeToISO8601String(originalTime, useLocalTime);
+	if( originalTime !=0 ) {
+		out << BoxTimeToISO8601String(originalTime, useLocalTime);
+	}
 
 	if(en.HasAttributes())
 	{
@@ -338,7 +340,10 @@ static std::string GetTimeString(BackupStoreDirectory::Entry& en,
 		{
 			newAttributesTime = NewModificationTime;
 		}
-		
+		if ( originalTime == 0 ) {
+			out << BoxTimeToISO8601String(NewModificationTime, useLocalTime);
+		}
+
 		if (newAttributesTime == originalTime)
 		{
 			out << "*";
@@ -481,6 +486,10 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 	std::vector<BackupStoreDirectory::Entry*> sorted_entries;
 	while((en = i.Next()) != 0)
 	{
+		// BackupClientFileAttributes attrs(en->GetAttributes()); // force attributes to be read
+		// box_time_t t;;
+		// attrs.GetModificationTimes(&t, 0);
+		// std::cout << "MYT TIME" << t << std::endl;
 		sorted_entries.push_back(en);
 	}
 
