@@ -306,19 +306,25 @@ std::string HumanReadableSize(int64_t Bytes)
 	if (readableValue > 1024)
 	{
 		readableValue /= 1024;
-		units = "kB";
+		units = "kiB";
 	}
   
 	if (readableValue > 1024)
 	{
 		readableValue /= 1024;
-		units = "MB";
+		units = "MiB";
 	}
   
 	if (readableValue > 1024)
 	{
 		readableValue /= 1024;
-		units = "GB";
+		units = "GiB";
+	}
+
+	if (readableValue > 1024)
+	{
+		readableValue /= 1024;
+		units = "TiB";
 	}
   
 	std::ostringstream result;
