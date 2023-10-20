@@ -1588,7 +1588,6 @@ void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const Streamable
 
 				en->SetModificationTime(ModificationTime);
 				SaveDirectory(parent);
-				std::cout << "Set modification time to " << ModificationTime << std::endl;
 		}
 
 		// Save back

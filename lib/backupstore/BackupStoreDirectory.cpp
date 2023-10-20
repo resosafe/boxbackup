@@ -498,7 +498,7 @@ BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t 
 }
 
 
-#include <iostream>
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -523,12 +523,12 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
 	// Get the filename
 	BackupStoreFilename name;
 	name.ReadFromStream(rStream, Timeout);
+
 	// Get the attributes
 	mAttributes.ReadFromStream(rStream, Timeout);
 
 	// Store the rest of the bits
 	mModificationTime =		box_ntoh64(entry.mModificationTime);
-	std::cout << "ReadFromStream motTIme " << mModificationTime << std::endl;
 	mObjectID = 			box_ntoh64(entry.mObjectID);
 	mSizeInBlocks = 		box_ntoh64(entry.mSizeInBlocks);
 	mAttributesHash =		box_ntoh64(entry.mAttributesHash);
@@ -536,7 +536,7 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
 	mName =					name;
 }
 
-#include <iostream>
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -551,7 +551,6 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream) const
 	// Build a structure
 	en_StreamFormat entry;
 	entry.mModificationTime = 	box_hton64(mModificationTime);
-	std::cout << "mModificationTime: " << mModificationTime << std::endl;
 	entry.mObjectID = 			box_hton64(mObjectID);
 	entry.mSizeInBlocks = 		box_hton64(mSizeInBlocks);
 	entry.mAttributesHash =		box_hton64(mAttributesHash);
