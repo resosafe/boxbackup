@@ -243,7 +243,7 @@ bool BackupClientFileAttributes::operator==(const BackupClientFileAttributes &rA
 	}
 }*/
 
-#include <iostream>
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -293,9 +293,7 @@ bool BackupClientFileAttributes::Compare(const BackupClientFileAttributes &rAttr
 	if(!IgnoreModTime)
 	{
 		uint64_t t1 = box_ntoh64(a1->ModificationTime);
-		std::cout << "t1: " << t1 << std::endl;
 		uint64_t t2 = box_ntoh64(a2->ModificationTime);
-		std::cout << "t2: " << t2 << std::endl;
 		time_t s1 = BoxTimeToSeconds(t1);
 		time_t s2 = BoxTimeToSeconds(t2);
 		if(s1 != s2)
@@ -747,7 +745,6 @@ void BackupClientFileAttributes::GetModificationTimes(
 	if(pModificationTime)
 	{
 		*pModificationTime = box_ntoh64(pattr->ModificationTime);
-		std::cout << "pModificationTime: " << *pModificationTime << std::endl;
 	}
 	
 	if(pAttrModificationTime)

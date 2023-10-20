@@ -222,6 +222,9 @@ void BackupClientDirectoryRecord::SyncDirectory(
 		// Inode to be paranoid about things moving around
 		currentStateChecksum.Add(&dest_st.st_ino,
 			sizeof(dest_st.st_ino));
+		// Time is important too	
+		currentStateChecksum.Add(&dest_st.st_mtime,
+			sizeof(dest_st.st_mtime));
 #ifdef HAVE_STRUCT_STAT_ST_FLAGS
 		currentStateChecksum.Add(&dest_st.st_flags,
 			sizeof(dest_st.st_flags));
@@ -837,7 +840,6 @@ bool BackupClientDirectoryRecord::UpdateItems(
 
 				std::cout << "DecryptFilename " << filenameClear << std::endl;		
 				const StreamableMemBlock &storeAttrEnc(en->GetAttributes());
-
 					// BackupClientFileAttributes storeAttr(storeAttrEnc);
 		// box_time_t t;
 		// storeAttr.GetModificationTimes(&t, 0);
@@ -1330,6 +1332,7 @@ bool BackupClientDirectoryRecord::UpdateItems(
 		// Check that the entry which might have been found is in fact a directory
 		if((en != 0) && !(en->IsDir()))
 		{
+
 			// Entry exists, but is not a directory. Bad.
 			// Get rid of it.
 			BackupProtocolCallable &connection(rContext.GetConnection());
