@@ -222,7 +222,7 @@ void BackupClientDirectoryRecord::SyncDirectory(
 		// Inode to be paranoid about things moving around
 		currentStateChecksum.Add(&dest_st.st_ino,
 			sizeof(dest_st.st_ino));
-		// Time is important too	
+		// We'll compare the modification time too	
 		currentStateChecksum.Add(&dest_st.st_mtime,
 			sizeof(dest_st.st_mtime));
 #ifdef HAVE_STRUCT_STAT_ST_FLAGS

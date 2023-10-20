@@ -15,13 +15,12 @@
 #include "FileModificationTime.h"
 
 #include "MemLeakFindOn.h"
-#include <iostream>
+
 box_time_t FileModificationTime(const EMU_STRUCT_STAT &st)
 {
 #if defined HAVE_STRUCT_STAT_ST_ATIM
 	box_time_t datamodified = (((int64_t)st.st_mtim.tv_nsec) / NANO_SEC_IN_USEC_LL)
 			+ (((int64_t)st.st_mtim.tv_sec) * (MICRO_SEC_IN_SEC_LL));
-			std::cout << "read file mod" << datamodified << std::endl;
 #elif defined HAVE_STRUCT_STAT_ST_ATIMESPEC
 	box_time_t datamodified = (((int64_t)st.st_mtimespec.tv_nsec) / NANO_SEC_IN_USEC_LL)
 			+ (((int64_t)st.st_mtimespec.tv_sec) * (MICRO_SEC_IN_SEC_LL));
