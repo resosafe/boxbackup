@@ -89,9 +89,9 @@ public:
 	int GetReturnCode() {return mReturnCode;}
 
 	void List(int64_t DirID, const std::string &rListRoot, const bool *opts,
-		bool FirstLevel, std::ostream* pOut = NULL);
+		box_time_t pointInTime, bool FirstLevel,  std::ostream* pOut = NULL);
 	void CommandList(const std::vector<std::string> &args, const bool *opts);
-
+	
 	// Commands
 	void CommandChangeDir(const std::vector<std::string> &args, const bool *opts);
 	void CommandChangeLocalDir(const std::vector<std::string> &args);

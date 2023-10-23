@@ -212,22 +212,53 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 //		Created: 2003/08/26
 //
 // --------------------------------------------------------------------------
-void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, bool StreamAttributes, bool StreamDependencyInfo) const
+#include <iostream>
+#include <map>
+void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo) const
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Get count of entries
-	int32_t count = mEntries.size();
-	if(FlagsMustBeSet != Entry::Flags_INCLUDE_EVERYTHING || FlagsNotToBeSet != Entry::Flags_EXCLUDE_NOTHING)
-	{
-		// Need to count the entries
-		count = 0;
-		Iterator i(*this);
-		while(i.Next(FlagsMustBeSet, FlagsNotToBeSet) != 0)
-		{
-			count++;
-		}
-	}
+	// int32_t count = mEntries.size();
+	std::map<std::string, BackupStoreDirectory::Entry*> entries;
 
+	// if(PointInTime != 0 || FlagsMustBeSet != Entry::Flags_INCLUDE_EVERYTHING || FlagsNotToBeSet != Entry::Flags_EXCLUDE_NOTHING)
+	// {
+	// 	// Need to count the entries
+	// 	count = 0;
+		Iterator i1(*this);
+		Entry *pen = 0;
+		while((pen = i1.Next(Entry::Flags_INCLUDE_EVERYTHING, Entry::Flags_EXCLUDE_NOTHING)) != 0)
+		{
+							std::cout << "1 " << pen->GetModificationTime() << " " << PointInTime << std::endl;
+
+		}
+
+Iterator i(*this);
+		while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
+		{
+							std::cout << "2 " << pen->GetModificationTime() << " " << PointInTime << std::endl;
+
+			if ( PointInTime != 0 ) {
+				std::cout << "3 " << pen->GetModificationTime() << " " << PointInTime << std::endl;
+				if( pen->GetModificationTime() <= PointInTime)  {
+					// store this entry
+					Entry *en = entries[pen->mName.GetEncodedFilename()];
+					if ( en == NULL ) {
+						entries[pen->mName.GetEncodedFilename()] = pen;
+					} else {
+						if ( en->mModificationTime < pen->mModificationTime ) {
+							entries[pen->mName.GetEncodedFilename()] = pen;
+						}
+					}
+				}
+			} else {
+				entries[pen->mName.GetEncodedFilename()] = pen;
+			}
+			// std::cout << "entry: " << BOX_FORMAT_HEX32(pen->mName.GetEncodedFilename()) << " "<<pen->mObjectID << std::endl;
+			// count++;
+		}
+	// }
+std::cout << "count: " << entries.size() << std::endl;
 	// Check that sensible IDs have been set
 	ASSERT(mObjectID != 0);
 	ASSERT(mContainerID != 0);
@@ -236,13 +267,12 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	bool dependencyInfoRequired = false;
 	if(StreamDependencyInfo)
 	{
-		Iterator i(*this);
-		Entry *pen = 0;
-		while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
-		{
+		for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
+			Entry *pen = local_it->second;
 			if(pen->HasDependencies())
 			{
 				dependencyInfoRequired = true;
+				break;
 			}
 		}
 	}
@@ -254,7 +284,7 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	// Build header
 	dir_StreamFormat hdr;
 	hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE);
-	hdr.mNumEntries = htonl(count);
+	hdr.mNumEntries = htonl(entries.size());
 	hdr.mObjectID = box_hton64(mObjectID);
 	hdr.mContainerID = box_hton64(mContainerID);
 	hdr.mAttributesModTime = box_hton64(mAttributesModTime);
@@ -275,20 +305,17 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	}
 
 	// Then write all the entries
-	Iterator i(*this);
-	Entry *pen = 0;
-	while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
-	{
+	for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
+		Entry *pen = local_it->second;
 		pen->WriteToStream(rStream);
 	}
+	
 
 	// Write dependency info?
 	if(dependencyInfoRequired)
 	{
-		Iterator i(*this);
-		Entry *pen = 0;
-		while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
-		{
+		for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
+			Entry *pen = local_it->second;
 			pen->WriteToStreamDependencyInfo(rStream);
 		}
 	}

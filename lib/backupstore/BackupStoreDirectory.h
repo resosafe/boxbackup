@@ -305,6 +305,7 @@ public:
 	void WriteToStream(IOStream &rStream,
 			int16_t FlagsMustBeSet = Entry::Flags_INCLUDE_EVERYTHING,
 			int16_t FlagsNotToBeSet = Entry::Flags_EXCLUDE_NOTHING,
+			box_time_t PointInTime = 0,
 			bool StreamAttributes = true, bool StreamDependencyInfo = true) const;
 			
 	Entry *AddEntry(const Entry &rEntryToCopy);

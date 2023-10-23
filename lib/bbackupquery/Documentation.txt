@@ -29,10 +29,12 @@ All directory names relative to a "current" directory, or from root if they
 start with '/'. The initial directory is always the root directory.
 
 
-> ls [options] [directory-name]
+> ls [options] [timestamp] [directory-name]
 
 	List contents of current directory, or specified directory.
-	
+		
+	-p -- point in time (timestamp must be specified)
+	-i --  directory name is actually an ID
 	-R -- recursively list all files
 	-d -- list deleted files/directories
 	-o -- list old versions of files/directories
@@ -46,7 +48,7 @@ start with '/'. The initial directory is always the root directory.
 	      (only very approximate indication of size locally)
 	-h -- show file attributes hash
 	-D -- sort directories together with files (not dirs first)
-	-i -- sort by object ID (the old default)
+	-O -- sort by object ID (the old default)
 	-S -- sort by object size in blocks
 	-U -- don't sort the results (new default is to sort by name)
 

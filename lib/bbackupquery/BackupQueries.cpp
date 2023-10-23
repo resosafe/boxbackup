@@ -251,11 +251,13 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 	}
 }
 
+#define LIST_OPTION_POINT_IN_TIME   'p'
+#define LIST_OPTION_BY_OBJECT_ID    'i'
 #define LIST_OPTION_TIMES_ATTRIBS	'a'
 #define LIST_OPTION_SORT_NO_DIRS_FIRST	'D'
-#define LIST_OPTION_NOFLAGS		'F'
+#define LIST_OPTION_NOFLAGS		     'F'
 #define LIST_OPTION_DISPLAY_HASH	'h'
-#define LIST_OPTION_SORT_ID		'i'
+#define LIST_OPTION_SORT_ID		    'O'
 #define LIST_OPTION_NOOBJECTID		'I'
 #define LIST_OPTION_SORT_REVERSE	'r'
 #define LIST_OPTION_RECURSIVE		'R'
@@ -277,37 +279,57 @@ void BackupQueries::CommandList(const std::vector<std::string> &args, const bool
 {
 	// default to using the current directory
 	int64_t rootDir = GetCurrentDirectoryID();
+	size_t directoryArgIndex = 0;
 
 	// name of base directory
 	std::string listRoot;	// blank
-
+	box_time_t pointInTime = 0;
 	// Got a directory in the arguments?
-	if(args.size() > 0)
+	if( opts[LIST_OPTION_POINT_IN_TIME] && args.size() > 0 )
 	{
-#ifdef WIN32
-		std::string storeDirEncoded;
-		if(!ConvertConsoleToUtf8(args[0].c_str(), storeDirEncoded))
-			return;
-#else
-		const std::string& storeDirEncoded(args[0]);
-#endif
-	
-		// Attempt to find the directory
-		rootDir = FindDirectoryObjectID(storeDirEncoded,
-			opts[LIST_OPTION_ALLOWOLD],
-			opts[LIST_OPTION_ALLOWDELETED]);
 
-		if(rootDir == 0)
-		{
-			BOX_ERROR("Directory '" << args[0] << "' not found "
-				"on store.");
-			SetReturnCode(ReturnCode::Command_Error);
-			return;
+		pointInTime = ::strtoull(args[0].c_str(), 0, 10);
+		directoryArgIndex = 1;
+	} 
+
+	if( args.size() > directoryArgIndex )
+	{	
+		if( opts[LIST_OPTION_BY_OBJECT_ID] ) {
+			rootDir = ::strtoll(args[directoryArgIndex].c_str(), 0, 16);
+			if(rootDir == std::numeric_limits<long long>::min() || rootDir == std::numeric_limits<long long>::max() || rootDir == 0)
+			{
+				BOX_ERROR("Not a valid object ID (specified in hex): "
+					<< args[directoryArgIndex]);
+				return;
+			}
+		} else {
+
+#ifdef WIN32
+			std::string storeDirEncoded;
+			if(!ConvertConsoleToUtf8(args[directoryArgIndex].c_str(), storeDirEncoded))
+				return;
+#else
+			const std::string& storeDirEncoded(args[directoryArgIndex]);
+#endif
+	std::cout << "storeDirEncoded " << args[directoryArgIndex] << std::endl;
+			// Attempt to find the directory
+			rootDir = FindDirectoryObjectID(storeDirEncoded,
+				opts[LIST_OPTION_ALLOWOLD],
+				opts[LIST_OPTION_ALLOWDELETED]);
+
+			if(rootDir == 0)
+			{
+				BOX_ERROR("Directory '" << args[directoryArgIndex] << "' not found "
+					"on store.");
+				SetReturnCode(ReturnCode::Command_Error);
+				return;
+			}
 		}
 	}
-	
+	std::cout << "Listing dir "<< BOX_FORMAT_OBJECTID(rootDir) <<" " <<opts[LIST_OPTION_ALLOWDELETED]<< std::endl;
+
 	// List it
-	List(rootDir, listRoot, opts, true /* first level to list */);
+	List(rootDir, listRoot, opts, pointInTime, true /* first level to list */);
 }
 
 static std::string GetTimeString(BackupStoreDirectory::Entry& en,
@@ -435,7 +457,7 @@ bool SortByName(BackupStoreDirectory::Entry* a,
 //
 // --------------------------------------------------------------------------
 void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
-	const bool *opts, bool FirstLevel, std::ostream* pOut)
+	const bool *opts, box_time_t pointInTime, bool FirstLevel, std::ostream* pOut)
 {
 #ifdef WIN32
 	DWORD n_chars;
@@ -450,12 +472,19 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 	// Do communication
 	try
 	{
-		mrConnection.QueryListDirectory(
-			DirID,
-			BackupProtocolListDirectory::Flags_INCLUDE_EVERYTHING,
-			// both files and directories
-			excludeFlags,
-			true /* want attributes */);
+		if( pointInTime == 0 ) {
+			mrConnection.QueryListDirectory(
+				DirID,
+				BackupProtocolListDirectory::Flags_INCLUDE_EVERYTHING,
+				// both files and directories
+				excludeFlags,
+				true /* want attributes */);
+		} else {
+			mrConnection.QueryListDirectoryPointInTime(
+				DirID,
+				pointInTime,
+				true /* want attributes */);
+		}
 	}
 	catch (std::exception &e)
 	{
@@ -566,6 +595,8 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 			}
 		}
 		
+		buf << en->GetModificationTime() << " ";
+
 		if(opts[LIST_OPTION_TIMES_UTC])
 		{
 			// Show UTC times...
