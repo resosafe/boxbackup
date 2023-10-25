@@ -219,7 +219,7 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Get count of entries
 	// int32_t count = mEntries.size();
-	std::map<std::string, BackupStoreDirectory::Entry*> entries;
+	std::multimap<std::string, BackupStoreDirectory::Entry*> entries;
 
 	// if(PointInTime != 0 || FlagsMustBeSet != Entry::Flags_INCLUDE_EVERYTHING || FlagsNotToBeSet != Entry::Flags_EXCLUDE_NOTHING)
 	// {
@@ -242,17 +242,22 @@ Iterator i(*this);
 				std::cout << "3 " << pen->GetModificationTime() << " " << PointInTime << std::endl;
 				if( pen->GetModificationTime() <= PointInTime)  {
 					// store this entry
-					Entry *en = entries[pen->mName.GetEncodedFilename()];
-					if ( en == NULL ) {
-						entries[pen->mName.GetEncodedFilename()] = pen;
-					} else {
-						if ( en->mModificationTime < pen->mModificationTime ) {
-							entries[pen->mName.GetEncodedFilename()] = pen;
+					if( auto res = entries.find(pen->mName.GetEncodedFilename()); res != entries.end() ) {
+						if ( res->second->mModificationTime < pen->mModificationTime ) {
+							res->second = pen;
 						}
+					} else {
+						entries.insert({pen->mName.GetEncodedFilename(),  pen});
+						
 					}
+					
 				}
 			} else {
-				entries[pen->mName.GetEncodedFilename()] = pen;
+
+				// get a random string
+
+
+				entries.insert({pen->mName.GetEncodedFilename(), pen});
 			}
 			// std::cout << "entry: " << BOX_FORMAT_HEX32(pen->mName.GetEncodedFilename()) << " "<<pen->mObjectID << std::endl;
 			// count++;
