@@ -350,7 +350,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFile::DoCommand(
 
 	// Ask the context to store it
 	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
-		mModificationTime, mAttributesHash, mDiffFromFileID,
+		mModificationTime, rContext.GetSessionStartTime(), mAttributesHash, mDiffFromFileID,
 		mFilename,
 		true /* mark files with same name as old versions */,
 		0 /* don't support resuming */);
@@ -393,7 +393,8 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFileWithResume::DoComman
 
 	// Ask the context to store it
 	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
-		mModificationTime, mAttributesHash, mDiffFromFileID,
+		mModificationTime, rContext.GetSessionStartTime(), 
+		mAttributesHash, mDiffFromFileID,
 		mFilename,
 		true /* mark files with same name as old versions */,
 		mResumeOffset);
@@ -628,7 +629,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolCreateDirectory2::DoCommand(
 
 	bool alreadyExists = false;
 	int64_t id = rContext.AddDirectory(mContainingDirectoryID,
-		mDirectoryName, attr, mAttributesModTime, mModificationTime,
+		mDirectoryName, attr, mAttributesModTime, mModificationTime, rContext.GetSessionStartTime(),
 		alreadyExists);
 
 	if(alreadyExists)

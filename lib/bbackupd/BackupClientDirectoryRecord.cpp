@@ -1600,7 +1600,7 @@ BackupStoreDirectory::Entry* BackupClientDirectoryRecord::CheckForRename(
 
 	// Create new entry in the directory for it: will be near enough what's actually on the
 	// server for the rest to work.
-	return p_dir->AddEntry(remote_filename, remote_mod_time, prev_object_id,
+	return p_dir->AddEntry(remote_filename, remote_mod_time, 0, prev_object_id,
 		0 /* size in blocks unknown, but not needed */,
 		BackupStoreDirectory::Entry::Flags_File, remote_attr_hash);
 }

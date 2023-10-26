@@ -361,11 +361,11 @@ BackupStoreDirectory::Entry *BackupStoreDirectory::AddEntry(const Entry &rEntryT
 // --------------------------------------------------------------------------
 BackupStoreDirectory::Entry *
 BackupStoreDirectory::AddEntry(const BackupStoreFilename &rName,
-	box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks,
+	box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks,
 	int16_t Flags, uint64_t AttributesHash)
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
-	Entry *pnew = new Entry(rName, ModificationTime, ObjectID,
+	Entry *pnew = new Entry(rName, ModificationTime, BackupTime, ObjectID,
 		SizeInBlocks, Flags, AttributesHash);
 	try
 	{
@@ -452,6 +452,7 @@ BackupStoreDirectory::Entry::Entry()
   mInvalidated(false),
 #endif
   mModificationTime(0),
+  mBackupTime(0),
   mObjectID(0),
   mSizeInBlocks(0),
   mFlags(0),
@@ -490,6 +491,7 @@ BackupStoreDirectory::Entry::Entry(const Entry &rToCopy)
 #endif
   mName(rToCopy.mName),
   mModificationTime(rToCopy.mModificationTime),
+  mBackupTime(rToCopy.mBackupTime),
   mObjectID(rToCopy.mObjectID),
   mSizeInBlocks(rToCopy.mSizeInBlocks),
   mFlags(rToCopy.mFlags),
@@ -511,13 +513,14 @@ BackupStoreDirectory::Entry::Entry(const Entry &rToCopy)
 //		Created: 2003/08/27
 //
 // --------------------------------------------------------------------------
-BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
+BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
 :
 #ifndef BOX_RELEASE_BUILD
   mInvalidated(false),
 #endif
   mName(rName),
   mModificationTime(ModificationTime),
+  mBackupTime(BackupTime),
   mObjectID(ObjectID),
   mSizeInBlocks(SizeInBlocks),
   mFlags(Flags),
@@ -559,8 +562,17 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
 	// Get the attributes
 	mAttributes.ReadFromStream(rStream, Timeout);
 
+	// Get the Backup Time
+	uint64_t backupTime =0;
+	if(!rStream.ReadFullBuffer(&backupTime, sizeof(backupTime), 0, Timeout))
+	{
+		backupTime = 0;
+	}
+
 	// Store the rest of the bits
 	mModificationTime =		box_ntoh64(entry.mModificationTime);
+	mBackupTime =			box_ntoh64(backupTime);
+
 	mObjectID = 			box_ntoh64(entry.mObjectID);
 	mSizeInBlocks = 		box_ntoh64(entry.mSizeInBlocks);
 	mAttributesHash =		box_ntoh64(entry.mAttributesHash);
@@ -596,6 +608,10 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream) const
 
 	// Write any attributes
 	mAttributes.WriteToStream(rStream);
+
+	// Write the backup time
+	box_time_t backupTime = box_hton64(mBackupTime);
+	rStream.Write((void*)&backupTime, sizeof(mBackupTime));
 }
 
 

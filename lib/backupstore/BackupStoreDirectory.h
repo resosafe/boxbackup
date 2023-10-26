@@ -95,7 +95,7 @@ public:
 		Entry();
 		~Entry();
 		Entry(const Entry &rToCopy);
-		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
+		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
 
 		void ReadFromStream(IOStream &rStream, int Timeout);
 		void WriteToStream(IOStream &rStream) const;
@@ -114,6 +114,16 @@ public:
 		{
 			ASSERT(!mInvalidated); // Compiled out of release builds
 			mModificationTime = NewModificationTime;
+		}
+		box_time_t GetBackupTime() const
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			return mBackupTime;
+		}
+		void SetBackupTime(box_time_t NewBackupTime)
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			mBackupTime = NewBackupTime;
 		}
 		int64_t GetObjectID() const
 		{
@@ -282,6 +292,7 @@ public:
 	private:
 		BackupStoreFilename mName;
 		box_time_t mModificationTime;
+		box_time_t mBackupTime;
 		int64_t mObjectID;
 		int64_t mSizeInBlocks;
 		int16_t mFlags;
@@ -310,9 +321,9 @@ public:
 			
 	Entry *AddEntry(const Entry &rEntryToCopy);
 	Entry *AddEntry(const BackupStoreFilename &rName,
-		box_time_t ModificationTime, int64_t ObjectID,
-		int64_t SizeInBlocks, int16_t Flags,
-		uint64_t AttributesHash);
+		box_time_t ModificationTime, box_time_t BackupTime, 
+		int64_t ObjectID, int64_t SizeInBlocks, 
+		int16_t Flags, uint64_t AttributesHash);
 	void DeleteEntry(int64_t ObjectID);
 	Entry *FindEntryByID(int64_t ObjectID) const;
 
@@ -480,7 +491,7 @@ public:
 	// Implemented in BackupStoreCheck2.cpp
 	bool CheckAndFix();
 	void AddUnattachedObject(const BackupStoreFilename &rName,
-		box_time_t ModificationTime, int64_t ObjectID,
+		box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID,
 		int64_t SizeInBlocks, int16_t Flags);
 	bool NameInUse(const BackupStoreFilename &rName);
 

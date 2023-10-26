@@ -251,21 +251,23 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 	}
 }
 
-#define LIST_OPTION_POINT_IN_TIME   'p'
-#define LIST_OPTION_BY_OBJECT_ID    'i'
-#define LIST_OPTION_TIMES_ATTRIBS	'a'
+#define LIST_OPTION_POINT_IN_TIME       'p'
+#define LIST_OPTION_BY_OBJECT_ID        'i'
+#define LIST_OPTION_TIMES_ATTRIBS	    'a'
 #define LIST_OPTION_SORT_NO_DIRS_FIRST	'D'
-#define LIST_OPTION_NOFLAGS		     'F'
-#define LIST_OPTION_DISPLAY_HASH	'h'
-#define LIST_OPTION_SORT_ID		    'O'
-#define LIST_OPTION_NOOBJECTID		'I'
-#define LIST_OPTION_SORT_REVERSE	'r'
-#define LIST_OPTION_RECURSIVE		'R'
-#define LIST_OPTION_SIZEINBLOCKS	's'
-#define LIST_OPTION_SORT_SIZE		'S'
-#define LIST_OPTION_TIMES_LOCAL		't'
-#define LIST_OPTION_TIMES_UTC		'T'
-#define LIST_OPTION_SORT_NONE		'U'
+#define LIST_OPTION_NOFLAGS		        'F'
+#define LIST_OPTION_DISPLAY_HASH	    'h'
+#define LIST_OPTION_SORT_ID	    	    'O'
+#define LIST_OPTION_NOOBJECTID		    'I'
+#define LIST_OPTION_SORT_REVERSE	    'r'
+#define LIST_OPTION_RECURSIVE		    'R'
+#define LIST_OPTION_SIZEINBLOCKS	    's'
+#define LIST_OPTION_SORT_SIZE		    'S'
+#define LIST_OPTION_TIMES_LOCAL		    't'
+#define LIST_OPTION_TIMES_UTC		    'T'
+#define LIST_OPTION_BCK_TIMES_LOCAL		'b'
+#define LIST_OPTION_BCK_TIMES_UTC		'B'
+#define LIST_OPTION_SORT_NONE		    'U'
 
 // --------------------------------------------------------------------------
 //
@@ -595,7 +597,20 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 			}
 		}
 		
-		buf << en->GetModificationTime() << " ";
+		// buf << BoxTimeToISO8601String(en->GetModificationTime(), true) << " ";
+		// buf << BoxTimeToISO8601String(en->GetBackupTime(), true) << " ";
+		
+		if(opts[LIST_OPTION_BCK_TIMES_UTC])
+		{
+			// Show UTC times...
+			buf << BoxTimeToISO8601String(en->GetBackupTime(), false) << " ";
+		}
+
+		if(opts[LIST_OPTION_BCK_TIMES_LOCAL])
+		{
+			// Show local times...
+			buf << BoxTimeToISO8601String(en->GetBackupTime(), true) << " ";
+		}
 
 		if(opts[LIST_OPTION_TIMES_UTC])
 		{

@@ -65,6 +65,7 @@ BackupStoreContext::BackupStoreContext(int32_t ClientID,
   mStoreDiscSet(-1),
   mReadOnly(true),
   mSaveStoreInfoDelay(STORE_INFO_SAVE_DELAY),
+  mSessionStartTime(GetCurrentBoxTime()),
   mpTestHook(NULL)// If you change the initialisers, be sure to update
 // BackupStoreContext::ReceivedFinishCommand as well!
 {
@@ -479,7 +480,7 @@ int64_t BackupStoreContext::AllocateObjectID()
 //
 // --------------------------------------------------------------------------
 int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
-	int64_t ModificationTime, int64_t AttributesHash,
+	int64_t ModificationTime, int64_t BackupTime, int64_t AttributesHash,
 	int64_t DiffFromFileID, const BackupStoreFilename &rFilename,
 	bool MarkFileWithSameNameAsOldVersions,
 	uint64_t ResumeOffset)
@@ -849,7 +850,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 
 		// Then the new entry
 		BackupStoreDirectory::Entry *pnewEntry = dir.AddEntry(rFilename,
-			ModificationTime, id, newObjectBlocksUsed,
+			ModificationTime, BackupTime, id, newObjectBlocksUsed,
 			BackupStoreDirectory::Entry::Flags_File,
 			AttributesHash);
 
@@ -1249,6 +1250,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	const StreamableMemBlock &Attributes,
 	int64_t AttributesModTime,
 	int64_t ModificationTime,
+	int64_t BackupTime,
 	bool &rAlreadyExists)
 {
 	if(mapStoreInfo.get() == 0)
@@ -1325,7 +1327,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	// Then add it into the parent directory
 	try
 	{
-		dir.AddEntry(rFilename, ModificationTime, id, dirSize,
+		dir.AddEntry(rFilename, ModificationTime, BackupTime, id, dirSize,
 			BackupStoreDirectory::Entry::Flags_Dir,
 			0 /* attributes hash */);
 		SaveDirectory(dir);

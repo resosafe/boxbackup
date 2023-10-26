@@ -413,7 +413,7 @@ BackupClientInodeToIDMap &BackupClientContext::GetNewIDMap() const
 //
 // --------------------------------------------------------------------------
 bool BackupClientContext::FindFilename(int64_t ObjectID, int64_t ContainingDirectory, std::string &rPathOut, bool &rIsDirectoryOut,
-	bool &rIsCurrentVersionOut, box_time_t *pModTimeOnServer, box_time_t *pAttributesHashOnServer, BackupStoreFilenameClear *pLeafname)
+	bool &rIsCurrentVersionOut, box_time_t *pModTimeOnServer,box_time_t *pAttributesHashOnServer, BackupStoreFilenameClear *pLeafname)
 {
 	// Make a connection to the server
 	BackupProtocolCallable &connection(GetConnection());
