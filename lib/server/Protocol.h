@@ -143,7 +143,29 @@ public:
 		}
 	}
 	void Read(bool &rOut) {int8_t read; Read(read); rOut = (read == true);}
+	void ReadWithDefault(bool &rOut, bool Default = false) 
+	{
+		try 
+		{ 
+			Read(rOut);
+		} 
+		catch (std::exception &e) 
+		{
+			rOut = Default;
+		}
+	}
 	void Read(std::string &rOut);
+	void ReadWithDefault(std::string &rOut, const std::string &Default = "")
+	{
+		try 
+		{ 
+			Read(rOut);
+		} 
+		catch (std::exception &e) 
+		{
+			rOut = Default;
+		}
+	}
 	template<typename type>
 	void Read(type &rOut)
 	{

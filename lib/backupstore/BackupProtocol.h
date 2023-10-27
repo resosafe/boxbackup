@@ -10,6 +10,7 @@
 #ifndef BACKUPPROTOCOL__H
 #define BACKUPPROTOCOL__H
 
+#include "BackupConstants.h"
 #include <autogen_BackupProtocol.h>
 #include <BackupStoreConstants.h>
 #include <BackupStoreContext.h>
@@ -50,7 +51,7 @@ public:
 		mContext.SetClientHasAccount(AccountRootDir, DiscSetNumber);
 		QueryVersion(BACKUP_STORE_SERVER_VERSION);
 		QueryLogin(AccountNumber,
-			ReadOnly ? BackupProtocolLogin::Flags_ReadOnly : 0);
+			ReadOnly ? BackupProtocolLogin::Flags_ReadOnly : 0, PROTOCOL_CURRENT_VERSION);
 	}
 	virtual ~BackupProtocolLocal2() { }
 
@@ -66,7 +67,7 @@ public:
 	{
 		QueryVersion(BACKUP_STORE_SERVER_VERSION);
 		QueryLogin(mAccountNumber,
-			mReadOnly ? BackupProtocolLogin::Flags_ReadOnly : 0);
+			mReadOnly ? BackupProtocolLogin::Flags_ReadOnly : 0, PROTOCOL_CURRENT_VERSION);
 	}
 };
 
