@@ -1716,7 +1716,9 @@ bool BackupStoreContext::ObjectExists(int64_t ObjectID, int MustBe)
 		}
 
 #ifndef BOX_DISABLE_BACKWARDS_COMPATIBILITY_BACKUPSTOREFILE
-		if(MustBe == ObjectExists_File && ntohl(magic) == OBJECTMAGIC_FILE_MAGIC_VALUE_V0)
+		uint32_t requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V0:OBJECTMAGIC_DIR_MAGIC_VALUE_V0;
+
+		if(ntohl(magic) == requiredMagic)
 		{
 			// Old version detected
 			return true;
@@ -1724,7 +1726,7 @@ bool BackupStoreContext::ObjectExists(int64_t ObjectID, int MustBe)
 #endif
 
 		// Right one?
-		uint32_t requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V1:OBJECTMAGIC_DIR_MAGIC_VALUE;
+		requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V1:OBJECTMAGIC_DIR_MAGIC_VALUE_V1;
 
 		// Check
 		if(ntohl(magic) != requiredMagic)

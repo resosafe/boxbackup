@@ -24,8 +24,13 @@
 // Do not use v0 in any new code!
 #define OBJECTMAGIC_FILE_BLOCKS_MAGIC_VALUE_V0 0x46426C6B
 
+
+
 // Magic value for directory streams
-#define OBJECTMAGIC_DIR_MAGIC_VALUE 		0x4449525F
+// Backup Time was added to this version
+#define OBJECTMAGIC_DIR_MAGIC_VALUE_V1 		0x44495231
+// Do not use v0 in any new code!
+#define OBJECTMAGIC_DIR_MAGIC_VALUE_V0 		0x4449525F
 
 #endif // BACKUPSTOREOBJECTMAGIC__H
 

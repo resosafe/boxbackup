@@ -45,6 +45,7 @@ typedef struct
 	int16_t mFlags;				// order smaller items after bigger ones (for alignment)
 	// Then a BackupStoreFilename
 	// Then a StreamableMemBlock for attributes
+	// Then the backup time
 } en_StreamFormat;
 
 typedef struct
@@ -142,11 +143,15 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 	}
 
 	// Check magic value...
-	if(OBJECTMAGIC_DIR_MAGIC_VALUE != ntohl(hdr.mMagicValue))
+	uint32_t magicValue = ntohl(hdr.mMagicValue);
+	if(magicValue != OBJECTMAGIC_DIR_MAGIC_VALUE_V0 &&
+		magicValue != OBJECTMAGIC_DIR_MAGIC_VALUE_V1)
 	{
 		THROW_EXCEPTION_MESSAGE(BackupStoreException, BadDirectoryFormat,
 			"Wrong magic number for directory: expected " <<
-			BOX_FORMAT_HEX32(OBJECTMAGIC_DIR_MAGIC_VALUE) <<
+			BOX_FORMAT_HEX32(OBJECTMAGIC_DIR_MAGIC_VALUE_V0) <<
+			" or " <<
+			BOX_FORMAT_HEX32(OBJECTMAGIC_DIR_MAGIC_VALUE_V1) <<
 			" but found " <<
 			BOX_FORMAT_HEX32(ntohl(hdr.mMagicValue)) << " in " <<
 			rStream.ToString());
@@ -181,7 +186,7 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 		try
 		{
 			// Read from stream
-			pen->ReadFromStream(rStream, Timeout);
+			pen->ReadFromStream(rStream, Timeout, magicValue);
 
 			// Add to list
 			mEntries.push_back(pen);
@@ -288,7 +293,12 @@ std::cout << "count: " << entries.size() << std::endl;
 
 	// Build header
 	dir_StreamFormat hdr;
-	hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE);
+	if( !StreamBackupTime ) {
+		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V0);
+	} else {
+		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
+	}
+	// hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
 	hdr.mNumEntries = htonl(entries.size());
 	hdr.mObjectID = box_hton64(mObjectID);
 	hdr.mContainerID = box_hton64(mContainerID);
@@ -542,7 +552,7 @@ BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t 
 //		Created: 2003/08/26
 //
 // --------------------------------------------------------------------------
-void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
+void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout, uint32_t magicValue)
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Grab the raw bytes from the stream which compose the header
@@ -562,16 +572,20 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
 	// Get the attributes
 	mAttributes.ReadFromStream(rStream, Timeout);
 
-	// Get the Backup Time
-	uint64_t backupTime =0;
-	if(!rStream.ReadFullBuffer(&backupTime, sizeof(backupTime), 0, Timeout))
-	{
-		backupTime = 0;
+	if( magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V0 ) {
+		mBackupTime = 0;
+	} else {
+		// Get the Backup Time
+		uint64_t backupTime =0;
+		if(!rStream.ReadFullBuffer(&backupTime, sizeof(backupTime), 0, Timeout))
+		{
+			THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
+		}
+		mBackupTime = box_ntoh64(backupTime);
 	}
 
 	// Store the rest of the bits
 	mModificationTime =		box_ntoh64(entry.mModificationTime);
-	mBackupTime =			box_ntoh64(backupTime);
 
 	mObjectID = 			box_ntoh64(entry.mObjectID);
 	mSizeInBlocks = 		box_ntoh64(entry.mSizeInBlocks);

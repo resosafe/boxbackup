@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "BackupStoreObjectMagic.h"
 #include "BackupStoreFilenameClear.h"
 #include "StreamableMemBlock.h"
 #include "BoxTime.h"
@@ -97,7 +98,7 @@ public:
 		Entry(const Entry &rToCopy);
 		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
 
-		void ReadFromStream(IOStream &rStream, int Timeout);
+		void ReadFromStream(IOStream &rStream, int Timeout, uint32_t magicValue = OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
 		void WriteToStream(IOStream &rStream, bool IgnoreBackupTime = false) const;
 
 		const BackupStoreFilename &GetName() const
