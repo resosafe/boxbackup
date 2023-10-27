@@ -66,6 +66,7 @@ BackupStoreContext::BackupStoreContext(int32_t ClientID,
   mReadOnly(true),
   mSaveStoreInfoDelay(STORE_INFO_SAVE_DELAY),
   mSessionStartTime(GetCurrentBoxTime()),
+  mProtocolVersion(PROTOCOL_CURRENT_VERSION),
   mpTestHook(NULL)// If you change the initialisers, be sure to update
 // BackupStoreContext::ReceivedFinishCommand as well!
 {

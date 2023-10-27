@@ -95,9 +95,53 @@ public:
 	void Read(void *Buffer, int Size);
 	void Read(std::string &rOut, int Size);
 	void Read(int64_t &rOut);
+	void ReadWithDefault(int64_t &rOut, int64_t Default = 0) 
+	{
+		try 
+		{ 
+			Read(rOut);
+		} 
+		catch (std::exception &e) 
+		{
+			rOut = Default;
+		}
+	}
 	void Read(int32_t &rOut);
+	void ReadWithDefault(int32_t &rOut, int32_t Default = 0)
+	{
+		try 
+		{ 
+			Read(rOut);
+		} 
+		catch (std::exception &e) 
+		{
+			rOut = Default;
+		}
+	}
 	void Read(int16_t &rOut);
+	void ReadWithDefault(int16_t &rOut, int16_t Default = 0) 
+	{
+		try 
+		{ 
+			Read(rOut);
+		} 
+		catch (std::exception &e) 
+		{
+			rOut = Default;
+		}
+	}
 	void Read(int8_t &rOut);
+	void ReadWithDefault(int8_t &rOut, int8_t Default = 0) 
+	{
+		try 
+		{ 
+			Read(rOut);
+		} 
+		catch (std::exception &e) 
+		{
+			rOut = Default;
+		}
+	}
 	void Read(bool &rOut) {int8_t read; Read(read); rOut = (read == true);}
 	void Read(std::string &rOut);
 	template<typename type>

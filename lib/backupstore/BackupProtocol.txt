@@ -50,13 +50,11 @@ Version		1	Command(Version)	Reply
 Login		2	Command(LoginConfirmed)
 	int32		ClientID
 	int32		Flags
+	#default version is the old one for client compatibility
+	int32		Version 1
+
 	CONSTANT	Flags_ReadOnly	1
 
-
-Login2		7   Command(LoginConfirmed)
-	int32		ClientID
-	int32		Flags
-	int32		Version
 
 LoginConfirmed	3	Reply
 	int64		ClientStoreMarker

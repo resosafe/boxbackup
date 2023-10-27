@@ -140,6 +140,8 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolVersion::DoCommand(BackupProt
 std::auto_ptr<BackupProtocolMessage> DoLogin(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext, int32_t ClientID, int32_t Flags, int32_t Version)
 {
 
+	// Set the protocol version, this can be useful
+	// in order to know what the client supports
 	rContext.SetProtocolVersion(Version);
 	
 	// Check given client ID against the ID in the certificate certificate
@@ -196,7 +198,7 @@ std::auto_ptr<BackupProtocolMessage> DoLogin(BackupProtocolReplyable &rProtocol,
 		BOX_FORMAT_ACCOUNT(ClientID) << " "
 		"(name=" << rContext.GetAccountName() << "): " <<
 		(rContext.SessionIsReadOnly()?"Read/Write":"Read-only") << 
-		" (version: " << Version << ")" <<
+		" (protocol version: " << Version << ")" <<
 		" from " << rContext.GetConnectionDetails());
 
 	// Get the usage info for reporting to the client
@@ -224,20 +226,20 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 }
 
 
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupProtocolLogin2::DoCommand(Protocol &, BackupStoreContext &)
-//		Purpose: Return the current version, or an error if the requested version isn't allowed
-//		Created: 2023/10/27
-//
-// --------------------------------------------------------------------------
-std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin2::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
-{
-	CHECK_PHASE(Phase_Login)
+// // --------------------------------------------------------------------------
+// //
+// // Function
+// //		Name:    BackupProtocolLogin2::DoCommand(Protocol &, BackupStoreContext &)
+// //		Purpose: Return the current version, or an error if the requested version isn't allowed
+// //		Created: 2023/10/27
+// //
+// // --------------------------------------------------------------------------
+// std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin2::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+// {
+// 	CHECK_PHASE(Phase_Login)
 
-	return DoLogin(rProtocol, rContext, mClientID, mFlags, mVersion);
-}
+// 	return DoLogin(rProtocol, rContext, mClientID, mFlags, mVersion);
+// }
 
 
 // --------------------------------------------------------------------------
@@ -298,7 +300,7 @@ std::cout << "BackupProtocolListDirectory::DoCommand" << rContext.GetProtocolVer
 		0 /* no point in time */,
 		mSendAttributes,
 		false /* never send dependency info to the client */,
-		rContext.GetProtocolVersion() >= PROTOCOL_VERSION_V2);
+		rContext.GetProtocolVersion());
 
 	stream->SetForReading();
 

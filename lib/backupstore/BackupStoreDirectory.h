@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "BackupConstants.h"
 #include "BackupStoreObjectMagic.h"
 #include "BackupStoreFilenameClear.h"
 #include "StreamableMemBlock.h"
@@ -319,7 +320,7 @@ public:
 			int16_t FlagsNotToBeSet = Entry::Flags_EXCLUDE_NOTHING,
 			box_time_t PointInTime = 0,
 			bool StreamAttributes = true, bool StreamDependencyInfo = true, 
-			bool StreamBackupTime = true) const;
+			uint32_t ProtocolVersion = PROTOCOL_CURRENT_VERSION) const;
 			
 	Entry *AddEntry(const Entry &rEntryToCopy);
 	Entry *AddEntry(const BackupStoreFilename &rName,

@@ -11,6 +11,7 @@
 
 #include <sys/types.h>
 
+#include "BackupConstants.h"
 #include "BackupStoreDirectory.h"
 #include "IOStream.h"
 #include "BackupStoreException.h"
@@ -219,7 +220,7 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 // --------------------------------------------------------------------------
 #include <iostream>
 #include <map>
-void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo, bool StreamBackupTime) const
+void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo, uint32_t ProtocolVersion) const
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Get count of entries
@@ -293,7 +294,7 @@ std::cout << "count: " << entries.size() << std::endl;
 
 	// Build header
 	dir_StreamFormat hdr;
-	if( !StreamBackupTime ) {
+	if( ProtocolVersion == PROTOCOL_VERSION_V1 ) {
 		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V0);
 	} else {
 		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
@@ -322,7 +323,7 @@ std::cout << "count: " << entries.size() << std::endl;
 	// Then write all the entries
 	for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
 		Entry *pen = local_it->second;
-		pen->WriteToStream(rStream, !StreamBackupTime);
+		pen->WriteToStream(rStream, ProtocolVersion >= PROTOCOL_VERSION_V1);
 	}
 	
 
