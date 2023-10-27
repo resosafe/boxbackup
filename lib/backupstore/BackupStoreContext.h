@@ -21,6 +21,8 @@
 #include "Message.h"
 #include "Utils.h"
 
+
+
 class BackupStoreDirectory;
 class BackupStoreFilename;
 class IOStream;
@@ -88,8 +90,6 @@ public:
 
 	void ReceivedFinishCommand();
 	void CleanUp();
-
-	int32_t GetClientID() {return mClientID;}
 
 	enum
 	{
@@ -212,6 +212,9 @@ public:
 	int32_t GetClientID() const {return mClientID;}
 	const std::string& GetConnectionDetails() { return mConnectionDetails; }
 
+	void SetProtocolVersion(int32_t ProtocolVersion) {mProtocolVersion = ProtocolVersion;}
+	int32_t GetProtocolVersion() const {return mProtocolVersion;}
+
 	Statistics &GetStatistics() { return mStatistics; }
 
 private:
@@ -226,6 +229,7 @@ private:
 
 	std::string mConnectionDetails;
 	int32_t mClientID;
+	int32_t mProtocolVersion;
 	HousekeepingInterface *mpHousekeeping;
 	int mProtocolPhase;
 	bool mClientHasAccount;

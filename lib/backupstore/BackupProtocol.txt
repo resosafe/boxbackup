@@ -53,6 +53,11 @@ Login		2	Command(LoginConfirmed)
 	CONSTANT	Flags_ReadOnly	1
 
 
+Login2		7   Command(LoginConfirmed)
+	int32		ClientID
+	int32		Flags
+	int32		Version
+
 LoginConfirmed	3	Reply
 	int64		ClientStoreMarker
 	int64		BlocksUsed

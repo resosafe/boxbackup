@@ -214,7 +214,7 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 // --------------------------------------------------------------------------
 #include <iostream>
 #include <map>
-void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo) const
+void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo, bool StreamBackupTime) const
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Get count of entries
@@ -312,7 +312,7 @@ std::cout << "count: " << entries.size() << std::endl;
 	// Then write all the entries
 	for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
 		Entry *pen = local_it->second;
-		pen->WriteToStream(rStream);
+		pen->WriteToStream(rStream, !StreamBackupTime);
 	}
 	
 
@@ -589,7 +589,7 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
 //		Created: 2003/08/26
 //
 // --------------------------------------------------------------------------
-void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream) const
+void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream, bool IgnoreBackupTime /* this is for compatibilty with older clients */) const
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Build a structure
@@ -609,9 +609,11 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream) const
 	// Write any attributes
 	mAttributes.WriteToStream(rStream);
 
-	// Write the backup time
-	box_time_t backupTime = box_hton64(mBackupTime);
-	rStream.Write((void*)&backupTime, sizeof(mBackupTime));
+	if( !IgnoreBackupTime ) {
+		// Write the backup time
+		box_time_t backupTime = box_hton64(mBackupTime);
+		rStream.Write((void*)&backupTime, sizeof(mBackupTime));
+	}
 }
 
 

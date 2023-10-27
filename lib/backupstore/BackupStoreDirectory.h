@@ -98,7 +98,7 @@ public:
 		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
 
 		void ReadFromStream(IOStream &rStream, int Timeout);
-		void WriteToStream(IOStream &rStream) const;
+		void WriteToStream(IOStream &rStream, bool IgnoreBackupTime = false) const;
 
 		const BackupStoreFilename &GetName() const
 		{
@@ -317,7 +317,8 @@ public:
 			int16_t FlagsMustBeSet = Entry::Flags_INCLUDE_EVERYTHING,
 			int16_t FlagsNotToBeSet = Entry::Flags_EXCLUDE_NOTHING,
 			box_time_t PointInTime = 0,
-			bool StreamAttributes = true, bool StreamDependencyInfo = true) const;
+			bool StreamAttributes = true, bool StreamDependencyInfo = true, 
+			bool StreamBackupTime = true) const;
 			
 	Entry *AddEntry(const Entry &rEntryToCopy);
 	Entry *AddEntry(const BackupStoreFilename &rName,

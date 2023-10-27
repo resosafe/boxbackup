@@ -136,24 +136,18 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolVersion::DoCommand(BackupProt
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolVersion(BACKUP_STORE_SERVER_VERSION));
 }
 
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupProtocolLogin::DoCommand(Protocol &, BackupStoreContext &)
-//		Purpose: Return the current version, or an error if the requested version isn't allowed
-//		Created: 2003/08/20
-//
-// --------------------------------------------------------------------------
-std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
-{
-	CHECK_PHASE(Phase_Login)
 
+std::auto_ptr<BackupProtocolMessage> DoLogin(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext, int32_t ClientID, int32_t Flags, int32_t Version)
+{
+
+	rContext.SetProtocolVersion(Version);
+	
 	// Check given client ID against the ID in the certificate certificate
 	// and that the client actually has an account on this machine
-	if(mClientID != rContext.GetClientID())
+	if(ClientID != rContext.GetClientID())
 	{
 		BOX_WARNING("Failed login from client ID " <<
-			BOX_FORMAT_ACCOUNT(mClientID) << ": "
+			BOX_FORMAT_ACCOUNT(ClientID) << ": "
 			"wrong certificate for this account");
 		return PROTOCOL_ERROR(Err_BadLogin);
 	}
@@ -161,19 +155,19 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 	if(!rContext.GetClientHasAccount())
 	{
 		BOX_WARNING("Failed login from client ID " <<
-			BOX_FORMAT_ACCOUNT(mClientID) << ": "
+			BOX_FORMAT_ACCOUNT(ClientID) << ": "
 			"no such account on this server");
 		return PROTOCOL_ERROR(Err_BadLogin);
 	}
 
 	// If we need to write, check that nothing else has got a write lock
-	if((mFlags & Flags_ReadOnly) != Flags_ReadOnly)
+	if((Flags & BackupProtocolLogin::Flags_ReadOnly) != BackupProtocolLogin::Flags_ReadOnly)
 	{
 		// See if the context will get the lock
 		if(!rContext.AttemptToGetWriteLock())
 		{
 			BOX_WARNING("Failed to get write lock for Client ID " <<
-				BOX_FORMAT_ACCOUNT(mClientID));
+				BOX_FORMAT_ACCOUNT(ClientID));
 			return PROTOCOL_ERROR(Err_CannotLockStoreForWriting);
 		}
 
@@ -187,7 +181,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 	if(!rContext.GetBackupStoreInfo().IsAccountEnabled())
 	{
 		BOX_WARNING("Refused login from disabled client ID " <<
-			BOX_FORMAT_ACCOUNT(mClientID));
+			BOX_FORMAT_ACCOUNT(ClientID));
 		return PROTOCOL_ERROR(Err_DisabledAccount);
 	}
 
@@ -199,11 +193,11 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 
 	// Log login
 	BOX_NOTICE("Login from Client ID " <<
-		BOX_FORMAT_ACCOUNT(mClientID) << " "
+		BOX_FORMAT_ACCOUNT(ClientID) << " "
 		"(name=" << rContext.GetAccountName() << "): " <<
-		(((mFlags & Flags_ReadOnly) != Flags_ReadOnly)
-			?"Read/Write":"Read-only") << " from " <<
-		rContext.GetConnectionDetails());
+		(rContext.SessionIsReadOnly()?"Read/Write":"Read-only") << 
+		" (version: " << Version << ")" <<
+		" from " << rContext.GetConnectionDetails());
 
 	// Get the usage info for reporting to the client
 	int64_t blocksUsed = 0, blocksSoftLimit = 0, blocksHardLimit = 0;
@@ -212,6 +206,39 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 	// Return success
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolLoginConfirmed(clientStoreMarker, blocksUsed, blocksSoftLimit, blocksHardLimit));
 }
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolLogin::DoCommand(Protocol &, BackupStoreContext &)
+//		Purpose: Return the current version, or an error if the requested version isn't allowed
+//		Created: 2003/08/20
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+{
+	CHECK_PHASE(Phase_Login)
+
+		return DoLogin(rProtocol, rContext, mClientID, mFlags, PROTOCOL_VERSION_V1);
+
+}
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolLogin2::DoCommand(Protocol &, BackupStoreContext &)
+//		Purpose: Return the current version, or an error if the requested version isn't allowed
+//		Created: 2023/10/27
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin2::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+{
+	CHECK_PHASE(Phase_Login)
+
+	return DoLogin(rProtocol, rContext, mClientID, mFlags, mVersion);
+}
+
 
 // --------------------------------------------------------------------------
 //
@@ -247,7 +274,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolFinished::DoCommand(BackupPro
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolFinished);
 }
 
-
+#include <iostream>
 // --------------------------------------------------------------------------
 //
 // Function
@@ -259,7 +286,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolFinished::DoCommand(BackupPro
 std::auto_ptr<BackupProtocolMessage> BackupProtocolListDirectory::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
 {
 	CHECK_PHASE(Phase_Commands)
-
+std::cout << "BackupProtocolListDirectory::DoCommand" << rContext.GetProtocolVersion() << std::endl;
 	// Store the listing to a stream
 	std::auto_ptr<CollectInBufferStream> stream(new CollectInBufferStream);
 
@@ -270,7 +297,8 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolListDirectory::DoCommand(Back
 		mFlagsNotToBeSet, 
 		0 /* no point in time */,
 		mSendAttributes,
-		false /* never send dependency info to the client */);
+		false /* never send dependency info to the client */,
+		rContext.GetProtocolVersion() >= PROTOCOL_VERSION_V2);
 
 	stream->SetForReading();
 
