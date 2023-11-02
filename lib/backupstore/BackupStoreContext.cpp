@@ -17,6 +17,7 @@
 #include "BackupStoreException.h"
 #include "BackupStoreFile.h"
 #include "BackupStoreInfo.h"
+#include "BackupsList.h"
 #include "BackupStoreObjectMagic.h"
 #include "BackupStoreFileResumeInfo.h"
 #include "BufferedStream.h"
@@ -65,7 +66,6 @@ BackupStoreContext::BackupStoreContext(int32_t ClientID,
   mStoreDiscSet(-1),
   mReadOnly(true),
   mSaveStoreInfoDelay(STORE_INFO_SAVE_DELAY),
-  mSessionStartTime(GetCurrentBoxTime()),
   mProtocolVersion(PROTOCOL_CURRENT_VERSION),
   mpTestHook(NULL)// If you change the initialisers, be sure to update
 // BackupStoreContext::ReceivedFinishCommand as well!
@@ -115,6 +115,14 @@ void BackupStoreContext::CleanUp()
 	{
 		mapStoreInfo->Save();
 	}
+
+	mSessionInfos.SetEnd();
+	// If some changes were recorded, this is a backup that will be recorded
+	if(mSessionInfos.HasChanges()) {
+		BackupsList::AddRecord(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1), mSessionInfos);
+	}
+
+	
 }
 
 
@@ -709,8 +717,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		adjustment.mBlocksInCurrentFiles += newObjectBlocksUsed;
 		adjustment.mNumCurrentFiles++;
 
-		mStatistics.mAddedFilesSize += newObjectBlocksUsed;
-		mStatistics.mAddedFilesCount++;
+		mSessionInfos.RecordFileAdded(newObjectBlocksUsed);
 
 		// Exceeds the hard limit?
 		int64_t newTotalBlocksUsed = mapStoreInfo->GetBlocksUsed() +
@@ -990,8 +997,7 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 				mapStoreInfo->AdjustNumDeletedFiles(1);
 				mapStoreInfo->ChangeBlocksInDeletedFiles(blocks);
 
-				mStatistics.mDeletedFilesCount++;
-				mStatistics.mDeletedFilesSize += blocks;
+				mSessionInfos.RecordFileDeleted(blocks);
 
 				// We're marking all old versions as deleted.
 				// This is how a file can be old and deleted
@@ -1351,7 +1357,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 
 	// Save the store info (may not be postponed)
 	mapStoreInfo->AdjustNumDirectories(1);
-	mStatistics.mAddedDirectoriesCount ++;
+	mSessionInfos.RecordDirectoryAdded();
 	SaveStoreInfo(false);
 
 	// tell caller what the ID was
@@ -1432,7 +1438,7 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 
 		// Update blocks deleted count
 		SaveStoreInfo(false);
-			mStatistics.mDeletedDirectoriesCount ++;
+		mSessionInfos.RecordDirectoryAdded();
 
 	}
 	catch(...)

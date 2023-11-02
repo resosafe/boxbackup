@@ -19,6 +19,7 @@
 #include "BackupStoreConstants.h"
 #include "BackupStoreDirectory.h"
 #include "BackupStoreException.h"
+#include "BackupsList.h"
 #include "BackupStoreFile.h"
 #include "BackupStoreInfo.h"
 #include "BufferedStream.h"
@@ -221,7 +222,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 {
 	CHECK_PHASE(Phase_Login)
 
-		return DoLogin(rProtocol, rContext, mClientID, mFlags, PROTOCOL_VERSION_V1);
+		return DoLogin(rProtocol, rContext, mClientID, mFlags, mVersion);
 
 }
 
@@ -254,18 +255,17 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolFinished::DoCommand(BackupPro
 {
 	// can be called in any phase
 
-	const BackupStoreInfo &rinfo(rContext.GetBackupStoreInfo());
-
-	Statistics& stats = rContext.GetStatistics();
+	
+	SessionInfos& stats = rContext.GetSessionInfos();
 
 	BOX_NOTICE("Session finished for Client ID " <<
 		BOX_FORMAT_ACCOUNT(rContext.GetClientID()) << " "
 		"(name=" << rContext.GetAccountName() << "), "
 		"infos " << rContext.GetConnectionDetails() << ","
-		"added files : "<<stats.mAddedFilesCount  << " (" << stats.mAddedFilesSize << " blocks), " 
-		"deleted files : "<<stats.mDeletedFilesCount  << " (" << stats.mDeletedFilesSize << " blocks), "
-		"added dirs : "<<stats.mAddedDirectoriesCount  << ", " 
-		"deleted dirs : "<<stats.mDeletedDirectoriesCount  << ", "
+		"added files : "<<stats.GetAddedFilesCount()  << " (" << stats.GetAddedFilesBlocksCount() << " blocks), " 
+		"deleted files : "<<stats.GetDeletedFilesCount()  << " (" << stats.GetDeletedFilesBlocksCount() << " blocks), "
+		"added dirs : "<<stats.GetAddedDirectoriesCount()  << ", " 
+		"deleted dirs : "<<stats.GetDeletedDirectoriesCount()  << ", "
 		"time :" << stats.ElapsedTime() << "s"
 
 		);
@@ -1174,6 +1174,31 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetAccountUsage::DoCommand(Ba
 		rdiscSet.GetBlockSize()
 	));
 }
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolListBackups::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
+//		Purpose: Return the Backups list
+//		Created: 2023/11/02
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolListBackups::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+{
+	CHECK_PHASE(Phase_Commands)
+
+
+	// Open the file
+	std::auto_ptr<IOStream> stream(BackupsList::OpenStream(RaidFileController::DiscSetPathToFileSystemPath(rContext.GetStoreDiscSet(), rContext.GetAccountRoot(), 1)));
+
+	// Return the stream to the client
+	rProtocol.SendStreamAfterCommand(stream);
+
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolBackups());
+
+}
+
 
 // --------------------------------------------------------------------------
 //

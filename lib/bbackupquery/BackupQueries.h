@@ -39,6 +39,7 @@ typedef enum
 	Command_Usage,
 	Command_Undelete,
 	Command_Delete,
+	Command_ListBackups,
 }
 CommandType;
 
@@ -105,6 +106,7 @@ public:
 	void CommandUsage(const bool *opts);
 	void CommandUsageDisplayEntry(const char *Name, int64_t Size,
 		int64_t HardLimit, int32_t BlockSize, bool MachineReadable);
+	void CommandListBackups(const bool *opts);
 	void CommandHelp(const std::vector<std::string> &args);
 
 	class CompareParams : public BoxBackupCompareParams

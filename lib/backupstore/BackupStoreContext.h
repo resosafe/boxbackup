@@ -20,7 +20,7 @@
 #include "NamedLock.h"
 #include "Message.h"
 #include "Utils.h"
-
+#include "Archive.h"
 
 
 class BackupStoreDirectory;
@@ -36,35 +36,89 @@ class HousekeepingInterface
 	virtual void SendMessageToHousekeepingProcess(const void *Msg, int MsgLen) = 0;
 };
 
-class Statistics {
+class SessionInfos {
 	public:
-		Statistics() {
+		SessionInfos() {
 			mAddedFilesCount = 0;
-			mAddedFilesSize = 0;
+			mAddedFilesBlocksCount = 0;
 			mDeletedFilesCount = 0;
-			mDeletedFilesSize = 0;
+			mDeletedFilesBlocksCount = 0;
 			mAddedDirectoriesCount = 0;
 			mDeletedDirectoriesCount = 0;
-			mDeletedDirectoriesSize = 0;
-			mCreationTime=time(NULL);
+
+			mStartTime = GetCurrentBoxTime();
+			mEndTime = 0;
 		}
 
-		time_t ElapsedTime() {
-			return time(NULL) - mCreationTime;
+		box_time_t ElapsedTime() { return GetCurrentBoxTime() - mStartTime; }
+		box_time_t GetStartTime() { return mStartTime; }
+		box_time_t GetEndTime() { return mEndTime; }
+		void SetEnd() { mEndTime = GetCurrentBoxTime(); }
+
+		void RecordFileAdded(uint64_t blocks) 
+		{ 
+			mAddedFilesBlocksCount += blocks; 
+			mAddedFilesCount++;
 		}
 		
-		int64_t mAddedFilesCount;
-		int64_t mAddedFilesSize;
-		int64_t mDeletedFilesCount;
-		int64_t mDeletedFilesSize;
-		int64_t mAddedDirectoriesCount;
-		int64_t mDeletedDirectoriesCount;
-		int64_t mDeletedDirectoriesSize;
+		void RecordFileDeleted(uint64_t blocks) 
+		{ 
+			mDeletedFilesBlocksCount += blocks; 
+			mDeletedFilesCount++;
+		}
+
+		void RecordDirectoryAdded() { mAddedDirectoriesCount++; }
+		void RecordDirectoryDeleted() { mDeletedDirectoriesCount++; }
+
+		
+		uint64_t GetAddedFilesCount() { return mAddedFilesCount; }
+		uint64_t GetAddedFilesBlocksCount() { return mAddedFilesBlocksCount; }
+		uint64_t GetDeletedFilesCount() { return mDeletedFilesCount; }
+		uint64_t GetDeletedFilesBlocksCount() { return mDeletedFilesBlocksCount; }
+		uint64_t GetAddedDirectoriesCount() { return mAddedDirectoriesCount; }
+		uint64_t GetDeletedDirectoriesCount() { return mDeletedDirectoriesCount; }
 
 
+		void WriteToStream(IOStream &Stream)
+		{
+			Archive ar(Stream, IOStream::TimeOutInfinite);
+			ar.Write(mStartTime);
+			ar.Write(mEndTime);
+			ar.Write(mAddedFilesCount);
+			ar.Write(mAddedFilesBlocksCount);
+			ar.Write(mDeletedFilesCount);
+			ar.Write(mDeletedFilesBlocksCount);
+			ar.Write(mAddedDirectoriesCount);
+			ar.Write(mDeletedDirectoriesCount);
+		}
+
+		void ReadFromStream(IOStream &Stream)
+		{
+			Archive ar(Stream, IOStream::TimeOutInfinite);
+			ar.Read(mStartTime);
+			ar.Read(mEndTime);
+			ar.Read(mAddedFilesCount);
+			ar.Read(mAddedFilesBlocksCount);
+			ar.Read(mDeletedFilesCount);
+			ar.Read(mDeletedFilesBlocksCount);
+			ar.Read(mAddedDirectoriesCount);
+			ar.Read(mDeletedDirectoriesCount);
+		}
+
+
+		bool HasChanges() {
+			return (mAddedFilesCount > 0 || mAddedDirectoriesCount > 0 || mDeletedFilesCount > 0 || mDeletedDirectoriesCount > 0);
+		}
 
 	private:
-		time_t mCreationTime;
+		box_time_t mStartTime;
+		box_time_t mEndTime;
+		uint64_t mAddedFilesCount;
+		uint64_t mAddedFilesBlocksCount;
+		uint64_t mDeletedFilesCount;
+		uint64_t mDeletedFilesBlocksCount;
+		uint64_t mAddedDirectoriesCount;
+		uint64_t mDeletedDirectoriesCount;
 
 };
 
@@ -119,7 +173,6 @@ public:
 	bool SessionIsReadOnly() {return mReadOnly;}
 	bool AttemptToGetWriteLock();
 
-	box_time_t GetSessionStartTime() {return mSessionStartTime; }
 
 	// Not really an API, but useful for BackupProtocolLocal2.
 	void ReleaseWriteLock()
@@ -215,7 +268,8 @@ public:
 	void SetProtocolVersion(int32_t ProtocolVersion) {mProtocolVersion = ProtocolVersion;}
 	int32_t GetProtocolVersion() const {return mProtocolVersion;}
 
-	Statistics &GetStatistics() { return mStatistics; }
+	SessionInfos &GetSessionInfos() { return mSessionInfos; }
+	box_time_t GetSessionStartTime() { return mSessionInfos.GetStartTime(); }
 
 private:
 	void MakeObjectFilename(int64_t ObjectID, std::string &rOutput, bool EnsureDirectoryExists = false);
@@ -239,7 +293,6 @@ private:
 	bool mReadOnly;
 	NamedLock mWriteLock;
 	int mSaveStoreInfoDelay; // how many times to delay saving the store info
-	box_time_t mSessionStartTime;
 	
 	// Store info
 	std::auto_ptr<BackupStoreInfo> mapStoreInfo;
@@ -250,8 +303,8 @@ private:
 	// Directory cache
 	std::map<int64_t, BackupStoreDirectory*> mDirectoryCache;
 
-	// Statistics
-	Statistics mStatistics;
+	// SessionInfos
+	SessionInfos mSessionInfos;
 public:
 	class TestHook
 	{

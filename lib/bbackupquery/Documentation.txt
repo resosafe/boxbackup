@@ -176,6 +176,12 @@ compare <store-dir-name> <local-dir-name>
 	files is near zero.
 <
 
+> lsbackups 
+
+	List the backups 
+
+<
+
 > undelete <directory-name>
 undelete -i <object-id>
 

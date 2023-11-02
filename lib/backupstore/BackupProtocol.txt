@@ -313,3 +313,11 @@ AccountUsage2	45	Reply
 
 
 # 46 is CreateDirectory2
+
+
+ListBackups 47 Command(Backups)
+    # no data members
+	# reply has stream following Success object
+
+Backups	48	Reply
+	# no data members

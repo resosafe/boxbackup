@@ -244,6 +244,10 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 	case Command_Delete:
 		CommandDelete(args, opts);
 		break;
+
+	case Command_ListBackups:
+		CommandListBackups(opts);
+		break;
 		
 	default:
 		BOX_ERROR("Unknown command: " << rCommand.mCmdElements[0]);
@@ -2329,6 +2333,23 @@ void BackupQueries::CommandUsage(const bool *opts)
 	CommandUsageDisplayEntry("Hard limit", hardLimit, hardLimit, blockSize,
 		MachineReadable);
 }
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::CommandUsage()
+//		Purpose: Display storage space used on server
+//		Created: 19/4/04
+//
+// --------------------------------------------------------------------------
+void BackupQueries::CommandListBackups(const bool *opts)
+{
+	bool MachineReadable = opts['m'];
+
+	// Request full details from the server
+	std::auto_ptr<BackupProtocolBackups> backup_list(mrConnection.QueryListBackups());
+}
+
 
 
 // --------------------------------------------------------------------------

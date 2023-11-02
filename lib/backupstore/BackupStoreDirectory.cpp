@@ -10,7 +10,7 @@
 #include "Box.h"
 
 #include <sys/types.h>
-
+#include <map>
 #include "BackupConstants.h"
 #include "BackupStoreDirectory.h"
 #include "IOStream.h"
@@ -219,57 +219,34 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 //
 // --------------------------------------------------------------------------
 #include <iostream>
-#include <map>
+
 void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo, uint32_t ProtocolVersion) const
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
-	// Get count of entries
-	// int32_t count = mEntries.size();
+	
+
 	std::multimap<std::string, BackupStoreDirectory::Entry*> entries;
 
-	// if(PointInTime != 0 || FlagsMustBeSet != Entry::Flags_INCLUDE_EVERYTHING || FlagsNotToBeSet != Entry::Flags_EXCLUDE_NOTHING)
-	// {
-	// 	// Need to count the entries
-	// 	count = 0;
-		Iterator i1(*this);
+
 		Entry *pen = 0;
-		while((pen = i1.Next(Entry::Flags_INCLUDE_EVERYTHING, Entry::Flags_EXCLUDE_NOTHING)) != 0)
-		{
-							std::cout << "1 " << pen->GetModificationTime() << " " << PointInTime << std::endl;
-
-		}
-
-Iterator i(*this);
+		Iterator i(*this);
 		while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
 		{
-							std::cout << "2 " << pen->GetModificationTime() << " " << PointInTime << std::endl;
-
 			if ( PointInTime != 0 ) {
-				std::cout << "3 " << pen->GetModificationTime() << " " << PointInTime << std::endl;
-				if( pen->GetModificationTime() <= PointInTime)  {
-					// store this entry
+				if( pen->GetBackupTime() <= PointInTime)  {
 					if( auto res = entries.find(pen->mName.GetEncodedFilename()); res != entries.end() ) {
 						if ( res->second->mModificationTime < pen->mModificationTime ) {
 							res->second = pen;
 						}
 					} else {
-						entries.insert({pen->mName.GetEncodedFilename(),  pen});
-						
-					}
-					
+						entries.insert({pen->mName.GetEncodedFilename(),  pen});	
+					}			
 				}
 			} else {
-
-				// get a random string
-
-
 				entries.insert({pen->mName.GetEncodedFilename(), pen});
 			}
-			// std::cout << "entry: " << BOX_FORMAT_HEX32(pen->mName.GetEncodedFilename()) << " "<<pen->mObjectID << std::endl;
-			// count++;
 		}
-	// }
-std::cout << "count: " << entries.size() << std::endl;
+	
 	// Check that sensible IDs have been set
 	ASSERT(mObjectID != 0);
 	ASSERT(mContainerID != 0);
@@ -323,7 +300,8 @@ std::cout << "count: " << entries.size() << std::endl;
 	// Then write all the entries
 	for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
 		Entry *pen = local_it->second;
-		pen->WriteToStream(rStream, ProtocolVersion >= PROTOCOL_VERSION_V1);
+		std::cout << "protocol "<< ProtocolVersion << std::endl;
+		pen->WriteToStream(rStream, ProtocolVersion < PROTOCOL_VERSION_V2);
 	}
 	
 
@@ -623,8 +601,9 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream, bool IgnoreBa
 
 	// Write any attributes
 	mAttributes.WriteToStream(rStream);
-
+std::cout << "BackupStoreDirectory::Entry::WriteToStream " << IgnoreBackupTime << std::endl;
 	if( !IgnoreBackupTime ) {
+		std::cout << "writing backup time" << std::endl;
 		// Write the backup time
 		box_time_t backupTime = box_hton64(mBackupTime);
 		rStream.Write((void*)&backupTime, sizeof(mBackupTime));
