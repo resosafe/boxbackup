@@ -47,7 +47,7 @@ public:
 	BackupsList();
 
 	static std::auto_ptr<BackupsList> Load(int32_t AccountID, const std::string &rRootDir, int DiscSet, bool ReadOnly, int64_t *pRevisionID = 0);
-	static std::auto_ptr<BackupsList> Load(IOStream &rStream);
+	void ReadFromStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);
 	static std::auto_ptr<IOStream> OpenStream(const std::string &rRootDir);
 	
 	static std::string GetFilePath(const std::string &rRootDir)
@@ -62,6 +62,19 @@ public:
 	}
 	static void AddRecord(const std::string &rRootDir, SessionInfos &rInfos);
 	
+
+	// Get the number of backups
+	int GetCount() const
+	{
+		return mList.size();
+	}
+
+	std::vector<SessionInfos> &GetList()
+	{
+		return mList;
+	}
+
+
 private:
 	std::vector<SessionInfos> mList;
 };

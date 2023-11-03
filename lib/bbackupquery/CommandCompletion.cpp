@@ -244,7 +244,8 @@ std::vector<std::string> CompleteRemoteFileOrDirectory(
 
 	rProtocol.QueryListDirectory(listDirId,
 		listFlags, GetExcludeFlags(rCommand),
-		false /* no attributes */);
+		false /* no attributes */,
+		0);
 
 	// Retrieve the directory from the stream following
 	BackupStoreDirectory dir;
@@ -354,7 +355,8 @@ COMPLETION_FUNCTION(RemoteFileIdInCurrentDir,
 	rProtocol.QueryListDirectory(
 		listDirId,
 		BackupProtocolListDirectory::Flags_File,
-		excludeFlags, false /* no attributes */);
+		excludeFlags, false /* no attributes */,
+		0);
 
 	// Retrieve the directory from the stream following
 	BackupStoreDirectory dir;
@@ -429,7 +431,6 @@ QueryCommandSpecification commands[] =
 	{ "quit",	"",		Command_Quit, 	{} },
 	{ "exit",	"",		Command_Quit,	{} },
 	{ "list",	"adDFhiIorRsStTUpObB",	Command_List,	{CompleteRemoteDir} },
-	{ "listbackups", "", Command_ListBackups, {}},
 	{ "pwd",	"",		Command_pwd,	{} },
 	{ "cd",		"od",		Command_cd,	{CompleteRemoteDir} },
 	{ "lcd",	"",		Command_lcd,	{CompleteLocalDir} },
@@ -440,18 +441,19 @@ QueryCommandSpecification commands[] =
 		{CompleteGetFileOrId, CompleteLocalDir} },
 	{ "compare",	"alcqAEQ",	Command_Compare,
 		{CompleteCompareLocationOrRemoteDir, CompleteCompareNoneOrLocalDir} },
-	{ "restore",	"darif",		Command_Restore,
+	{ "restore",	"darifp",		Command_Restore,
 		{CompleteRestoreRemoteDirOrId, CompleteLocalDir} },
 	{ "help",	"",		Command_Help,	{} },
 	{ "usage",	"m",		Command_Usage,	{} },
 	{ "undelete",	"i",		Command_Undelete,
 		{CompleteGetFileOrId} },
 	{ "delete",	"i",		Command_Delete,	{CompleteGetFileOrId} },
+	{ "listbackups", "tT", Command_ListBackups, {}},
 	{ NULL, 	NULL,		Command_Unknown, {} } 
 };
 
-const char *alias[] = {"ls", 0};
-const int aliasIs[] = {Command_List, 0};
+const char *alias[] = {"ls", "lsbackups", 0};
+const int aliasIs[] = {Command_List, Command_ListBackups, };
 
 BackupQueries::ParsedCommand::ParsedCommand(const std::string& Command,
 	bool isFromCommandLine)

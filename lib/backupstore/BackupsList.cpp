@@ -79,17 +79,15 @@ void BackupsList::AddRecord(const std::string &rRootDir, SessionInfos &rInfos)
 //		Created: 2023/10/30
 //
 // --------------------------------------------------------------------------
-std::auto_ptr<BackupsList> BackupsList::Load(IOStream &rStream)
+void BackupsList::ReadFromStream(IOStream &rStream, int Timeout)
 {
 
-    std::auto_ptr<BackupsList> pList(new BackupsList());
+    mList.clear();
 
-  
-
-    while(!rStream.BytesLeftToRead()) {
+    while(rStream.BytesLeftToRead()) {
     // Read the magic value
         uint32_t magic;
-        rStream.Read(&magic, sizeof(magic));
+        rStream.Read(&magic, sizeof(magic), Timeout);
         magic = ntohl(magic);
         if (magic != BACKUPLIST_MAGIC_VALUE_V1)
         {
@@ -97,12 +95,11 @@ std::auto_ptr<BackupsList> BackupsList::Load(IOStream &rStream)
         }
 
         SessionInfos infos;
-        infos.ReadFromStream(rStream);
-        pList->mList.push_back(infos);
+        infos.ReadFromStream(rStream, Timeout);
+        mList.push_back(infos);
     }
 
 
-    return pList;
 
 }
 

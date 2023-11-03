@@ -384,6 +384,7 @@ public:
 	int64_t GetCurrentDirectoryID();
 	int64_t FindDirectoryObjectID(const std::string &rDirName,
 		bool AllowOldVersion = false, bool AllowDeletedDirs = false,
+		box_time_t PointInTime = 0,
 		std::vector<std::pair<std::string, int64_t> > *pStack = 0);
 
 private:

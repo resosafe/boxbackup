@@ -682,7 +682,8 @@ BackupClientDirectoryRecord::FetchDirectoryListing(
 			// exclude old/deleted stuff
 			BackupProtocolListDirectory::Flags_Deleted |
 			BackupProtocolListDirectory::Flags_OldVersion,
-			true /* want attributes */));
+			true /* want attributes */,
+			0));
 
 	// Retrieve the directory from the stream following
 	apDir.reset(new BackupStoreDirectory(connection.ReceiveStream(),

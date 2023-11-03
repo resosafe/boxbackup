@@ -92,9 +92,9 @@ class SessionInfos {
 			ar.Write(mDeletedDirectoriesCount);
 		}
 
-		void ReadFromStream(IOStream &Stream)
+		void ReadFromStream(IOStream &Stream, int Timeout = IOStream::TimeOutInfinite)
 		{
-			Archive ar(Stream, IOStream::TimeOutInfinite);
+			Archive ar(Stream, Timeout);
 			ar.Read(mStartTime);
 			ar.Read(mEndTime);
 			ar.Read(mAddedFilesCount);

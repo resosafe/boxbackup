@@ -297,7 +297,7 @@ std::cout << "BackupProtocolListDirectory::DoCommand" << rContext.GetProtocolVer
 		rContext.GetDirectory(mObjectID));
 	rdir.WriteToStream(*stream, mFlagsMustBeSet,
 		mFlagsNotToBeSet, 
-		0 /* no point in time */,
+		mPointInTime,
 		mSendAttributes,
 		false /* never send dependency info to the client */,
 		rContext.GetProtocolVersion());
@@ -311,39 +311,7 @@ std::cout << "BackupProtocolListDirectory::DoCommand" << rContext.GetProtocolVer
 		new BackupProtocolSuccess(mObjectID));
 }
 
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupProtocolListDirectoryPointInTime::DoCommand(Protocol &, BackupStoreContext &)
-//		Purpose: Command to list a directory selecting the entries by their modification time
-//		Created: 2003/09/02
-//
-// --------------------------------------------------------------------------
-std::auto_ptr<BackupProtocolMessage> BackupProtocolListDirectoryPointInTime::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
-{
-	CHECK_PHASE(Phase_Commands)
 
-	// Store the listing to a stream
-	std::auto_ptr<CollectInBufferStream> stream(new CollectInBufferStream);
-
-	// Ask the context for a directory
-	const BackupStoreDirectory &rdir(
-		rContext.GetDirectory(mObjectID));
-	rdir.WriteToStream(*stream, 
-		BackupStoreDirectory::Entry::Flags_INCLUDE_EVERYTHING,
-		BackupStoreDirectory::Entry::Flags_EXCLUDE_NOTHING,
-		mPointInTime,
-		mSendAttributes,
-		false /* never send dependency info to the client */);
-
-	stream->SetForReading();
-
-	// Get the protocol to send the stream
-	rProtocol.SendStreamAfterCommand(static_cast< std::auto_ptr<IOStream> > (stream));
-
-	return std::auto_ptr<BackupProtocolMessage>(
-		new BackupProtocolSuccess(mObjectID));
-}
 
 
 // --------------------------------------------------------------------------

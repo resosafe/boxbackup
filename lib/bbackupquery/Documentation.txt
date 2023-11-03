@@ -127,7 +127,7 @@ compare <store-dir-name> <local-dir-name>
 	This can be used for automated tests.
 <
 
-> restore [-darif] <directory-name> [<local-directory-name>]
+> restore [-darif] [timestamp] <directory-name> [<local-directory-name>]
 
 	Restores a directory to the local disc. The local directory specified
 	must not exist (unless a previous restore is being restarted). If the
@@ -141,6 +141,7 @@ compare <store-dir-name> <local-dir-name>
 	-a -- restore both deleted and not-deleted files or directory
 	-r -- resume an interrupted restoration
 	-i -- directory name is actually an ID
+	-p -- point in time (timestamp must be specified)
 	-f -- force restore to continue if errors are encountered
 
 	If a restore operation is interrupted for any reason, it can be restarted
@@ -176,10 +177,17 @@ compare <store-dir-name> <local-dir-name>
 	files is near zero.
 <
 
-> lsbackups 
+> lsbackups [options]
 
 	List the backups 
 
+	-t -- show times in local time
+	-T -- show times in GMT
+<
+
+> listbackups
+
+	Alias for 'lsbackups'. Type 'help lsbackups' for options.
 <
 
 > undelete <directory-name>

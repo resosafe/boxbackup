@@ -139,6 +139,7 @@ ListDirectory	21	Command(Success)
 	int16		FlagsMustBeSet
 	int16		FlagsNotToBeSet
 	bool		SendAttributes
+	int64		PointInTime 0
 	# make sure these flags are synced with those in BackupStoreDirectory
 	CONSTANT	Flags_INCLUDE_EVERYTHING 	-1
 	CONSTANT	Flags_EXCLUDE_NOTHING 		0
@@ -154,45 +155,27 @@ ListDirectory	21	Command(Success)
 	# reply has stream following Success object, containing a stored BackupStoreDirectory
 
 
-ListDirectoryPointInTime	22	Command(Success)
-	int64		ObjectID
-	int64       PointInTime
-	bool		SendAttributes
-	# make sure these flags are synced with those in BackupStoreDirectory
-	CONSTANT	Flags_INCLUDE_EVERYTHING 	-1
-	CONSTANT	Flags_EXCLUDE_NOTHING 		0
-	CONSTANT	Flags_EXCLUDE_EVERYTHING	15
-	CONSTANT	Flags_File			1
-	CONSTANT	Flags_Dir			2
-	CONSTANT	Flags_Deleted			4
-	CONSTANT	Flags_RemoveASAP			16
-	CONSTANT	Flags_OldVersion		8
-	# make sure this is the same as in BackupStoreConstants.h
-	CONSTANT	RootDirectory			1
-
-	# reply has stream following Success object, containing a stored BackupStoreDirectory
-
-ChangeDirAttributes	23	Command(Success)	StreamWithCommand
+ChangeDirAttributes	22	Command(Success)	StreamWithCommand
 	int64		ObjectID
 	int64		AttributesModTime
 	# stream following containing attributes
 
-ChangeDirAttributes2	24	Command(Success)	StreamWithCommand
+ChangeDirAttributes2	23	Command(Success)	StreamWithCommand
 	int64		ObjectID
 	int64		AttributesModTime
 	int64       ModTime
 	# stream following containing attributes
 
-DeleteDirectory	25	Command(Success)
+DeleteDirectory	24	Command(Success)
 	int64		ObjectID
 
 
-UndeleteDirectory	26	Command(Success)
+UndeleteDirectory	25	Command(Success)
 	int64		ObjectID
 	# may not have exactly the desired effect if files within in have been deleted before the directory was deleted.
 
 
-DeleteDirectoryASAP	27	Command(Success)
+DeleteDirectoryASAP	26	Command(Success)
 	int64		ObjectID
 
 

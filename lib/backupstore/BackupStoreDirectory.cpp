@@ -219,6 +219,7 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 //
 // --------------------------------------------------------------------------
 #include <iostream>
+#include "autogen_BackupProtocol.h"
 
 void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo, uint32_t ProtocolVersion) const
 {
@@ -226,26 +227,32 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	
 
 	std::multimap<std::string, BackupStoreDirectory::Entry*> entries;
+ 
+	// If we're travelling in time we won't filter old or deleted objects
+ 	if( PointInTime != 0 )
+	{
+		FlagsNotToBeSet &= ~BackupProtocolListDirectory::Flags_OldVersion;
+		FlagsNotToBeSet &= ~BackupProtocolListDirectory::Flags_Deleted;
+	}
 
-
-		Entry *pen = 0;
-		Iterator i(*this);
-		while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
-		{
-			if ( PointInTime != 0 ) {
-				if( pen->GetBackupTime() <= PointInTime)  {
-					if( auto res = entries.find(pen->mName.GetEncodedFilename()); res != entries.end() ) {
-						if ( res->second->mModificationTime < pen->mModificationTime ) {
-							res->second = pen;
-						}
-					} else {
-						entries.insert({pen->mName.GetEncodedFilename(),  pen});	
-					}			
-				}
-			} else {
-				entries.insert({pen->mName.GetEncodedFilename(), pen});
+	Entry *pen = 0;
+	Iterator i(*this);
+	while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
+	{
+		if ( PointInTime != 0 ) {
+			if( pen->GetBackupTime() <= PointInTime)  {
+				if( auto res = entries.find(pen->mName.GetEncodedFilename()); res != entries.end() ) {
+					if ( res->second->mModificationTime < pen->mModificationTime ) {
+						res->second = pen;
+					}
+				} else {
+					entries.insert({pen->mName.GetEncodedFilename(),  pen});	
+				}			
 			}
+		} else {
+			entries.insert({pen->mName.GetEncodedFilename(), pen});
 		}
+	}
 	
 	// Check that sensible IDs have been set
 	ASSERT(mObjectID != 0);
