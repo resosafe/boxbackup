@@ -19,8 +19,8 @@
 // Should the store daemon convert files to Raid immediately?
 #define	BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY	true
 
-#define PROTOCOL_VERSION_V1 0
-#define PROTOCOL_VERSION_V2 1
+#define PROTOCOL_VERSION_V1 1
+#define PROTOCOL_VERSION_V2 2
 #define PROTOCOL_CURRENT_VERSION PROTOCOL_VERSION_V2
 
 #endif // BACKUPCONSTANTS__H

@@ -278,12 +278,13 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 
 	// Build header
 	dir_StreamFormat hdr;
-	if( ProtocolVersion == PROTOCOL_VERSION_V1 ) {
+	if( ProtocolVersion < PROTOCOL_VERSION_V2 ) {
 		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V0);
+		std::cout << "IS V0" << std::endl;
 	} else {
+		std::cout << "IS V1" << std::endl;
 		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
 	}
-	// hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
 	hdr.mNumEntries = htonl(entries.size());
 	hdr.mObjectID = box_hton64(mObjectID);
 	hdr.mContainerID = box_hton64(mContainerID);
