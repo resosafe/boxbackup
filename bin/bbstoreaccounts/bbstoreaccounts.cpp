@@ -72,6 +72,8 @@ void PrintUsageAndExit()
 "        Runs housekeeping immediately on the account. If it cannot be locked,\n"
 "        bbstoreaccounts returns an error status code (1), otherwise success\n"
 "        (0) even if any errors were fixed by housekeeping.\n"
+"  backups <account> <epoch|utc|local>\n"
+"        Display the list of backups for the specified account.\n"
 	);
 	exit(2);
 }
@@ -306,6 +308,16 @@ int main(int argc, const char *argv[])
 
 
 		return control.HousekeepAccountNow(id, flags);
+	}
+	else if(command == "backups")
+	{
+		std::string tz("epoch");
+		if(argc > 2)
+		{
+			tz = argv[2];
+		}
+
+		return control.PrintBackups(id, tz);
 	}
 	else
 	{

@@ -45,6 +45,7 @@ private:
 public:
 	// Creation through static functions only
 	BackupsList();
+	BackupsList(IOStream &stream);
 
 	static std::auto_ptr<BackupsList> Load(int32_t AccountID, const std::string &rRootDir, int DiscSet, bool ReadOnly, int64_t *pRevisionID = 0);
 	void ReadFromStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);

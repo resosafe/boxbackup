@@ -30,6 +30,19 @@ BackupsList::BackupsList()
 { 
 }
 
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupsList::BackupsList()
+//		Purpose: Constructorand init from a stream
+//		Created: 2023/10/30
+//
+// --------------------------------------------------------------------------
+BackupsList::BackupsList(IOStream &stream)
+{
+    ReadFromStream(stream);
+}
+
 
 // --------------------------------------------------------------------------
 //
