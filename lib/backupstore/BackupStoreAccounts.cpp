@@ -23,8 +23,10 @@
 #include "BackupStoreDirectory.h"
 #include "BackupStoreException.h"
 #include "BackupStoreInfo.h"
+#include "BackupsList.h"
 #include "BackupStoreRefCountDatabase.h"
 #include "BoxPortsAndFiles.h"
+#include "BoxTimeToText.h"
 #include "NamedLock.h"
 #include "RaidFileController.h"
 #include "RaidFileWrite.h"
@@ -593,3 +595,82 @@ int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags)
 	}
 }
 
+
+int BackupStoreAccountsControl::PrintBackups(int32_t ID, std::string tz)
+{	
+	std::string rootDir;
+	int discSetNum;	
+	std::auto_ptr<UnixUser> user; // used to reset uid when we return
+
+	if(!OpenAccount(ID, rootDir, discSetNum, user,
+		NULL /* housekeeping locks the account itself */))
+	{
+		BOX_ERROR("Failed to open account " << BOX_FORMAT_ACCOUNT(ID)
+			<< " for housekeeping.");
+		return 1;
+	}
+	std::auto_ptr<IOStream> stream(BackupsList::OpenStream(RaidFileController::DiscSetPathToFileSystemPath(discSetNum, rootDir, 1)));
+	
+	BackupsList list(*stream);
+	std::cout << 
+	std::setw(25) << std::left << "[start date]" << 
+	std::setw(25) << std::left << "[end date]" << 
+	std::setw(15) << std::left << "[added files]" << 
+	std::setw(15) << std::left << "[added blocks]" << 
+	std::setw(15) << std::left << "[del. files]" <<
+	std::setw(15) << std::left << "[del. blocks]" <<  
+	std::setw(15) << std::left << "[added dirs]" << 
+	std::setw(15) << std::left << "[del. dirs]" << 
+	std::endl;
+
+	std::vector<SessionInfos>& sessions = list.GetList();
+	for (std::vector<SessionInfos>::iterator it = sessions.begin(); it != sessions.end(); ++it)
+	{
+
+		if(tz == "utc")
+		{
+			// Show UTC times...
+			std::cout <<
+			std::setw(25) << std::left << 
+			BoxTimeToISO8601String(it->GetStartTime(), false) << 
+			std::setw(25) << std::left <<
+			BoxTimeToISO8601String(it->GetEndTime(), false) << " ";
+		} 
+		else if(tz == "local")
+		{
+			// Show local times...
+			std::cout << 
+			std::setw(25) << std::left << 
+			BoxTimeToISO8601String(it->GetStartTime(), true) << 
+			std::setw(25) << std::left << 
+			BoxTimeToISO8601String(it->GetEndTime(), true) << " ";
+		}
+		else
+		{
+			// as timestamps
+			std::cout << 
+			std::setw(25) << std::left << 
+			it->GetStartTime() << 
+			std::setw(25) << std::left << 
+			it->GetEndTime() << " " ;
+		}
+
+
+		std::cout << 
+			std::setw(15) << std::left <<
+			it->GetAddedFilesCount() << 
+			std::setw(15) << std::left <<
+			it->GetAddedFilesBlocksCount() << 
+			std::setw(15) << std::left <<
+			it->GetDeletedFilesCount() <<
+			std::setw(15) << std::left <<			
+			it->GetDeletedFilesBlocksCount() <<
+			std::setw(15) << std::left <<			
+			it->GetAddedDirectoriesCount() <<
+			std::setw(15) << std::left <<			
+			it->GetDeletedDirectoriesCount() << 
+			std::endl;
+	}
+
+	return 0;
+}

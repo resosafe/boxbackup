@@ -17,6 +17,7 @@
 	#include <sys/time.h>
 #endif
 
+#include "BackupConstants.h"
 #include "BoxPortsAndFiles.h"
 #include "BoxTime.h"
 #include "BackupClientContext.h"
@@ -188,7 +189,7 @@ BackupProtocolCallable &BackupClientContext::GetConnection()
 
 		// Login -- if this fails, the Protocol will exception
 		std::auto_ptr<BackupProtocolLoginConfirmed> loginConf(
-			mapConnection->QueryLogin(mAccountNumber, 0 /* read/write */));
+			mapConnection->QueryLogin(mAccountNumber, 0 /* read/write */, PROTOCOL_CURRENT_VERSION));
 
 		// Check that the client store marker is the one we expect
 		if(mClientStoreMarker != ClientStoreMarker_NotKnown)
@@ -413,7 +414,7 @@ BackupClientInodeToIDMap &BackupClientContext::GetNewIDMap() const
 //
 // --------------------------------------------------------------------------
 bool BackupClientContext::FindFilename(int64_t ObjectID, int64_t ContainingDirectory, std::string &rPathOut, bool &rIsDirectoryOut,
-	bool &rIsCurrentVersionOut, box_time_t *pModTimeOnServer, box_time_t *pAttributesHashOnServer, BackupStoreFilenameClear *pLeafname)
+	bool &rIsCurrentVersionOut, box_time_t *pModTimeOnServer,box_time_t *pAttributesHashOnServer, BackupStoreFilenameClear *pLeafname)
 {
 	// Make a connection to the server
 	BackupProtocolCallable &connection(GetConnection());

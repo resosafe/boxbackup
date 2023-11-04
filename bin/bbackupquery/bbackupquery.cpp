@@ -43,6 +43,7 @@
 
 #include "MainHelper.h"
 #include "BoxPortsAndFiles.h"
+#include "BackupConstants.h"
 #include "BackupDaemonConfigVerify.h"
 #include "SocketStreamTLS.h"
 #include "Socket.h"
@@ -405,7 +406,7 @@ int main(int argc, const char *argv[])
 	
 	// Login -- if this fails, the Protocol will exception
 	connection.QueryLogin(conf.GetKeyValueUint32("AccountNumber"),
-		(readWrite)?0:(BackupProtocolLogin::Flags_ReadOnly));
+		(readWrite)?0:(BackupProtocolLogin::Flags_ReadOnly), PROTOCOL_CURRENT_VERSION);
 
 	// 5. Tell user.
 	BOX_INFO("Login complete.");

@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <vector>
 
+#include "BackupConstants.h"
 #include "autogen_BackupProtocol.h"
 #include "BoxPortsAndFiles.h"
 #include "BackupStoreAccounts.h"
@@ -116,7 +117,7 @@ std::auto_ptr<BackupProtocolCallable> connect_and_login(TLSContext& rContext,
 		connect_to_bbstored(rContext);
 
 	// Login
-	protocol->QueryLogin(0x01234567, flags);
+	protocol->QueryLogin(0x01234567, flags, PROTOCOL_CURRENT_VERSION);
 
 	return protocol;
 }

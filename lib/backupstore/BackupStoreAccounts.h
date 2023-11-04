@@ -78,6 +78,8 @@ public:
     int CreateAccount(int32_t ID, int32_t DiscNumber, int64_t SoftLimit,
         int64_t HardLimit, int32_t VersionsLimit);
 	int HousekeepAccountNow(int32_t ID,  int32_t flags);
+	int PrintBackups(int32_t ID, std::string tz);
+
 };
 
 // max size of soft limit as percent of hard limit

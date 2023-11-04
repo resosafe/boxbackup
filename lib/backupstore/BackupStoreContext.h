@@ -20,6 +20,8 @@
 #include "NamedLock.h"
 #include "Message.h"
 #include "Utils.h"
+#include "Archive.h"
+
 
 class BackupStoreDirectory;
 class BackupStoreFilename;
@@ -34,35 +36,89 @@ class HousekeepingInterface
 	virtual void SendMessageToHousekeepingProcess(const void *Msg, int MsgLen) = 0;
 };
 
-class Statistics {
+class SessionInfos {
 	public:
-		Statistics() {
+		SessionInfos() {
 			mAddedFilesCount = 0;
-			mAddedFilesSize = 0;
+			mAddedFilesBlocksCount = 0;
 			mDeletedFilesCount = 0;
-			mDeletedFilesSize = 0;
+			mDeletedFilesBlocksCount = 0;
 			mAddedDirectoriesCount = 0;
 			mDeletedDirectoriesCount = 0;
-			mDeletedDirectoriesSize = 0;
-			mCreationTime=time(NULL);
+
+			mStartTime = GetCurrentBoxTime();
+			mEndTime = 0;
 		}
 
-		time_t ElapsedTime() {
-			return time(NULL) - mCreationTime;
+		box_time_t ElapsedTime() { return GetCurrentBoxTime() - mStartTime; }
+		box_time_t GetStartTime() { return mStartTime; }
+		box_time_t GetEndTime() { return mEndTime; }
+		void SetEnd() { mEndTime = GetCurrentBoxTime(); }
+
+		void RecordFileAdded(uint64_t blocks) 
+		{ 
+			mAddedFilesBlocksCount += blocks; 
+			mAddedFilesCount++;
 		}
 		
-		int64_t mAddedFilesCount;
-		int64_t mAddedFilesSize;
-		int64_t mDeletedFilesCount;
-		int64_t mDeletedFilesSize;
-		int64_t mAddedDirectoriesCount;
-		int64_t mDeletedDirectoriesCount;
-		int64_t mDeletedDirectoriesSize;
+		void RecordFileDeleted(uint64_t blocks) 
+		{ 
+			mDeletedFilesBlocksCount += blocks; 
+			mDeletedFilesCount++;
+		}
+
+		void RecordDirectoryAdded() { mAddedDirectoriesCount++; }
+		void RecordDirectoryDeleted() { mDeletedDirectoriesCount++; }
+
+		
+		uint64_t GetAddedFilesCount() { return mAddedFilesCount; }
+		uint64_t GetAddedFilesBlocksCount() { return mAddedFilesBlocksCount; }
+		uint64_t GetDeletedFilesCount() { return mDeletedFilesCount; }
+		uint64_t GetDeletedFilesBlocksCount() { return mDeletedFilesBlocksCount; }
+		uint64_t GetAddedDirectoriesCount() { return mAddedDirectoriesCount; }
+		uint64_t GetDeletedDirectoriesCount() { return mDeletedDirectoriesCount; }
 
 
+		void WriteToStream(IOStream &Stream)
+		{
+			Archive ar(Stream, IOStream::TimeOutInfinite);
+			ar.Write(mStartTime);
+			ar.Write(mEndTime);
+			ar.Write(mAddedFilesCount);
+			ar.Write(mAddedFilesBlocksCount);
+			ar.Write(mDeletedFilesCount);
+			ar.Write(mDeletedFilesBlocksCount);
+			ar.Write(mAddedDirectoriesCount);
+			ar.Write(mDeletedDirectoriesCount);
+		}
+
+		void ReadFromStream(IOStream &Stream, int Timeout = IOStream::TimeOutInfinite)
+		{
+			Archive ar(Stream, Timeout);
+			ar.Read(mStartTime);
+			ar.Read(mEndTime);
+			ar.Read(mAddedFilesCount);
+			ar.Read(mAddedFilesBlocksCount);
+			ar.Read(mDeletedFilesCount);
+			ar.Read(mDeletedFilesBlocksCount);
+			ar.Read(mAddedDirectoriesCount);
+			ar.Read(mDeletedDirectoriesCount);
+		}
+
+
+		bool HasChanges() {
+			return (mAddedFilesCount > 0 || mAddedDirectoriesCount > 0 || mDeletedFilesCount > 0 || mDeletedDirectoriesCount > 0);
+		}
 
 	private:
-		time_t mCreationTime;
+		box_time_t mStartTime;
+		box_time_t mEndTime;
+		uint64_t mAddedFilesCount;
+		uint64_t mAddedFilesBlocksCount;
+		uint64_t mDeletedFilesCount;
+		uint64_t mDeletedFilesBlocksCount;
+		uint64_t mAddedDirectoriesCount;
+		uint64_t mDeletedDirectoriesCount;
 
 };
 
@@ -88,8 +144,6 @@ public:
 
 	void ReceivedFinishCommand();
 	void CleanUp();
-
-	int32_t GetClientID() {return mClientID;}
 
 	enum
 	{
@@ -118,6 +172,7 @@ public:
 	// Read only locking
 	bool SessionIsReadOnly() {return mReadOnly;}
 	bool AttemptToGetWriteLock();
+
 
 	// Not really an API, but useful for BackupProtocolLocal2.
 	void ReleaseWriteLock()
@@ -176,6 +231,7 @@ public:
 	int64_t AddFile(IOStream &rFile,
 		int64_t InDirectory,
 		int64_t ModificationTime,
+		int64_t BackupTime,
 		int64_t AttributesHash,
 		int64_t DiffFromFileID,
 		const BackupStoreFilename &rFilename,
@@ -186,8 +242,9 @@ public:
 		const StreamableMemBlock &Attributes,
 		int64_t AttributesModTime,
 		int64_t ModificationTime,
+		int64_t BackupTime,
 		bool &rAlreadyExists);
-	void ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime);
+	void ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime, int64_t ModificationTime = 0);
 	bool ChangeFileAttributes(const BackupStoreFilename &rFilename, int64_t InDirectory, const StreamableMemBlock &Attributes, int64_t AttributesHash, int64_t &rObjectIDOut);
 	bool DeleteFile(const BackupStoreFilename &rFilename, int64_t InDirectory, int64_t &rObjectIDOut, bool RemoveASAP);
 	bool UndeleteFile(int64_t ObjectID, int64_t InDirectory);
@@ -208,7 +265,11 @@ public:
 	int32_t GetClientID() const {return mClientID;}
 	const std::string& GetConnectionDetails() { return mConnectionDetails; }
 
-	Statistics &GetStatistics() { return mStatistics; }
+	void SetProtocolVersion(int32_t ProtocolVersion) {mProtocolVersion = ProtocolVersion;}
+	int32_t GetProtocolVersion() const {return mProtocolVersion;}
+
+	SessionInfos &GetSessionInfos() { return mSessionInfos; }
+	box_time_t GetSessionStartTime() { return mSessionInfos.GetStartTime(); }
 
 private:
 	void MakeObjectFilename(int64_t ObjectID, std::string &rOutput, bool EnsureDirectoryExists = false);
@@ -222,6 +283,7 @@ private:
 
 	std::string mConnectionDetails;
 	int32_t mClientID;
+	int32_t mProtocolVersion;
 	HousekeepingInterface *mpHousekeeping;
 	int mProtocolPhase;
 	bool mClientHasAccount;
@@ -231,7 +293,6 @@ private:
 	bool mReadOnly;
 	NamedLock mWriteLock;
 	int mSaveStoreInfoDelay; // how many times to delay saving the store info
-
 	
 	// Store info
 	std::auto_ptr<BackupStoreInfo> mapStoreInfo;
@@ -242,8 +303,8 @@ private:
 	// Directory cache
 	std::map<int64_t, BackupStoreDirectory*> mDirectoryCache;
 
-	// Statistics
-	Statistics mStatistics;
+	// SessionInfos
+	SessionInfos mSessionInfos;
 public:
 	class TestHook
 	{

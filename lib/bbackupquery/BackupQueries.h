@@ -39,6 +39,7 @@ typedef enum
 	Command_Usage,
 	Command_Undelete,
 	Command_Delete,
+	Command_ListBackups,
 }
 CommandType;
 
@@ -89,9 +90,9 @@ public:
 	int GetReturnCode() {return mReturnCode;}
 
 	void List(int64_t DirID, const std::string &rListRoot, const bool *opts,
-		bool FirstLevel, std::ostream* pOut = NULL);
+		box_time_t pointInTime, bool FirstLevel,  std::ostream* pOut = NULL);
 	void CommandList(const std::vector<std::string> &args, const bool *opts);
-
+	
 	// Commands
 	void CommandChangeDir(const std::vector<std::string> &args, const bool *opts);
 	void CommandChangeLocalDir(const std::vector<std::string> &args);
@@ -105,6 +106,7 @@ public:
 	void CommandUsage(const bool *opts);
 	void CommandUsageDisplayEntry(const char *Name, int64_t Size,
 		int64_t HardLimit, int32_t BlockSize, bool MachineReadable);
+	void CommandListBackups(const bool *opts);
 	void CommandHelp(const std::vector<std::string> &args);
 
 	class CompareParams : public BoxBackupCompareParams
@@ -382,6 +384,7 @@ public:
 	int64_t GetCurrentDirectoryID();
 	int64_t FindDirectoryObjectID(const std::string &rDirName,
 		bool AllowOldVersion = false, bool AllowDeletedDirs = false,
+		box_time_t PointInTime = 0,
 		std::vector<std::pair<std::string, int64_t> > *pStack = 0);
 
 private:

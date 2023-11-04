@@ -19,6 +19,7 @@
 #include "BackupStoreConstants.h"
 #include "BackupStoreDirectory.h"
 #include "BackupStoreException.h"
+#include "BackupsList.h"
 #include "BackupStoreFile.h"
 #include "BackupStoreInfo.h"
 #include "BufferedStream.h"
@@ -136,24 +137,20 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolVersion::DoCommand(BackupProt
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolVersion(BACKUP_STORE_SERVER_VERSION));
 }
 
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupProtocolLogin::DoCommand(Protocol &, BackupStoreContext &)
-//		Purpose: Return the current version, or an error if the requested version isn't allowed
-//		Created: 2003/08/20
-//
-// --------------------------------------------------------------------------
-std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
-{
-	CHECK_PHASE(Phase_Login)
 
+std::auto_ptr<BackupProtocolMessage> DoLogin(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext, int32_t ClientID, int32_t Flags, int32_t Version)
+{
+
+	// Set the protocol version, this can be useful
+	// in order to know what the client supports
+	rContext.SetProtocolVersion(Version);
+	
 	// Check given client ID against the ID in the certificate certificate
 	// and that the client actually has an account on this machine
-	if(mClientID != rContext.GetClientID())
+	if(ClientID != rContext.GetClientID())
 	{
 		BOX_WARNING("Failed login from client ID " <<
-			BOX_FORMAT_ACCOUNT(mClientID) << ": "
+			BOX_FORMAT_ACCOUNT(ClientID) << ": "
 			"wrong certificate for this account");
 		return PROTOCOL_ERROR(Err_BadLogin);
 	}
@@ -161,19 +158,19 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 	if(!rContext.GetClientHasAccount())
 	{
 		BOX_WARNING("Failed login from client ID " <<
-			BOX_FORMAT_ACCOUNT(mClientID) << ": "
+			BOX_FORMAT_ACCOUNT(ClientID) << ": "
 			"no such account on this server");
 		return PROTOCOL_ERROR(Err_BadLogin);
 	}
 
 	// If we need to write, check that nothing else has got a write lock
-	if((mFlags & Flags_ReadOnly) != Flags_ReadOnly)
+	if((Flags & BackupProtocolLogin::Flags_ReadOnly) != BackupProtocolLogin::Flags_ReadOnly)
 	{
 		// See if the context will get the lock
 		if(!rContext.AttemptToGetWriteLock())
 		{
 			BOX_WARNING("Failed to get write lock for Client ID " <<
-				BOX_FORMAT_ACCOUNT(mClientID));
+				BOX_FORMAT_ACCOUNT(ClientID));
 			return PROTOCOL_ERROR(Err_CannotLockStoreForWriting);
 		}
 
@@ -187,7 +184,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 	if(!rContext.GetBackupStoreInfo().IsAccountEnabled())
 	{
 		BOX_WARNING("Refused login from disabled client ID " <<
-			BOX_FORMAT_ACCOUNT(mClientID));
+			BOX_FORMAT_ACCOUNT(ClientID));
 		return PROTOCOL_ERROR(Err_DisabledAccount);
 	}
 
@@ -199,11 +196,11 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 
 	// Log login
 	BOX_NOTICE("Login from Client ID " <<
-		BOX_FORMAT_ACCOUNT(mClientID) << " "
+		BOX_FORMAT_ACCOUNT(ClientID) << " "
 		"(name=" << rContext.GetAccountName() << "): " <<
-		(((mFlags & Flags_ReadOnly) != Flags_ReadOnly)
-			?"Read/Write":"Read-only") << " from " <<
-		rContext.GetConnectionDetails());
+		(rContext.SessionIsReadOnly()?"Read/Write":"Read-only") << 
+		" (protocol version: " << Version << ")" <<
+		" from " << rContext.GetConnectionDetails());
 
 	// Get the usage info for reporting to the client
 	int64_t blocksUsed = 0, blocksSoftLimit = 0, blocksHardLimit = 0;
@@ -212,6 +209,39 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtoc
 	// Return success
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolLoginConfirmed(clientStoreMarker, blocksUsed, blocksSoftLimit, blocksHardLimit));
 }
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolLogin::DoCommand(Protocol &, BackupStoreContext &)
+//		Purpose: Return the current version, or an error if the requested version isn't allowed
+//		Created: 2003/08/20
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+{
+	CHECK_PHASE(Phase_Login)
+
+		return DoLogin(rProtocol, rContext, mClientID, mFlags, mVersion);
+
+}
+
+
+// // --------------------------------------------------------------------------
+// //
+// // Function
+// //		Name:    BackupProtocolLogin2::DoCommand(Protocol &, BackupStoreContext &)
+// //		Purpose: Return the current version, or an error if the requested version isn't allowed
+// //		Created: 2023/10/27
+// //
+// // --------------------------------------------------------------------------
+// std::auto_ptr<BackupProtocolMessage> BackupProtocolLogin2::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+// {
+// 	CHECK_PHASE(Phase_Login)
+
+// 	return DoLogin(rProtocol, rContext, mClientID, mFlags, mVersion);
+// }
+
 
 // --------------------------------------------------------------------------
 //
@@ -225,18 +255,17 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolFinished::DoCommand(BackupPro
 {
 	// can be called in any phase
 
-	const BackupStoreInfo &rinfo(rContext.GetBackupStoreInfo());
-
-	Statistics& stats = rContext.GetStatistics();
+	
+	SessionInfos& stats = rContext.GetSessionInfos();
 
 	BOX_NOTICE("Session finished for Client ID " <<
 		BOX_FORMAT_ACCOUNT(rContext.GetClientID()) << " "
 		"(name=" << rContext.GetAccountName() << "), "
 		"infos " << rContext.GetConnectionDetails() << ","
-		"added files : "<<stats.mAddedFilesCount  << " (" << stats.mAddedFilesSize << " blocks), " 
-		"deleted files : "<<stats.mDeletedFilesCount  << " (" << stats.mDeletedFilesSize << " blocks), "
-		"added dirs : "<<stats.mAddedDirectoriesCount  << ", " 
-		"deleted dirs : "<<stats.mDeletedDirectoriesCount  << ", "
+		"added files : "<<stats.GetAddedFilesCount()  << " (" << stats.GetAddedFilesBlocksCount() << " blocks), " 
+		"deleted files : "<<stats.GetDeletedFilesCount()  << " (" << stats.GetDeletedFilesBlocksCount() << " blocks), "
+		"added dirs : "<<stats.GetAddedDirectoriesCount()  << ", " 
+		"deleted dirs : "<<stats.GetDeletedDirectoriesCount()  << ", "
 		"time :" << stats.ElapsedTime() << "s"
 
 		);
@@ -247,7 +276,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolFinished::DoCommand(BackupPro
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolFinished);
 }
 
-
+#include <iostream>
 // --------------------------------------------------------------------------
 //
 // Function
@@ -259,7 +288,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolFinished::DoCommand(BackupPro
 std::auto_ptr<BackupProtocolMessage> BackupProtocolListDirectory::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
 {
 	CHECK_PHASE(Phase_Commands)
-
+std::cout << "BackupProtocolListDirectory::DoCommand" << rContext.GetProtocolVersion() << std::endl;
 	// Store the listing to a stream
 	std::auto_ptr<CollectInBufferStream> stream(new CollectInBufferStream);
 
@@ -267,8 +296,11 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolListDirectory::DoCommand(Back
 	const BackupStoreDirectory &rdir(
 		rContext.GetDirectory(mObjectID));
 	rdir.WriteToStream(*stream, mFlagsMustBeSet,
-		mFlagsNotToBeSet, mSendAttributes,
-		false /* never send dependency info to the client */);
+		mFlagsNotToBeSet, 
+		mPointInTime,
+		mSendAttributes,
+		false /* never send dependency info to the client */,
+		rContext.GetProtocolVersion());
 
 	stream->SetForReading();
 
@@ -278,6 +310,9 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolListDirectory::DoCommand(Back
 	return std::auto_ptr<BackupProtocolMessage>(
 		new BackupProtocolSuccess(mObjectID));
 }
+
+
+
 
 // --------------------------------------------------------------------------
 //
@@ -313,7 +348,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFile::DoCommand(
 
 	// Ask the context to store it
 	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
-		mModificationTime, mAttributesHash, mDiffFromFileID,
+		mModificationTime, rContext.GetSessionStartTime(), mAttributesHash, mDiffFromFileID,
 		mFilename,
 		true /* mark files with same name as old versions */,
 		0 /* don't support resuming */);
@@ -356,7 +391,8 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFileWithResume::DoComman
 
 	// Ask the context to store it
 	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
-		mModificationTime, mAttributesHash, mDiffFromFileID,
+		mModificationTime, rContext.GetSessionStartTime(), 
+		mAttributesHash, mDiffFromFileID,
 		mFilename,
 		true /* mark files with same name as old versions */,
 		mResumeOffset);
@@ -591,7 +627,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolCreateDirectory2::DoCommand(
 
 	bool alreadyExists = false;
 	int64_t id = rContext.AddDirectory(mContainingDirectoryID,
-		mDirectoryName, attr, mAttributesModTime, mModificationTime,
+		mDirectoryName, attr, mAttributesModTime, mModificationTime, rContext.GetSessionStartTime(),
 		alreadyExists);
 
 	if(alreadyExists)
@@ -627,6 +663,33 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolChangeDirAttributes::DoComman
 
 	// Get the context to do it's magic
 	rContext.ChangeDirAttributes(mObjectID, attr, mAttributesModTime);
+
+	// Tell the caller what the file was
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(mObjectID));
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolChangeDirAttributes2::DoCommand(Protocol &, BackupStoreContext &)
+//		Purpose: Change attributes on directory with modification time
+//		Created: 2003/09/06
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolChangeDirAttributes2::DoCommand(
+	BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext,
+	IOStream& rDataStream) const
+{
+	CHECK_PHASE(Phase_Commands)
+	CHECK_WRITEABLE_SESSION
+
+	// Collect the attributes -- do this now so no matter what the outcome,
+	// the data has been absorbed.
+	StreamableMemBlock attr;
+	attr.Set(rDataStream, rProtocol.GetTimeout());
+
+	// Get the context to do it's magic
+	rContext.ChangeDirAttributes(mObjectID, attr, mAttributesModTime, mModTime);
 
 	// Tell the caller what the file was
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(mObjectID));
@@ -1079,6 +1142,31 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetAccountUsage::DoCommand(Ba
 		rdiscSet.GetBlockSize()
 	));
 }
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolListBackups::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
+//		Purpose: Return the Backups list
+//		Created: 2023/11/02
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolListBackups::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+{
+	CHECK_PHASE(Phase_Commands)
+
+
+	// Open the file
+	std::auto_ptr<IOStream> stream(BackupsList::OpenStream(RaidFileController::DiscSetPathToFileSystemPath(rContext.GetStoreDiscSet(), rContext.GetAccountRoot(), 1)));
+
+	// Return the stream to the client
+	rProtocol.SendStreamAfterCommand(stream);
+
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolBackups());
+
+}
+
 
 // --------------------------------------------------------------------------
 //

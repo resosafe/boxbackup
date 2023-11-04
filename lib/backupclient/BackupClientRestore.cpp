@@ -196,6 +196,7 @@ typedef struct
 	bool RestoreAny;	// restore deleted and non-deleted
 	bool ContinueAfterErrors;
 	bool ContinuedAfterError;
+	box_time_t PointInTime;
 	std::string mRestoreResumeInfoFilename;
 	RestoreResumeInfo mResumeInfo;
 } RestoreParams;
@@ -445,12 +446,15 @@ static int BackupClientRestoreDir(BackupProtocolCallable &rConnection,
 
 	// Fetch the directory listing from the server -- getting a
 	// list of files which is appropriate to the restore type
+	
 	rConnection.QueryListDirectory(
 		DirectoryID,
 		Params.RestoreDeleted?(BackupProtocolListDirectory::Flags_Deleted):(BackupProtocolListDirectory::Flags_INCLUDE_EVERYTHING),
 		BackupProtocolListDirectory::Flags_OldVersion  | (Params.RestoreAny || Params.RestoreDeleted?(0):(BackupProtocolListDirectory::Flags_Deleted)),
-		true /* want attributes */);
+		true /* want attributes */,
+		Params.PointInTime);
 
+	
 	// Retrieve the directory from the stream following
 	BackupStoreDirectory dir;
 	std::auto_ptr<IOStream> dirstream(rConnection.ReceiveStream());
@@ -868,7 +872,7 @@ static int BackupClientRestoreDir(BackupProtocolCallable &rConnection,
 // --------------------------------------------------------------------------
 int BackupClientRestore(BackupProtocolCallable &rConnection,
 	int64_t DirectoryID, const std::string& RemoteDirectoryName,
-	const std::string& LocalDirectoryName, bool PrintDots, bool RestoreDeleted,
+	const std::string& LocalDirectoryName, box_time_t PointInTime, bool PrintDots, bool RestoreDeleted,
 	bool RestoreAny, bool UndeleteAfterRestoreDeleted, 
 	bool Resume, bool ContinueAfterErrors,
 	RestoreInfos &infos)
@@ -880,6 +884,7 @@ int BackupClientRestore(BackupProtocolCallable &rConnection,
 	params.RestoreAny = RestoreAny;
 	params.ContinueAfterErrors = ContinueAfterErrors;
 	params.ContinuedAfterError = false;
+	params.PointInTime = PointInTime;
 	params.mRestoreResumeInfoFilename = LocalDirectoryName;
 	params.mRestoreResumeInfoFilename += ".boxbackupresume";
 

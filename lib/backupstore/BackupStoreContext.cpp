@@ -17,6 +17,7 @@
 #include "BackupStoreException.h"
 #include "BackupStoreFile.h"
 #include "BackupStoreInfo.h"
+#include "BackupsList.h"
 #include "BackupStoreObjectMagic.h"
 #include "BackupStoreFileResumeInfo.h"
 #include "BufferedStream.h"
@@ -65,6 +66,7 @@ BackupStoreContext::BackupStoreContext(int32_t ClientID,
   mStoreDiscSet(-1),
   mReadOnly(true),
   mSaveStoreInfoDelay(STORE_INFO_SAVE_DELAY),
+  mProtocolVersion(PROTOCOL_CURRENT_VERSION),
   mpTestHook(NULL)// If you change the initialisers, be sure to update
 // BackupStoreContext::ReceivedFinishCommand as well!
 {
@@ -113,6 +115,14 @@ void BackupStoreContext::CleanUp()
 	{
 		mapStoreInfo->Save();
 	}
+
+	mSessionInfos.SetEnd();
+	// If some changes were recorded, this is a backup that will be recorded
+	if(mSessionInfos.HasChanges()) {
+		BackupsList::AddRecord(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1), mSessionInfos);
+	}
+
+	
 }
 
 
@@ -479,7 +489,7 @@ int64_t BackupStoreContext::AllocateObjectID()
 //
 // --------------------------------------------------------------------------
 int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
-	int64_t ModificationTime, int64_t AttributesHash,
+	int64_t ModificationTime, int64_t BackupTime, int64_t AttributesHash,
 	int64_t DiffFromFileID, const BackupStoreFilename &rFilename,
 	bool MarkFileWithSameNameAsOldVersions,
 	uint64_t ResumeOffset)
@@ -707,8 +717,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		adjustment.mBlocksInCurrentFiles += newObjectBlocksUsed;
 		adjustment.mNumCurrentFiles++;
 
-		mStatistics.mAddedFilesSize += newObjectBlocksUsed;
-		mStatistics.mAddedFilesCount++;
+		mSessionInfos.RecordFileAdded(newObjectBlocksUsed);
 
 		// Exceeds the hard limit?
 		int64_t newTotalBlocksUsed = mapStoreInfo->GetBlocksUsed() +
@@ -849,7 +858,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 
 		// Then the new entry
 		BackupStoreDirectory::Entry *pnewEntry = dir.AddEntry(rFilename,
-			ModificationTime, id, newObjectBlocksUsed,
+			ModificationTime, BackupTime, id, newObjectBlocksUsed,
 			BackupStoreDirectory::Entry::Flags_File,
 			AttributesHash);
 
@@ -988,8 +997,7 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 				mapStoreInfo->AdjustNumDeletedFiles(1);
 				mapStoreInfo->ChangeBlocksInDeletedFiles(blocks);
 
-				mStatistics.mDeletedFilesCount++;
-				mStatistics.mDeletedFilesSize += blocks;
+				mSessionInfos.RecordFileDeleted(blocks);
 
 				// We're marking all old versions as deleted.
 				// This is how a file can be old and deleted
@@ -1249,6 +1257,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	const StreamableMemBlock &Attributes,
 	int64_t AttributesModTime,
 	int64_t ModificationTime,
+	int64_t BackupTime,
 	bool &rAlreadyExists)
 {
 	if(mapStoreInfo.get() == 0)
@@ -1325,7 +1334,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	// Then add it into the parent directory
 	try
 	{
-		dir.AddEntry(rFilename, ModificationTime, id, dirSize,
+		dir.AddEntry(rFilename, ModificationTime, BackupTime, id, dirSize,
 			BackupStoreDirectory::Entry::Flags_Dir,
 			0 /* attributes hash */);
 		SaveDirectory(dir);
@@ -1348,7 +1357,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 
 	// Save the store info (may not be postponed)
 	mapStoreInfo->AdjustNumDirectories(1);
-	mStatistics.mAddedDirectoriesCount ++;
+	mSessionInfos.RecordDirectoryAdded();
 	SaveStoreInfo(false);
 
 	// tell caller what the ID was
@@ -1429,7 +1438,7 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 
 		// Update blocks deleted count
 		SaveStoreInfo(false);
-			mStatistics.mDeletedDirectoriesCount ++;
+		mSessionInfos.RecordDirectoryAdded();
 
 	}
 	catch(...)
@@ -1559,7 +1568,7 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 //		Created: 2003/09/06
 //
 // --------------------------------------------------------------------------
-void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime)
+void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime, int64_t ModificationTime)
 {
 	if(mapStoreInfo.get() == 0)
 	{
@@ -1577,6 +1586,18 @@ void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const Streamable
 
 		// Set attributes
 		dir.SetAttributes(Attributes, AttributesModTime);
+		
+		if (ModificationTime != 0) {
+				int64_t ContainerID = dir.GetContainerID();
+				BackupStoreDirectory& parent(
+					GetDirectoryInternal(ContainerID));
+			
+				BackupStoreDirectory::Entry* en =
+					parent.FindEntryByID(Directory);
+
+				en->SetModificationTime(ModificationTime);
+				SaveDirectory(parent);
+		}
 
 		// Save back
 		SaveDirectory(dir);
@@ -1702,7 +1723,9 @@ bool BackupStoreContext::ObjectExists(int64_t ObjectID, int MustBe)
 		}
 
 #ifndef BOX_DISABLE_BACKWARDS_COMPATIBILITY_BACKUPSTOREFILE
-		if(MustBe == ObjectExists_File && ntohl(magic) == OBJECTMAGIC_FILE_MAGIC_VALUE_V0)
+		uint32_t requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V0:OBJECTMAGIC_DIR_MAGIC_VALUE_V0;
+
+		if(ntohl(magic) == requiredMagic)
 		{
 			// Old version detected
 			return true;
@@ -1710,7 +1733,7 @@ bool BackupStoreContext::ObjectExists(int64_t ObjectID, int MustBe)
 #endif
 
 		// Right one?
-		uint32_t requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V1:OBJECTMAGIC_DIR_MAGIC_VALUE;
+		requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V1:OBJECTMAGIC_DIR_MAGIC_VALUE_V1;
 
 		// Check
 		if(ntohl(magic) != requiredMagic)

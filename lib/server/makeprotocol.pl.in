@@ -122,7 +122,15 @@ while(<IN>)
 		}
 		else
 		{
-			push @{$cmd_contents{$current_cmd}},$type,$name;
+			if( !(defined $value) )
+			{				
+				push @{$cmd_contents{$current_cmd}},[$type,$name];
+			}
+			else
+			{
+				push @{$cmd_contents{$current_cmd}},[$type,$name, $value];	
+			}
+			
 		}
 	}
 	else
@@ -377,9 +385,9 @@ __E
 	print H "\tvoid SetPropertiesFromStreamData(Protocol &rProtocol);\n";
 	
 	# write Get functions
-	for(my $x = 0; $x < $#{$cmd_contents{$cmd}}; $x+=2)
+	for(my $x = 0; $x <= $#{$cmd_contents{$cmd}}; $x+=1)
 	{
-		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x], ${$cmd_contents{$cmd}}[$x+1]);
+		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x][0], ${$cmd_contents{$cmd}}[$x][1]);
 		
 		print H "\t".translate_type_to_arg_type($ty)." Get$nm() {return m$nm;}\n";
 	}
@@ -389,9 +397,9 @@ __E
 	if($#{$cmd_contents{$cmd}} >= 0)
 	{
 		my @a;
-		for(my $x = 0; $x < $#{$cmd_contents{$cmd}}; $x+=2)
+		for(my $x = 0; $x <= $#{$cmd_contents{$cmd}}; $x+=1)
 		{
-			my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x], ${$cmd_contents{$cmd}}[$x+1]);
+			my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x][0], ${$cmd_contents{$cmd}}[$x][1]);
 
 			push @a,translate_type_to_arg_type($ty)." $nm";
 		}		
@@ -400,9 +408,9 @@ __E
 	}
 	print H "\tvoid WritePropertiesToStreamData(Protocol &rProtocol) const;\n";
 	# set functions
-	for(my $x = 0; $x < $#{$cmd_contents{$cmd}}; $x+=2)
+	for(my $x = 0; $x <= $#{$cmd_contents{$cmd}}; $x+=1)
 	{
-		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x], ${$cmd_contents{$cmd}}[$x+1]);
+		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x][0], ${$cmd_contents{$cmd}}[$x][1]);
 		
 		print H "\tvoid Set$nm(".translate_type_to_arg_type($ty)." $nm) {m$nm = $nm;}\n";
 	}
@@ -417,9 +425,9 @@ __E
 	my @param_constructor_list;
 	
 	print H "private:\n";
-	for(my $x = 0; $x < $#{$cmd_contents{$cmd}}; $x+=2)
+	for(my $x = 0; $x <= $#{$cmd_contents{$cmd}}; $x+=1)
 	{
-		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x], ${$cmd_contents{$cmd}}[$x+1]);
+		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x][0], ${$cmd_contents{$cmd}}[$x][1]);
 
 		print H "\t".translate_type_to_member_type($ty)." m$nm;\n";
 		
@@ -459,16 +467,24 @@ int $cmd_class\::GetType() const
 }
 __E
 	print CPP "void $cmd_class\::SetPropertiesFromStreamData(Protocol &rProtocol)\n{\n";
-	for(my $x = 0; $x < $#{$cmd_contents{$cmd}}; $x+=2)
+	for(my $x = 0; $x <= $#{$cmd_contents{$cmd}}; $x+=1)
 	{
-		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x], ${$cmd_contents{$cmd}}[$x+1]);
+		my ($ty,$nm,$val) = (${$cmd_contents{$cmd}}[$x][0], ${$cmd_contents{$cmd}}[$x][1], ${$cmd_contents{$cmd}}[$x][2]);
+	
 		if($ty =~ m/\Avector/)
 		{
 			print CPP "\trProtocol.ReadVector(m$nm);\n";
 		}
 		else
 		{
-			print CPP "\trProtocol.Read(m$nm);\n";
+			if( defined $val )
+			{
+				print CPP "\trProtocol.ReadWithDefault(m$nm, $val);\n";
+			}
+			else
+			{
+				print CPP "\trProtocol.Read(m$nm);\n";
+			}
 		}
 	}
 	print CPP "}\n";
@@ -479,9 +495,9 @@ __E
 		print CPP "$cmd_class\::$cmd_class($param_con_args)$param_con_vars\n{\n}\n";
 	}
 	print CPP "void $cmd_class\::WritePropertiesToStreamData(Protocol &rProtocol) const\n{\n";
-	for(my $x = 0; $x < $#{$cmd_contents{$cmd}}; $x+=2)
+	for(my $x = 0; $x <= $#{$cmd_contents{$cmd}}; $x+=1)
 	{
-		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x], ${$cmd_contents{$cmd}}[$x+1]);
+		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x][0], ${$cmd_contents{$cmd}}[$x][1]);
 		if($ty =~ m/\Avector/)
 		{
 			print CPP "\trProtocol.WriteVector(m$nm);\n";
@@ -778,9 +794,9 @@ for my $cmd (@cmd_list)
 		print H "\tvirtual std::auto_ptr<$reply_class> Query(const $request_class &rQuery$argextra) = 0;\n";
 		my @a;
 		my @na;
-		for(my $x = 0; $x < $#{$cmd_contents{$cmd}}; $x+=2)
+			for(my $x = 0; $x <= $#{$cmd_contents{$cmd}}; $x+=1)
 		{
-			my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x], ${$cmd_contents{$cmd}}[$x+1]);
+			my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x][0], ${$cmd_contents{$cmd}}[$x][1]);
 			push @a,translate_type_to_arg_type($ty)." $nm";
 			push @na,"$nm";
 		}
@@ -1303,10 +1319,10 @@ sub make_log_strings_framework
 
 	my @args;
 
-	for(my $x = 0; $x < $#{$cmd_contents{$cmd}}; $x+=2)
+		for(my $x = 0; $x < $#{$cmd_contents{$cmd}}; $x+=2)
 	{
 		my ($ty,$nm) = (${$cmd_contents{$cmd}}[$x], ${$cmd_contents{$cmd}}[$x+1]);
-		
+			
 		if(exists $log_display_types{$ty})
 		{
 			# need to translate it

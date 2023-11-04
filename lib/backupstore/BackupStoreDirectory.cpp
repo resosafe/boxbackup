@@ -10,7 +10,8 @@
 #include "Box.h"
 
 #include <sys/types.h>
-
+#include <map>
+#include "BackupConstants.h"
 #include "BackupStoreDirectory.h"
 #include "IOStream.h"
 #include "BackupStoreException.h"
@@ -45,6 +46,7 @@ typedef struct
 	int16_t mFlags;				// order smaller items after bigger ones (for alignment)
 	// Then a BackupStoreFilename
 	// Then a StreamableMemBlock for attributes
+	// Then the backup time
 } en_StreamFormat;
 
 typedef struct
@@ -142,11 +144,15 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 	}
 
 	// Check magic value...
-	if(OBJECTMAGIC_DIR_MAGIC_VALUE != ntohl(hdr.mMagicValue))
+	uint32_t magicValue = ntohl(hdr.mMagicValue);
+	if(magicValue != OBJECTMAGIC_DIR_MAGIC_VALUE_V0 &&
+		magicValue != OBJECTMAGIC_DIR_MAGIC_VALUE_V1)
 	{
 		THROW_EXCEPTION_MESSAGE(BackupStoreException, BadDirectoryFormat,
 			"Wrong magic number for directory: expected " <<
-			BOX_FORMAT_HEX32(OBJECTMAGIC_DIR_MAGIC_VALUE) <<
+			BOX_FORMAT_HEX32(OBJECTMAGIC_DIR_MAGIC_VALUE_V0) <<
+			" or " <<
+			BOX_FORMAT_HEX32(OBJECTMAGIC_DIR_MAGIC_VALUE_V1) <<
 			" but found " <<
 			BOX_FORMAT_HEX32(ntohl(hdr.mMagicValue)) << " in " <<
 			rStream.ToString());
@@ -181,7 +187,7 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 		try
 		{
 			// Read from stream
-			pen->ReadFromStream(rStream, Timeout);
+			pen->ReadFromStream(rStream, Timeout, magicValue);
 
 			// Add to list
 			mEntries.push_back(pen);
@@ -212,22 +218,42 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 //		Created: 2003/08/26
 //
 // --------------------------------------------------------------------------
-void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, bool StreamAttributes, bool StreamDependencyInfo) const
+#include <iostream>
+#include "autogen_BackupProtocol.h"
+
+void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo, uint32_t ProtocolVersion) const
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
-	// Get count of entries
-	int32_t count = mEntries.size();
-	if(FlagsMustBeSet != Entry::Flags_INCLUDE_EVERYTHING || FlagsNotToBeSet != Entry::Flags_EXCLUDE_NOTHING)
+	
+
+	std::multimap<std::string, BackupStoreDirectory::Entry*> entries;
+ 
+	// If we're travelling in time we won't filter old or deleted objects
+ 	if( PointInTime != 0 )
 	{
-		// Need to count the entries
-		count = 0;
-		Iterator i(*this);
-		while(i.Next(FlagsMustBeSet, FlagsNotToBeSet) != 0)
-		{
-			count++;
-		}
+		FlagsNotToBeSet &= ~BackupProtocolListDirectory::Flags_OldVersion;
+		FlagsNotToBeSet &= ~BackupProtocolListDirectory::Flags_Deleted;
 	}
 
+	Entry *pen = 0;
+	Iterator i(*this);
+	while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
+	{
+		if ( PointInTime != 0 ) {
+			if( pen->GetBackupTime() <= PointInTime)  {
+				if( auto res = entries.find(pen->mName.GetEncodedFilename()); res != entries.end() ) {
+					if ( res->second->mModificationTime < pen->mModificationTime ) {
+						res->second = pen;
+					}
+				} else {
+					entries.insert({pen->mName.GetEncodedFilename(),  pen});	
+				}			
+			}
+		} else {
+			entries.insert({pen->mName.GetEncodedFilename(), pen});
+		}
+	}
+	
 	// Check that sensible IDs have been set
 	ASSERT(mObjectID != 0);
 	ASSERT(mContainerID != 0);
@@ -236,13 +262,12 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	bool dependencyInfoRequired = false;
 	if(StreamDependencyInfo)
 	{
-		Iterator i(*this);
-		Entry *pen = 0;
-		while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
-		{
+		for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
+			Entry *pen = local_it->second;
 			if(pen->HasDependencies())
 			{
 				dependencyInfoRequired = true;
+				break;
 			}
 		}
 	}
@@ -253,8 +278,14 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 
 	// Build header
 	dir_StreamFormat hdr;
-	hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE);
-	hdr.mNumEntries = htonl(count);
+	if( ProtocolVersion < PROTOCOL_VERSION_V2 ) {
+		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V0);
+		std::cout << "IS V0" << std::endl;
+	} else {
+		std::cout << "IS V1" << std::endl;
+		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
+	}
+	hdr.mNumEntries = htonl(entries.size());
 	hdr.mObjectID = box_hton64(mObjectID);
 	hdr.mContainerID = box_hton64(mContainerID);
 	hdr.mAttributesModTime = box_hton64(mAttributesModTime);
@@ -275,20 +306,18 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	}
 
 	// Then write all the entries
-	Iterator i(*this);
-	Entry *pen = 0;
-	while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
-	{
-		pen->WriteToStream(rStream);
+	for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
+		Entry *pen = local_it->second;
+		std::cout << "protocol "<< ProtocolVersion << std::endl;
+		pen->WriteToStream(rStream, ProtocolVersion < PROTOCOL_VERSION_V2);
 	}
+	
 
 	// Write dependency info?
 	if(dependencyInfoRequired)
 	{
-		Iterator i(*this);
-		Entry *pen = 0;
-		while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
-		{
+		for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
+			Entry *pen = local_it->second;
 			pen->WriteToStreamDependencyInfo(rStream);
 		}
 	}
@@ -329,11 +358,11 @@ BackupStoreDirectory::Entry *BackupStoreDirectory::AddEntry(const Entry &rEntryT
 // --------------------------------------------------------------------------
 BackupStoreDirectory::Entry *
 BackupStoreDirectory::AddEntry(const BackupStoreFilename &rName,
-	box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks,
+	box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks,
 	int16_t Flags, uint64_t AttributesHash)
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
-	Entry *pnew = new Entry(rName, ModificationTime, ObjectID,
+	Entry *pnew = new Entry(rName, ModificationTime, BackupTime, ObjectID,
 		SizeInBlocks, Flags, AttributesHash);
 	try
 	{
@@ -420,6 +449,7 @@ BackupStoreDirectory::Entry::Entry()
   mInvalidated(false),
 #endif
   mModificationTime(0),
+  mBackupTime(0),
   mObjectID(0),
   mSizeInBlocks(0),
   mFlags(0),
@@ -458,6 +488,7 @@ BackupStoreDirectory::Entry::Entry(const Entry &rToCopy)
 #endif
   mName(rToCopy.mName),
   mModificationTime(rToCopy.mModificationTime),
+  mBackupTime(rToCopy.mBackupTime),
   mObjectID(rToCopy.mObjectID),
   mSizeInBlocks(rToCopy.mSizeInBlocks),
   mFlags(rToCopy.mFlags),
@@ -479,13 +510,14 @@ BackupStoreDirectory::Entry::Entry(const Entry &rToCopy)
 //		Created: 2003/08/27
 //
 // --------------------------------------------------------------------------
-BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
+BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
 :
 #ifndef BOX_RELEASE_BUILD
   mInvalidated(false),
 #endif
   mName(rName),
   mModificationTime(ModificationTime),
+  mBackupTime(BackupTime),
   mObjectID(ObjectID),
   mSizeInBlocks(SizeInBlocks),
   mFlags(Flags),
@@ -507,7 +539,7 @@ BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t 
 //		Created: 2003/08/26
 //
 // --------------------------------------------------------------------------
-void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
+void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout, uint32_t magicValue)
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Grab the raw bytes from the stream which compose the header
@@ -527,8 +559,21 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
 	// Get the attributes
 	mAttributes.ReadFromStream(rStream, Timeout);
 
+	if( magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V0 ) {
+		mBackupTime = 0;
+	} else {
+		// Get the Backup Time
+		uint64_t backupTime =0;
+		if(!rStream.ReadFullBuffer(&backupTime, sizeof(backupTime), 0, Timeout))
+		{
+			THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
+		}
+		mBackupTime = box_ntoh64(backupTime);
+	}
+
 	// Store the rest of the bits
 	mModificationTime =		box_ntoh64(entry.mModificationTime);
+
 	mObjectID = 			box_ntoh64(entry.mObjectID);
 	mSizeInBlocks = 		box_ntoh64(entry.mSizeInBlocks);
 	mAttributesHash =		box_ntoh64(entry.mAttributesHash);
@@ -545,7 +590,7 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout)
 //		Created: 2003/08/26
 //
 // --------------------------------------------------------------------------
-void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream) const
+void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream, bool IgnoreBackupTime /* this is for compatibilty with older clients */) const
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	// Build a structure
@@ -564,6 +609,13 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream) const
 
 	// Write any attributes
 	mAttributes.WriteToStream(rStream);
+std::cout << "BackupStoreDirectory::Entry::WriteToStream " << IgnoreBackupTime << std::endl;
+	if( !IgnoreBackupTime ) {
+		std::cout << "writing backup time" << std::endl;
+		// Write the backup time
+		box_time_t backupTime = box_hton64(mBackupTime);
+		rStream.Write((void*)&backupTime, sizeof(mBackupTime));
+	}
 }
 
 

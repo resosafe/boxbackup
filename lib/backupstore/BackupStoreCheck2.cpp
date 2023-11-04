@@ -393,7 +393,7 @@ void BackupStoreDirectoryFixer::InsertObject(int64_t ObjectID, bool IsDirectory,
 	}
 
 	// Add a new entry in an appropriate place
-	mDirectory.AddUnattachedObject(objectStoreFilename, modTime,
+	mDirectory.AddUnattachedObject(objectStoreFilename, modTime, 0,
 		ObjectID, sizeInBlocks,
 		IsDirectory?(BackupStoreDirectory::Entry::Flags_Dir):(BackupStoreDirectory::Entry::Flags_File));
 }
@@ -464,7 +464,7 @@ int64_t BackupStoreCheck::GetLostAndFoundDirID()
 	CreateBlankDirectory(id, BACKUPSTORE_ROOT_DIRECTORY_ID);
 
 	// Add an entry for it
-	dir.AddEntry(lostAndFound, 0, id, 0, BackupStoreDirectory::Entry::Flags_Dir, 0);
+	dir.AddEntry(lostAndFound, 0, 0, id, 0, BackupStoreDirectory::Entry::Flags_Dir, 0);
 
 	// Write out root dir
 	RaidFileWrite root(mDiscSetNumber, filename);
@@ -937,9 +937,9 @@ bool BackupStoreDirectory::CheckAndFix()
 //
 // --------------------------------------------------------------------------
 void BackupStoreDirectory::AddUnattachedObject(const BackupStoreFilename &rName,
-	box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags)
+	box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags)
 {
-	Entry *pnew = new Entry(rName, ModificationTime, ObjectID, SizeInBlocks, Flags,
+	Entry *pnew = new Entry(rName, ModificationTime, BackupTime, ObjectID, SizeInBlocks, Flags,
 			ModificationTime /* use as attr mod time too */);
 	try
 	{

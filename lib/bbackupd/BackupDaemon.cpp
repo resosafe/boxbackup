@@ -2507,7 +2507,8 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 			// exclude old/deleted stuff
 			BackupProtocolListDirectory::Flags_Deleted |
 			BackupProtocolListDirectory::Flags_OldVersion,
-			false /* no attributes */));
+			false /* no attributes */,
+			0));
 
 	// Retrieve the directory from the stream following
 	BackupStoreDirectory dir;
