@@ -174,6 +174,7 @@ private:
 	int mDiscSetNumber;
 	int32_t mAccountID;
 	std::string mAccountName;
+	int32_t mOptions;
 	bool mFixErrors;
 	bool mQuiet;
 	

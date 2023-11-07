@@ -43,8 +43,8 @@ start with '/'. The initial directory is always the root directory.
 	-t -- show file modification time in local time
 	      (and attr mod time if has the object has attributes, ~ separated)
 	-T -- show file modification time in GMT
-	-b -- show backup time in local time
-	-B -- show backup time in GMT
+	-b -- show backup time (based on the file modification format or GMT by default)
+	-B -- show delete time (based on the file modification format or GMT by default)
 	-a -- show updated attribute instead of file modification time
 	-s -- show file size in blocks used on server
 	      (only very approximate indication of size locally)

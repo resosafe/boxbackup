@@ -228,6 +228,9 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 
 	std::multimap<std::string, BackupStoreDirectory::Entry*> entries;
  
+	// we'll use this to filter deleted versions for the timeline
+	bool hide_deleted = FlagsNotToBeSet & BackupProtocolListDirectory::Flags_Deleted;
+
 	// If we're travelling in time we won't filter old or deleted objects
  	if( PointInTime != 0 )
 	{
@@ -240,15 +243,22 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
 	{
 		if ( PointInTime != 0 ) {
-			if( pen->GetBackupTime() <= PointInTime)  {
+
+			// if object was backed up before the point in time
+			// and it wasn't deleted before the point in time (in case we are hiding deleted objects)
+			if( pen->GetBackupTime() <= PointInTime &&
+				!(pen->IsDeleted() && pen->GetDeletedTime() <= PointInTime)
+				)  {
 				if( auto res = entries.find(pen->mName.GetEncodedFilename()); res != entries.end() ) {
-					if ( res->second->mModificationTime < pen->mModificationTime ) {
+					// Be sure to keep the newest version
+					if ( res->second->mBackupTime < pen->mBackupTime ) {
 						res->second = pen;
 					}
 				} else {
 					entries.insert({pen->mName.GetEncodedFilename(),  pen});	
 				}			
 			}
+
 		} else {
 			entries.insert({pen->mName.GetEncodedFilename(), pen});
 		}
@@ -358,11 +368,11 @@ BackupStoreDirectory::Entry *BackupStoreDirectory::AddEntry(const Entry &rEntryT
 // --------------------------------------------------------------------------
 BackupStoreDirectory::Entry *
 BackupStoreDirectory::AddEntry(const BackupStoreFilename &rName,
-	box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks,
+	box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeletedTime, int64_t ObjectID, int64_t SizeInBlocks,
 	int16_t Flags, uint64_t AttributesHash)
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
-	Entry *pnew = new Entry(rName, ModificationTime, BackupTime, ObjectID,
+	Entry *pnew = new Entry(rName, ModificationTime, BackupTime, DeletedTime, ObjectID,
 		SizeInBlocks, Flags, AttributesHash);
 	try
 	{
@@ -510,7 +520,7 @@ BackupStoreDirectory::Entry::Entry(const Entry &rToCopy)
 //		Created: 2003/08/27
 //
 // --------------------------------------------------------------------------
-BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
+BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeletedTime,  int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
 :
 #ifndef BOX_RELEASE_BUILD
   mInvalidated(false),
@@ -518,6 +528,7 @@ BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t 
   mName(rName),
   mModificationTime(ModificationTime),
   mBackupTime(BackupTime),
+  mDeletedTime(DeletedTime),
   mObjectID(ObjectID),
   mSizeInBlocks(SizeInBlocks),
   mFlags(Flags),
@@ -561,14 +572,23 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout,
 
 	if( magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V0 ) {
 		mBackupTime = 0;
+		mDeletedTime = 0;
 	} else {
-		// Get the Backup Time
-		uint64_t backupTime =0;
+		// Get the Backup and Deleted Time
+		uint64_t backupTime = 0;
 		if(!rStream.ReadFullBuffer(&backupTime, sizeof(backupTime), 0, Timeout))
 		{
 			THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
 		}
 		mBackupTime = box_ntoh64(backupTime);
+
+		uint64_t deletedTime = 0;
+		if(!rStream.ReadFullBuffer(&deletedTime, sizeof(deletedTime), 0, Timeout))
+		{
+			THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
+		}
+		mDeletedTime = box_ntoh64(deletedTime);
+
 	}
 
 	// Store the rest of the bits
@@ -609,12 +629,15 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream, bool IgnoreBa
 
 	// Write any attributes
 	mAttributes.WriteToStream(rStream);
-std::cout << "BackupStoreDirectory::Entry::WriteToStream " << IgnoreBackupTime << std::endl;
+
 	if( !IgnoreBackupTime ) {
 		std::cout << "writing backup time" << std::endl;
 		// Write the backup time
 		box_time_t backupTime = box_hton64(mBackupTime);
 		rStream.Write((void*)&backupTime, sizeof(mBackupTime));
+
+		box_time_t deletedTime = box_hton64(mDeletedTime);
+		rStream.Write((void*)&deletedTime, sizeof(mDeletedTime));
 	}
 }
 

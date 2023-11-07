@@ -222,9 +222,6 @@ void BackupClientDirectoryRecord::SyncDirectory(
 		// Inode to be paranoid about things moving around
 		currentStateChecksum.Add(&dest_st.st_ino,
 			sizeof(dest_st.st_ino));
-		// We'll compare the modification time too	
-		currentStateChecksum.Add(&dest_st.st_mtime,
-			sizeof(dest_st.st_mtime));
 #ifdef HAVE_STRUCT_STAT_ST_FLAGS
 		currentStateChecksum.Add(&dest_st.st_flags,
 			sizeof(dest_st.st_flags));
@@ -711,9 +708,9 @@ void BackupClientDirectoryRecord::UpdateAttributes(
 	// Get attributes for the directory
 	BackupClientFileAttributes attr;
 	box_time_t attrModTime = 0;
-	box_time_t modTime = 0;
-	attr.ReadAttributes(rLocalPath.c_str(), false,
-		&modTime, &attrModTime);
+	attr.ReadAttributes(rLocalPath.c_str(), true /* directories have zero mod times */,
+		0 /* no modification time */, &attrModTime);
+
 	// Assume attributes need updating, unless proved otherwise
 	bool updateAttr = true;
 
@@ -724,9 +721,10 @@ void BackupClientDirectoryRecord::UpdateAttributes(
 		const StreamableMemBlock &storeAttrEnc(pDirOnStore->GetAttributes());
 		// Explict decryption
 		BackupClientFileAttributes storeAttr(storeAttrEnc);
-
+		
 		// Compare the attributes
-		if(attr.Compare(storeAttr, true, false))
+		if(attr.Compare(storeAttr, true,
+			true /* ignore both modification times */))
 		{
 			// No update necessary
 			updateAttr = false;
@@ -741,7 +739,7 @@ void BackupClientDirectoryRecord::UpdateAttributes(
 
 		// Exception thrown if this doesn't work
 		std::auto_ptr<IOStream> attrStream(new MemBlockStream(attr));
-		connection.QueryChangeDirAttributes2(mObjectID, attrModTime, modTime, attrStream);
+		connection.QueryChangeDirAttributes(mObjectID, attrModTime, attrStream);
 	}
 }
 
@@ -1528,10 +1526,10 @@ BackupStoreDirectory::Entry* BackupClientDirectoryRecord::CheckForRename(
 	std::string possible_prev_local_name;
 	bool was_a_dir = false;
 	bool was_current_version = false;
-	box_time_t remote_mod_time = 0, remote_attr_hash = 0;
+	box_time_t remote_mod_time = 0, remote_attr_hash = 0, backup_time = 0, deleted_time = 0;
 	BackupStoreFilenameClear prev_remote_name;
 	if(!context.FindFilename(prev_object_id, prev_dir_id, possible_prev_local_name, was_a_dir,
-		was_current_version, &remote_mod_time, &remote_attr_hash, &prev_remote_name))
+		was_current_version, &remote_mod_time, &backup_time, &deleted_time, &remote_attr_hash, &prev_remote_name))
 	{
 		BOX_TRACE(msg_prefix << ", but that no longer exists on the server, so cannot find "
 			"corresponding local file to check for rename");
@@ -1601,7 +1599,7 @@ BackupStoreDirectory::Entry* BackupClientDirectoryRecord::CheckForRename(
 
 	// Create new entry in the directory for it: will be near enough what's actually on the
 	// server for the rest to work.
-	return p_dir->AddEntry(remote_filename, remote_mod_time, 0, prev_object_id,
+	return p_dir->AddEntry(remote_filename, remote_mod_time, backup_time, deleted_time, prev_object_id,
 		0 /* size in blocks unknown, but not needed */,
 		BackupStoreDirectory::Entry::Flags_File, remote_attr_hash);
 }
@@ -1613,7 +1611,6 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 {
 	// Get attributes
 	box_time_t attrModTime = 0;
-	box_time_t modTime = 0;
 	InodeRefType inodeNum = 0;
 	BackupClientFileAttributes attr;
 	*pHaveJustCreatedDirOnServer = false;
@@ -1623,7 +1620,7 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 	{
 		attr.ReadAttributes(localDirPath,
 			true /* directories have zero mod times */,
-			&modTime,
+			0 /* not interested in mod time */,
 			&attrModTime, 0 /* not file size */,
 			&inodeNum);
 	}
@@ -1707,8 +1704,8 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 		// Create a new directory
 		try
 		{
-			subDirObjectID = connection.QueryCreateDirectory2(
-				mObjectID, attrModTime, modTime, storeFilename,
+			subDirObjectID = connection.QueryCreateDirectory(
+				mObjectID, attrModTime, storeFilename,
 				attrStream)->GetObjectID();
 			// Flag as having done this for optimisation later
 			*pHaveJustCreatedDirOnServer = true;

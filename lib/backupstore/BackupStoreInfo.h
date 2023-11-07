@@ -49,7 +49,10 @@ typedef struct
 
 #define INFO_MAGIC_VALUE_1	0x34832476
 #define INFO_MAGIC_VALUE_2	0x494e4632 /* INF2 */
-#define INFO_MAGIC_VALUE_3	0x95684f23 /* cjean INF3 */
+#define INFO_MAGIC_VALUE_3	0x95684f23 /* INF3 */
+#define INFO_MAGIC_VALUE_4	0x494e4634 /* INF4 */
+
+#define INFO_MAGIC_CURRENT INFO_MAGIC_VALUE_4
 
 // Use default packing
 #ifdef STRUCTURE_PACKING_FOR_WIRE_USE_HEADERS
@@ -80,11 +83,18 @@ private:
 	BackupStoreInfo(const BackupStoreInfo &);
 
 public:
+
+	enum
+	{
+		OPTION_NONE 		= 0,
+		OPTION_TIMELINE		= 1, /* in this mode, housekeeping will only delete objects based on their backup date */
+	};
+
 	// Create a New account, saving a blank info object to the disc
 	static void CreateNew(int32_t AccountID, const std::string &rRootDir, int DiscSet,
-        int64_t BlockSoftLimit, int64_t BlockHardLimit, int32_t VersionsCountLimit=0);
+        int64_t BlockSoftLimit, int64_t BlockHardLimit, int32_t VersionsCountLimit=0, int32_t Options=0);
 	BackupStoreInfo(int32_t AccountID, const std::string &FileName,
-        int64_t BlockSoftLimit, int64_t BlockHardLimit, int32_t VersionCountLimit=0);
+        int64_t BlockSoftLimit, int64_t BlockHardLimit, int32_t VersionCountLimit=0, int32_t Options=0);
 
 	// Load it from the store
 	static std::auto_ptr<BackupStoreInfo> Load(int32_t AccountID, const std::string &rRootDir, int DiscSet, bool ReadOnly, int64_t *pRevisionID = 0);
@@ -116,6 +126,17 @@ public:
 	int64_t GetNumDeletedFiles() const {return mNumDeletedFiles;}
 	int64_t GetNumDirectories() const {return mNumDirectories;}
     int32_t GetVersionCountLimit() const { return mVersionCountLimit; }
+	int32_t GetOptions() const {return mOptions;}
+	bool HasTimeLineOption() const {
+		return (mOptions & OPTION_TIMELINE) != 0;
+	}
+	std::vector<std::string> GetOptionsStrings() const {
+		std::vector<std::string> options;
+		if (mOptions & OPTION_TIMELINE) {
+			options.push_back("timeline");
+		}
+		return options;
+	}
 	bool IsAccountEnabled() const {return mAccountEnabled;}
 	bool IsReadOnly() const {return mReadOnly;}
 	int GetDiscSetNumber() const {return mDiscSet;}
@@ -132,6 +153,7 @@ public:
 	void AddDeletedDirectory(int64_t DirID);
 	void RemovedDeletedDirectory(int64_t DirID);
     void ChangeLimits(int64_t BlockSoftLimit, int64_t BlockHardLimit, int32_t VersionsLimit);
+	void SetOptions(int32_t Options) { mOptions = Options; };
 	void AdjustNumCurrentFiles(int64_t increase);
 	void AdjustNumOldFiles(int64_t increase);
 	void AdjustNumDeletedFiles(int64_t increase);
@@ -154,7 +176,7 @@ public:
 	 * This is exposed to allow testing, do not use otherwise!
 	 */
 	static std::auto_ptr<BackupStoreInfo> CreateForRegeneration(
-		int32_t AccountID, const std::string &rAccountName,
+		int32_t AccountID, const std::string &rAccountName, int32_t Options,
 		const std::string &rRootDir, int DiscSet,
 		int64_t LastObjectID, int64_t BlocksUsed,
 		int64_t BlocksInCurrentFiles, int64_t BlocksInOldFiles,
@@ -204,6 +226,7 @@ private:
 	int64_t mNumDeletedFiles;
 	int64_t mNumDirectories;
     int32_t mVersionCountLimit;
+	int32_t mOptions;
 	std::vector<int64_t> mDeletedDirectories;
 	bool mAccountEnabled;
 	CollectInBufferStream mExtraData;

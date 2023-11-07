@@ -489,7 +489,7 @@ int64_t BackupStoreContext::AllocateObjectID()
 //
 // --------------------------------------------------------------------------
 int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
-	int64_t ModificationTime, int64_t BackupTime, int64_t AttributesHash,
+	int64_t ModificationTime, int64_t AttributesHash,
 	int64_t DiffFromFileID, const BackupStoreFilename &rFilename,
 	bool MarkFileWithSameNameAsOldVersions,
 	uint64_t ResumeOffset)
@@ -567,7 +567,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	bool reversedDiffIsCompletelyDifferent = false;
 	int64_t oldVersionNewBlocksUsed = 0;
 	BackupStoreInfo::Adjustment adjustment = {};
-	bool isVersionned = mapStoreInfo->GetVersionCountLimit()!=1;
+	bool isVersionned = mapStoreInfo->HasTimeLineOption() || mapStoreInfo->GetVersionCountLimit()!=1;
 	IOStream::pos_type offset = 0;
 
 
@@ -816,7 +816,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			}
 
             int versionsCount=0;
-            if ( mapStoreInfo->GetVersionCountLimit()>0 ) {
+            if ( !mapStoreInfo->HasTimeLineOption() && mapStoreInfo->GetVersionCountLimit()>0 ) {
                 BackupStoreDirectory::Entry *oldestVersionToKeep=0;
                 for (std::list<BackupStoreDirectory::Entry*>::reverse_iterator it=oldEntries.rbegin(); it != oldEntries.rend(); ++it) {
 
@@ -858,7 +858,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 
 		// Then the new entry
 		BackupStoreDirectory::Entry *pnewEntry = dir.AddEntry(rFilename,
-			ModificationTime, BackupTime, id, newObjectBlocksUsed,
+			ModificationTime, GetSessionStartTime(), 0, id, newObjectBlocksUsed,
 			BackupStoreDirectory::Entry::Flags_File,
 			AttributesHash);
 
@@ -989,6 +989,7 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 				if ( RemoveASAP ) {
 					e->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
 				} 
+				e->SetDeletedTime(GetSessionStartTime());
 				
 				// Mark as made a change
 				madeChanges = true;
@@ -1257,7 +1258,6 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	const StreamableMemBlock &Attributes,
 	int64_t AttributesModTime,
 	int64_t ModificationTime,
-	int64_t BackupTime,
 	bool &rAlreadyExists)
 {
 	if(mapStoreInfo.get() == 0)
@@ -1334,7 +1334,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	// Then add it into the parent directory
 	try
 	{
-		dir.AddEntry(rFilename, ModificationTime, BackupTime, id, dirSize,
+		dir.AddEntry(rFilename, ModificationTime, GetSessionStartTime(), 0, id, dirSize,
 			BackupStoreDirectory::Entry::Flags_Dir,
 			0 /* attributes hash */);
 		SaveDirectory(dir);

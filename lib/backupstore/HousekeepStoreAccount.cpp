@@ -27,6 +27,7 @@
 #include "RaidFileRead.h"
 #include "RaidFileWrite.h"
 #include "StoreStructure.h"
+#include "BoxTimeToText.h"
 
 #include "MemLeakFindOn.h"
 
@@ -103,7 +104,7 @@ HousekeepStoreAccount::~HousekeepStoreAccount()
 //		Created: 11/12/03
 //
 // --------------------------------------------------------------------------
-bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever)
+bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t PointInTime,  bool KeepTryingForever)
 {
     BOX_INFO("Starting housekeeping on account " <<
 		BOX_FORMAT_ACCOUNT(mAccountID));
@@ -159,6 +160,12 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever
 		mTagWithClientID.Change(tag.str());
 	}
 
+	if( info->HasTimeLineOption() && PointInTime == 0 ) {
+		BOX_ERROR("PointInTime must be specified when using the timeline option");
+		return false;
+	}
+
+
 	// Calculate how much should be deleted
 	mDeletionSizeTarget = info->GetBlocksUsed() - info->GetBlocksSoftLimit();
 	if(mDeletionSizeTarget < 0)
@@ -171,7 +178,7 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever
 
 	// Scan the directory for potential things to delete
 	// This will also remove eligible items marked with RemoveASAP
-	bool continueHousekeeping = ScanDirectory(flags, BACKUPSTORE_ROOT_DIRECTORY_ID,
+	bool continueHousekeeping = ScanDirectory(flags, PointInTime, BACKUPSTORE_ROOT_DIRECTORY_ID,
 		*info);
 
 	if(!continueHousekeeping)
@@ -335,7 +342,7 @@ void HousekeepStoreAccount::MakeObjectFilename(int64_t ObjectID, std::string &rF
 //		Created: 11/12/03
 //
 // --------------------------------------------------------------------------
-bool HousekeepStoreAccount::ScanDirectory(int32_t flags, int64_t ObjectID,
+bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime, int64_t ObjectID, 
 	BackupStoreInfo& rBackupStoreInfo)
 {
 #ifndef WIN32
@@ -408,31 +415,53 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, int64_t ObjectID,
 			BackupStoreDirectory::Entry *en = 0;
 			while((en = i.Next(BackupStoreDirectory::Entry::Flags_File)) != 0)
 			{
-				int16_t enFlags = en->GetFlags();
-				if( ( (enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0
-						&& (en->IsDeleted() || en->IsOld())
-					)
-					|| ( (flags & HousekeepStoreAccount::RemoveDeleted) != 0 && en->IsDeleted() )
-					|| ( (flags & HousekeepStoreAccount::RemoveOldVersions) != 0 && en->IsOld() )
-					)
-				{
+				if( rBackupStoreInfo.HasTimeLineOption() ) {
+					// here we should delete only the files based on their backup date
 
-					BOX_INFO("Going to remove Object " << BOX_FORMAT_OBJECTID(en->GetObjectID())
-							 << (en->IsDeleted() ? " (Deleted)" : "")
-							 << (en->IsOld() ? " (Old)" :"")
-							 );
+					if( en->GetBackupTime() <= PointInTime ) {
+						// this file is too old, delete it
+						BOX_INFO("Going to remove Object " << BOX_FORMAT_OBJECTID(en->GetObjectID())
+								<< " BackupTime: " << BoxTimeToISO8601String(en->GetBackupTime(), false) );
+
+						// Delete this immediately.
+						DeleteFile(ObjectID, en->GetObjectID(), dir,
+							objectFilename, rBackupStoreInfo);
+
+						// flag as having done something
+						deletedSomething = true;
+
+						// Must start the loop from the beginning again, as iterator is now
+						// probably invalid.
+						break;
+					}
+
+				} else {
+					int16_t enFlags = en->GetFlags();
+					if( ( (enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0
+							&& (en->IsDeleted() || en->IsOld())
+						)
+						|| ( (flags & HousekeepStoreAccount::RemoveDeleted) != 0 && en->IsDeleted() )
+						|| ( (flags & HousekeepStoreAccount::RemoveOldVersions) != 0 && en->IsOld() )
+						)
+					{
+
+						BOX_INFO("Going to remove Object " << BOX_FORMAT_OBJECTID(en->GetObjectID())
+								<< (en->IsDeleted() ? " (Deleted)" : "")
+								<< (en->IsOld() ? " (Old)" :"")
+								);
 
 
-					// Delete this immediately.
-					DeleteFile(ObjectID, en->GetObjectID(), dir,
-						objectFilename, rBackupStoreInfo);
+						// Delete this immediately.
+						DeleteFile(ObjectID, en->GetObjectID(), dir,
+							objectFilename, rBackupStoreInfo);
 
-					// flag as having done something
-					deletedSomething = true;
+						// flag as having done something
+						deletedSomething = true;
 
-					// Must start the loop from the beginning again, as iterator is now
-					// probably invalid.
-					break;
+						// Must start the loop from the beginning again, as iterator is now
+						// probably invalid.
+						break;
+					}
 				}
 			}
 		} while(deletedSomething);
@@ -561,7 +590,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, int64_t ObjectID,
 		{
 			ASSERT(en->IsDir());
 			
-			if(!ScanDirectory(flags, en->GetObjectID(), rBackupStoreInfo))
+			if(!ScanDirectory(flags, PointInTime, en->GetObjectID(), rBackupStoreInfo))
 			{
 				// Halting operation
 				return false;

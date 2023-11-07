@@ -95,6 +95,17 @@ int BackupAccountControl::PrintAccountInfo(const BackupStoreInfo& info,
 		BOX_FORMAT_ACCOUNT(info.GetAccountID()) << std::endl;
 	std::cout << FormatUsageLineStart("Account Name", mMachineReadableOutput) <<
 		info.GetAccountName() << std::endl;
+
+	std::stringstream ss;
+	const std::vector<std::string> vec = info.GetOptionsStrings();
+    for(size_t i = 0; i < vec.size(); ++i)
+    {
+        if(i != 0)
+            ss << ",";
+        ss << vec[i];
+    }
+	std::cout << FormatUsageLineStart("Options", mMachineReadableOutput) <<
+		ss.str() << std::endl;
     std::cout << FormatUsageLineStart("Version Count limit", mMachineReadableOutput) <<
         info.GetVersionCountLimit() << std::endl;
 	std::cout << FormatUsageLineStart("Last object ID", mMachineReadableOutput) <<

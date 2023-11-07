@@ -270,8 +270,8 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 #define LIST_OPTION_SORT_SIZE		    'S'
 #define LIST_OPTION_TIMES_LOCAL		    't'
 #define LIST_OPTION_TIMES_UTC		    'T'
-#define LIST_OPTION_BCK_TIMES_LOCAL		'b'
-#define LIST_OPTION_BCK_TIMES_UTC		'B'
+#define LIST_OPTION_BCK_TIMES			'b'
+#define LIST_OPTION_DEL_TIMES			'B'
 #define LIST_OPTION_SORT_NONE		    'U'
 
 // --------------------------------------------------------------------------
@@ -597,16 +597,14 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 		// buf << BoxTimeToISO8601String(en->GetModificationTime(), true) << " ";
 		// buf << BoxTimeToISO8601String(en->GetBackupTime(), true) << " ";
 		
-		if(opts[LIST_OPTION_BCK_TIMES_UTC])
+		if(opts[LIST_OPTION_BCK_TIMES])
 		{
-			// Show UTC times...
-			buf << BoxTimeToISO8601String(en->GetBackupTime(), false) << " ";
+			buf << BoxTimeToISO8601String(en->GetBackupTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
 		}
 
-		if(opts[LIST_OPTION_BCK_TIMES_LOCAL])
+		if(opts[LIST_OPTION_DEL_TIMES])
 		{
-			// Show local times...
-			buf << BoxTimeToISO8601String(en->GetBackupTime(), true) << " ";
+			buf << BoxTimeToISO8601String(en->GetDeletedTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
 		}
 
 		if(opts[LIST_OPTION_TIMES_UTC])
@@ -2365,8 +2363,6 @@ void BackupQueries::CommandListBackups(const bool *opts)
 	std::auto_ptr<IOStream> stream(mrConnection.ReceiveStream());
 	list.ReadFromStream(*stream, mrConnection.GetTimeout());
 
-	
-	// Display each entry in turn
 	std::vector<SessionInfos>& sessions = list.GetList();
 	for (std::vector<SessionInfos>::iterator it = sessions.begin(); it != sessions.end(); ++it)
 	{

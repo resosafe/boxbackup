@@ -97,7 +97,7 @@ public:
 		Entry();
 		~Entry();
 		Entry(const Entry &rToCopy);
-		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
+		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeletedTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
 
 		void ReadFromStream(IOStream &rStream, int Timeout, uint32_t magicValue = OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
 		void WriteToStream(IOStream &rStream, bool IgnoreBackupTime = false) const;
@@ -126,6 +126,16 @@ public:
 		{
 			ASSERT(!mInvalidated); // Compiled out of release builds
 			mBackupTime = NewBackupTime;
+		}
+		box_time_t GetDeletedTime() const
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			return mDeletedTime;
+		}
+		void SetDeletedTime(box_time_t NewDeletedTime)
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			mDeletedTime = NewDeletedTime;
 		}
 		int64_t GetObjectID() const
 		{
@@ -295,6 +305,7 @@ public:
 		BackupStoreFilename mName;
 		box_time_t mModificationTime;
 		box_time_t mBackupTime;
+		box_time_t mDeletedTime;
 		int64_t mObjectID;
 		int64_t mSizeInBlocks;
 		int16_t mFlags;
@@ -324,7 +335,7 @@ public:
 			
 	Entry *AddEntry(const Entry &rEntryToCopy);
 	Entry *AddEntry(const BackupStoreFilename &rName,
-		box_time_t ModificationTime, box_time_t BackupTime, 
+		box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeletedTime,
 		int64_t ObjectID, int64_t SizeInBlocks, 
 		int16_t Flags, uint64_t AttributesHash);
 	void DeleteEntry(int64_t ObjectID);
@@ -494,7 +505,7 @@ public:
 	// Implemented in BackupStoreCheck2.cpp
 	bool CheckAndFix();
 	void AddUnattachedObject(const BackupStoreFilename &rName,
-		box_time_t ModificationTime, box_time_t BackupTime, int64_t ObjectID,
+		box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeletedTime, int64_t ObjectID,
 		int64_t SizeInBlocks, int16_t Flags);
 	bool NameInUse(const BackupStoreFilename &rName);
 

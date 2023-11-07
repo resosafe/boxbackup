@@ -231,7 +231,6 @@ public:
 	int64_t AddFile(IOStream &rFile,
 		int64_t InDirectory,
 		int64_t ModificationTime,
-		int64_t BackupTime,
 		int64_t AttributesHash,
 		int64_t DiffFromFileID,
 		const BackupStoreFilename &rFilename,
@@ -242,7 +241,6 @@ public:
 		const StreamableMemBlock &Attributes,
 		int64_t AttributesModTime,
 		int64_t ModificationTime,
-		int64_t BackupTime,
 		bool &rAlreadyExists);
 	void ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime, int64_t ModificationTime = 0);
 	bool ChangeFileAttributes(const BackupStoreFilename &rFilename, int64_t InDirectory, const StreamableMemBlock &Attributes, int64_t AttributesHash, int64_t &rObjectIDOut);

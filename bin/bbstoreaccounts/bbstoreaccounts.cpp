@@ -43,7 +43,7 @@ void PrintUsageAndExit()
 "Account ID is integer specified in hex\n"
 "\n"
 "Commands (and arguments):\n"
-"  create <account> <discnum> <softlimit> <hardlimit> <versionslimit>\n"
+"  create <account> <discnum> <softlimit> <hardlimit> [versionslimit] [options]\n"
 "        Creates the specified account number (in hex with no 0x) on the\n"
 "        specified raidfile disc set number (see raidfile.conf for valid\n"
 "        set numbers) with the specified soft and hard limits (in blocks\n"
@@ -172,6 +172,8 @@ int main(int argc, const char *argv[])
         int64_t softlimit;
         int64_t hardlimit;
         int32_t versionslimit;
+		int32_t options = BackupStoreInfo::OPTION_NONE;
+
 		if(argc < 5
 			|| ::sscanf(argv[2], "%d", &discnum) != 1)
 		{
@@ -184,11 +186,59 @@ int main(int argc, const char *argv[])
 		int blocksize = control.BlockSizeOfDiscSet(discnum);
 		softlimit = control.SizeStringToBlocks(argv[3], blocksize);
 		hardlimit = control.SizeStringToBlocks(argv[4], blocksize);
-        versionslimit= argc>5 ? atoi(argv[5]) : 0;
 		control.CheckSoftHardLimits(softlimit, hardlimit);
-	
+
+        versionslimit= argc>5 ? atoi(argv[5]) : 0;
+		if( argc>6 ) 
+		{
+			std::vector<std::string> options_list;
+			SplitString(argv[6], ',', options_list);
+			for( std::vector<std::string>::iterator it=options_list.begin(); it!=options_list.end(); ++it ) 
+			{
+				if( *it=="timeline" ) 
+				{
+					options |= BackupStoreInfo::OPTION_TIMELINE;
+				}
+				else 
+				{
+					BOX_ERROR("Unknown option " << *it << ".");
+					return 2;
+				}
+			}
+		}
+
+
 		// Create the account...
-        return control.CreateAccount(id, discnum, softlimit, hardlimit, versionslimit);
+        return control.CreateAccount(id, discnum, options, softlimit, hardlimit, versionslimit);
+	}
+	if(command == "setoptions")
+	{
+		// Change the limits on this account
+		if(argc < 3)
+		{
+			BOX_ERROR("setoptions requires options");
+			return 1;
+		}
+		
+    
+		int32_t options = BackupStoreInfo::OPTION_NONE;
+
+		std::vector<std::string> options_list;
+		SplitString(argv[2], ',', options_list);
+		for( std::vector<std::string>::iterator it=options_list.begin(); it!=options_list.end(); ++it ) 
+		{
+			if( *it=="timeline" ) 
+			{
+				options |= BackupStoreInfo::OPTION_TIMELINE;
+			}
+			else 
+			{
+				BOX_ERROR("Unknown option " << *it << ".");
+				return 2;
+			}
+		}
+		
+        return control.SetOptions(id, options);
 	}
 	else if(command == "info")
 	{
@@ -281,6 +331,7 @@ int main(int argc, const char *argv[])
 	else if(command == "housekeep")
 	{
 		int32_t flags=HousekeepStoreAccount::DefaultAction;
+		box_time_t pointInTime = 0;
 
 		// Look at other options
 		for(int o = 2; o < argc; ++o)
@@ -292,6 +343,17 @@ int main(int argc, const char *argv[])
 			else if(::strcmp(argv[o], "remove-old") == 0)
 			{
 				flags|=HousekeepStoreAccount::RemoveOldVersions;
+			}
+			else if(::strcmp(argv[o], "remove-before") ==0 ) {
+				if(argc<o+2) {
+					BOX_ERROR("remove-before requires a date");
+					return 2;
+				}
+				pointInTime=StringToBoxTime(argv[o+1]);
+				if(!pointInTime) {
+					BOX_ERROR("remove-before requires a date");
+					return 2;
+				}
 			}
 			else if(::strcmp(argv[o], "disable-auto-clean") == 0)
 			{
@@ -307,7 +369,7 @@ int main(int argc, const char *argv[])
 
 
 
-		return control.HousekeepAccountNow(id, flags);
+		return control.HousekeepAccountNow(id, flags, pointInTime);
 	}
 	else if(command == "backups")
 	{

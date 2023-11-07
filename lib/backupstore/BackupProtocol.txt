@@ -111,6 +111,8 @@ ObjectName		13	Reply
 	int32		NumNameElements
 	int64		ModificationTime
 	int64		AttributesHash
+	int64       BackupTime
+	int64       DeletedTime
 	int16		Flags
 	# NumNameElements is zero if the object doesn't exist
 	CONSTANT	NumNameElements_ObjectDoesntExist	0

@@ -210,7 +210,7 @@ public:
 
 	// Utility functions -- may do a lot of work
 	bool FindFilename(int64_t ObjectID, int64_t ContainingDirectory, std::string &rPathOut, bool &rIsDirectoryOut,
-		bool &rIsCurrentVersionOut, box_time_t *pModTimeOnServer = 0, box_time_t *pAttributesHashOnServer = 0,
+		bool &rIsCurrentVersionOut, box_time_t *pModTimeOnServer = 0, box_time_t *pBackupTime = 0, box_time_t *pDeletedTime = 0 , box_time_t *pAttributesHashOnServer = 0,
 		BackupStoreFilenameClear *pLeafname = 0); // not const as may connect to server
 
 	// --------------------------------------------------------------------------

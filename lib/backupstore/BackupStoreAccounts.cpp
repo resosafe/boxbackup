@@ -73,7 +73,7 @@ BackupStoreAccounts::~BackupStoreAccounts()
 //		Created: 2003/08/21
 //
 // --------------------------------------------------------------------------
-void BackupStoreAccounts::Create(int32_t ID, int DiscSet, int64_t SizeSoftLimit, int64_t SizeHardLimit, int32_t VersionsLimit, const std::string &rAsUsername)
+void BackupStoreAccounts::Create(int32_t ID, int32_t Options, int DiscSet, int64_t SizeSoftLimit, int64_t SizeHardLimit, int32_t VersionsLimit, const std::string &rAsUsername)
 {
 	// Create the entry in the database
 	BackupStoreAccountDatabase::Entry Entry(mrDatabase.AddEntry(ID,
@@ -116,6 +116,7 @@ void BackupStoreAccounts::Create(int32_t ID, int DiscSet, int64_t SizeSoftLimit,
 		info->ChangeBlocksUsed(rootDirSize);
 		info->ChangeBlocksInDirectories(rootDirSize);
 		info->AdjustNumDirectories(1);
+		info->SetOptions(Options);
 		
 		// Save it back
 		info->Save();
@@ -222,6 +223,37 @@ int BackupStoreAccountsControl::BlockSizeOfDiscSet(int discSetNum)
 	
 	// Return block size
 	return controller.GetDiscSet(discSetNum).GetBlockSize();
+}
+
+
+int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options)
+{
+	std::string rootDir;
+	int discSetNum;
+	std::auto_ptr<UnixUser> user; // used to reset uid when we return
+	NamedLock writeLock;
+
+	if(!OpenAccount(ID, rootDir, discSetNum, user, &writeLock))
+	{
+		BOX_ERROR("Failed to open account " << BOX_FORMAT_ACCOUNT(ID)
+			<< " to change limits.");
+		return 1;
+	}
+	
+	// Load the info
+	std::auto_ptr<BackupStoreInfo> info(BackupStoreInfo::Load(ID, rootDir,
+		discSetNum, false /* Read/Write */));
+
+	// Change the options
+	info->SetOptions(Options);
+	
+	// Save
+	info->Save();
+
+	BOX_NOTICE("Options on account " << BOX_FORMAT_ACCOUNT(ID) <<
+		" changed to " << BOX_FORMAT_HEX32(Options));
+
+	return 0;
 }
 
 int BackupStoreAccountsControl::SetLimit(int32_t ID, const char *SoftLimitStr,
@@ -528,7 +560,7 @@ int BackupStoreAccountsControl::CheckAccount(int32_t ID, bool FixErrors, bool Qu
 	}
 }
 
-int BackupStoreAccountsControl::CreateAccount(int32_t ID, int32_t DiscNumber,
+int BackupStoreAccountsControl::CreateAccount(int32_t ID, int32_t Options, int32_t DiscNumber,
     int64_t SoftLimit, int64_t HardLimit, int32_t VersionsLimit)
 {
 	// Load in the account database 
@@ -556,14 +588,14 @@ int BackupStoreAccountsControl::CreateAccount(int32_t ID, int32_t DiscNumber,
 	
 	// Create it.
 	BackupStoreAccounts acc(*db);
-    acc.Create(ID, DiscNumber, SoftLimit, HardLimit, VersionsLimit, username);
+    acc.Create(ID, Options, DiscNumber, SoftLimit, HardLimit, VersionsLimit, username);
 	
 	BOX_NOTICE("Account " << BOX_FORMAT_ACCOUNT(ID) << " created.");
 
 	return 0;
 }
 
-int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags)
+int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags, box_time_t PointInTime)
 {
 	std::string rootDir;
 	int discSetNum;
@@ -578,7 +610,7 @@ int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags)
 	}
 
 	HousekeepStoreAccount housekeeping(ID, rootDir, discSetNum, NULL);
-	bool success = housekeeping.DoHousekeeping(flags);
+	bool success = housekeeping.DoHousekeeping(flags, PointInTime);
 
 	if(!success)
 	{

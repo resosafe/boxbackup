@@ -348,7 +348,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFile::DoCommand(
 
 	// Ask the context to store it
 	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
-		mModificationTime, rContext.GetSessionStartTime(), mAttributesHash, mDiffFromFileID,
+		mModificationTime, mAttributesHash, mDiffFromFileID,
 		mFilename,
 		true /* mark files with same name as old versions */,
 		0 /* don't support resuming */);
@@ -391,7 +391,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFileWithResume::DoComman
 
 	// Ask the context to store it
 	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
-		mModificationTime, rContext.GetSessionStartTime(), 
+		mModificationTime, 
 		mAttributesHash, mDiffFromFileID,
 		mFilename,
 		true /* mark files with same name as old versions */,
@@ -627,7 +627,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolCreateDirectory2::DoCommand(
 
 	bool alreadyExists = false;
 	int64_t id = rContext.AddDirectory(mContainingDirectoryID,
-		mDirectoryName, attr, mAttributesModTime, mModificationTime, rContext.GetSessionStartTime(),
+		mDirectoryName, attr, mAttributesModTime, mModificationTime,
 		alreadyExists);
 
 	if(alreadyExists)
@@ -946,6 +946,8 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 	int16_t objectFlags = 0;
 	int64_t modTime = 0;
 	uint64_t attrModHash = 0;
+	int64_t backupTime = 0;
+	int64_t deletedTime = 0;
 	bool haveModTimes = false;
 
 	do
@@ -953,7 +955,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 		// Check the directory really exists
 		if(!rContext.ObjectExists(dirID, BackupStoreContext::ObjectExists_Directory))
 		{
-			return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(BackupProtocolObjectName::NumNameElements_ObjectDoesntExist, 0, 0, 0));
+			return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(BackupProtocolObjectName::NumNameElements_ObjectDoesntExist, 0, 0, 0, 0, 0));
 		}
 
 		// Load up the directory
@@ -972,7 +974,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 				return std::auto_ptr<BackupProtocolMessage>(
 					new BackupProtocolObjectName(
 						BackupProtocolObjectName::NumNameElements_ObjectDoesntExist,
-						0, 0, 0));
+						0, 0, 0, 0, 0));
 			}
 
 			throw;
@@ -989,7 +991,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 			if(en == 0)
 			{
 				// Abort!
-				return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(BackupProtocolObjectName::NumNameElements_ObjectDoesntExist, 0, 0, 0));
+				return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(BackupProtocolObjectName::NumNameElements_ObjectDoesntExist, 0, 0, 0, 0, 0));
 			}
 
 			// Store flags?
@@ -1003,6 +1005,8 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 			{
 				modTime = en->GetModificationTime();
 				attrModHash = en->GetAttributesHash();
+				backupTime = en->GetBackupTime();
+				deletedTime = en->GetDeletedTime();
 				haveModTimes = true;
 			}
 
@@ -1029,7 +1033,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 	}
 
 	// Make reply
-	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(numNameElements, modTime, attrModHash, objectFlags));
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(numNameElements, modTime, attrModHash, backupTime, deletedTime, objectFlags));
 }
 
 
