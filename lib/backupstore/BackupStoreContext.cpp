@@ -692,6 +692,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				// which also accounts for non-diff replacements.
 
 				// Everything cleans up here...
+				// ::unlink(tempFn.c_str());
 			}
 			catch(...)
 			{
