@@ -539,7 +539,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime,
 
 
 		// we are cleaning up a Timeline, just delete all backups records at and before this point in time
-		if( rBackupStoreInfo.HasTimeLineOption() && (flags & HousekeepStoreAccount::FixForTimelineMode ==0)  ) 
+		if( rBackupStoreInfo.HasTimeLineOption() && (flags & HousekeepStoreAccount::FixForTimelineMode == 0)  ) 
 		{
 			BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, mStoreRoot, 1));
 			list.RemoveAt(PointInTime);
