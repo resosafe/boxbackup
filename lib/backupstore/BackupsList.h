@@ -19,9 +19,8 @@
 #include "BoxTime.h"
 #include "BackupStoreContext.h"
 
-#define BACKUPLIST_MAGIC_VALUE_V1	0x424c5631 // V1
-
-
+#define BACKUPLIST_FILE_MAGIC_V1	0x424c5631 // BLV1
+#define BACKUPLIST_MAGIC_VALUE_V1	0x425631 // BV1
 
 #define BACKUPS_FILENAME	"backups.lst"
 
@@ -46,9 +45,13 @@ public:
 	// Creation through static functions only
 	BackupsList();
 	BackupsList(IOStream &stream);
+	BackupsList(const std::string &rRootDir);
 
-	static std::auto_ptr<BackupsList> Load(int32_t AccountID, const std::string &rRootDir, int DiscSet, bool ReadOnly, int64_t *pRevisionID = 0);
+	void RemoveAt(box_time_t Time);
 	void ReadFromStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);
+	void WriteToStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);
+	void Save();
+
 	static std::auto_ptr<IOStream> OpenStream(const std::string &rRootDir);
 	
 	static std::string GetFilePath(const std::string &rRootDir)
@@ -61,6 +64,8 @@ public:
 		std::string fn(rRootDir + BACKUPS_FILENAME);
 		return fn;
 	}
+
+	void AddRecord(SessionInfos &rInfos);
 	static void AddRecord(const std::string &rRootDir, SessionInfos &rInfos);
 	
 
@@ -78,6 +83,7 @@ public:
 
 private:
 	std::vector<SessionInfos> mList;
+	std::string mRootDir;
 };
 
 #endif // BACKUPSLIST__H

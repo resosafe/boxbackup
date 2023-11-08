@@ -1160,13 +1160,10 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolListBackups::DoCommand(Backup
 {
 	CHECK_PHASE(Phase_Commands)
 
-
 	// Open the file
 	std::auto_ptr<IOStream> stream(BackupsList::OpenStream(RaidFileController::DiscSetPathToFileSystemPath(rContext.GetStoreDiscSet(), rContext.GetAccountRoot(), 1)));
-
-	// Return the stream to the client
 	rProtocol.SendStreamAfterCommand(stream);
-
+	
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolBackups());
 
 }

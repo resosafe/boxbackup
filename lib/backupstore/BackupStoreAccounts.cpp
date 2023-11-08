@@ -226,7 +226,7 @@ int BackupStoreAccountsControl::BlockSizeOfDiscSet(int discSetNum)
 }
 
 
-int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options)
+int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options, bool fix)
 {
 	std::string rootDir;
 	int discSetNum;
@@ -246,12 +246,26 @@ int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options)
 
 	// Change the options
 	info->SetOptions(Options);
-	
-	// Save
 	info->Save();
 
 	BOX_NOTICE("Options on account " << BOX_FORMAT_ACCOUNT(ID) <<
 		" changed to " << BOX_FORMAT_HEX32(Options));
+
+
+	if( fix )
+	{
+		// add a "now" backup time to all active objects that don't have a backup time
+		// remove all "old" and "deleted" objects without a deleted timestamp
+		HousekeepStoreAccount housekeeping(ID, rootDir, discSetNum, NULL);
+		housekeeping.DoHousekeeping(HousekeepStoreAccount::FixForTimelineMode, GetCurrentBoxTime(), false, false);
+		if( housekeeping.GetNewSessionsInfos().HasChanges() ) 
+		{
+			housekeeping.GetNewSessionsInfos().SetEnd();
+			
+			BackupsList::AddRecord(RaidFileController::DiscSetPathToFileSystemPath(discSetNum, rootDir, 1), housekeeping.GetNewSessionsInfos());
+		}
+		return housekeeping.GetErrorCount();
+	}
 
 	return 0;
 }

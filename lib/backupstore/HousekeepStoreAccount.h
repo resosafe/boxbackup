@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "BackupStoreInfo.h"
-
+#include "BackupStoreContext.h"
 #include "BackupStoreRefCountDatabase.h"
 
 class BackupStoreDirectory;
@@ -44,14 +44,16 @@ public:
 		RemoveDeleted=0x1,
 		RemoveOldVersions=0x2,
 		DisableAutoClean=0x4,
+		FixForTimelineMode=0x8,
 	}ActionFlags;
 
 	HousekeepStoreAccount(int AccountID, const std::string &rStoreRoot,
 		int StoreDiscSet, HousekeepingCallback* pHousekeepingCallback);
 	~HousekeepStoreAccount();
 	
-	bool DoHousekeeping(int32_t flags=DefaultAction, box_time_t PointInTime=0, bool KeepTryingForever = false);
+	bool DoHousekeeping(int32_t flags=DefaultAction, box_time_t PointInTime=0, bool KeepTryingForever = false, bool lock = true);
 	int GetErrorCount() { return mErrorCount; }
+	SessionInfos& GetNewSessionsInfos() { return mNewSessionsInfos; }
 	
 private:
 	// utility functions
@@ -117,6 +119,10 @@ private:
 	// Deletion count
 	int64_t mFilesDeleted;
 	int64_t mEmptyDirectoriesDeleted;
+
+	// Store informations about the changes made from FixForTimelineMode
+	SessionInfos mNewSessionsInfos; 
+
 
 	// New reference count list
 	std::auto_ptr<BackupStoreRefCountDatabase> mapNewRefs;

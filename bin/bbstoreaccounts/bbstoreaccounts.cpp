@@ -56,6 +56,10 @@ void PrintUsageAndExit()
 "  setlimit <accounts> <softlimit> <hardlimit> <versionslimit>\n"
 "        Changes the limits of the account as specified. Numbers are\n"
 "        interpreted as for the 'create' command (suffixed with B, M or G)\n"
+"  setoptions <accounts> <options> [fix]\n"
+"        Changes the options of the account like 'timeline'. specify 'none' to remove any options\n"
+"        If the 'fix' parameter is specified, and old account will be prepared for timeline support:\n"
+"        remove old and deleted files, stamp other object with the current datetime\n"
 "  delete <account> [yes]\n"
 "        Deletes the specified account. Prompts for confirmation unless\n"
 "        the optional 'yes' parameter is provided.\n"
@@ -231,14 +235,19 @@ int main(int argc, const char *argv[])
 			{
 				options |= BackupStoreInfo::OPTION_TIMELINE;
 			}
+			else if( *it=="none" )
+			{
+				options = BackupStoreInfo::OPTION_NONE;
+			} 
 			else 
 			{
 				BOX_ERROR("Unknown option " << *it << ".");
 				return 2;
 			}
 		}
-		
-        return control.SetOptions(id, options);
+
+
+        return control.SetOptions(id, options, (argc == 4 && ::strcmp(argv[3], "fix") == 0));
 	}
 	else if(command == "info")
 	{

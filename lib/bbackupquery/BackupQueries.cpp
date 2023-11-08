@@ -2358,6 +2358,7 @@ void BackupQueries::CommandListBackups(const bool *opts)
 
 	// Request full details from the server
 	std::auto_ptr<BackupProtocolBackups> backup_list(mrConnection.QueryListBackups());
+	
 
 	BackupsList list;
 	std::auto_ptr<IOStream> stream(mrConnection.ReceiveStream());

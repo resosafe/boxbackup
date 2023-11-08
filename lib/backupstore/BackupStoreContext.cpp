@@ -706,7 +706,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			}
 			catch(...)
 			{
-				// Be very paranoid about deleting this temp file -- we could only leave a zero byte file anyway
+				// Don't delete the tempFn here anymore, resume may be possible
 				// ::unlink(tempFn.c_str());
 				throw;
 			}

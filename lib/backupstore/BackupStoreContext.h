@@ -79,9 +79,9 @@ class SessionInfos {
 		uint64_t GetDeletedDirectoriesCount() { return mDeletedDirectoriesCount; }
 
 
-		void WriteToStream(IOStream &Stream)
+		void WriteToStream(IOStream &Stream, int Timeout = IOStream::TimeOutInfinite)
 		{
-			Archive ar(Stream, IOStream::TimeOutInfinite);
+			Archive ar(Stream, Timeout);
 			ar.Write(mStartTime);
 			ar.Write(mEndTime);
 			ar.Write(mAddedFilesCount);
