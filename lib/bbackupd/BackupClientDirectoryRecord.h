@@ -235,6 +235,7 @@ public:
 	std::auto_ptr<BackupClientDirectoryRecord> mapDirectoryRecord;
 	std::auto_ptr<ExcludeList> mapExcludeFiles;
 	std::auto_ptr<ExcludeList> mapExcludeDirs;
+	bool mDoNotKeepDeletedFiles;
 	int mIDMapIndex;
 
 #ifdef ENABLE_VSS

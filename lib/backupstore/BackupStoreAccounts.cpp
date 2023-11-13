@@ -261,7 +261,6 @@ int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options, bool fix
 		if( housekeeping.GetNewSessionsInfos().HasChanges() ) 
 		{
 			housekeeping.GetNewSessionsInfos().SetEnd();
-			
 			BackupsList::AddRecord(RaidFileController::DiscSetPathToFileSystemPath(discSetNum, rootDir, 1), housekeeping.GetNewSessionsInfos());
 		}
 		return housekeeping.GetErrorCount();

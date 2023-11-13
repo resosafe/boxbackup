@@ -126,7 +126,7 @@ public:
 	void CloseAnyOpenConnection();
 	int GetTimeout() const;
 	BackupClientDeleteList &GetDeleteList();
-	void PerformDeletions();
+	void PerformDeletions(const Location& rBackupLocation);
 
 	enum
 	{
