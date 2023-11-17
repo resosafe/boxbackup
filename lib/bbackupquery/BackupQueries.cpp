@@ -2112,7 +2112,6 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 			pointInTime);
 	}
 	
-	std::cout << "dirID: " << dirID << std::endl;
 	// Allowable?
 	if(dirID == 0)
 	{
@@ -2538,10 +2537,11 @@ void BackupQueries::CommandDelete(const std::vector<std::string> &args,
 	int16_t listFlags = BackupProtocolListDirectory::Flags_OldVersion |
 		BackupProtocolListDirectory::Flags_Deleted;
 	
-	bool removeASAP = false;
+	int16_t removeFlags = 0;
+
 	if(args.size() == 2) {
 		if(args[1] == "now" ) { // going to tag the Flags_RemoveASAP
-			removeASAP = true;
+			removeFlags = BackupProtocolListDirectory::Flags_RemoveASAP;
 			listFlags = BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING;
 		}
 	}
@@ -2569,26 +2569,15 @@ void BackupQueries::CommandDelete(const std::vector<std::string> &args,
 	try
 	{
 		// Delete object
-		if ( removeASAP ) {
-			if(flagsOut & BackupProtocolListDirectory::Flags_File)
-			{
-				mrConnection.QueryDeleteFileASAP(parentId, fn);
-			}
-			else
-			{
-				mrConnection.QueryDeleteDirectoryASAP(fileId);
-			}
-		} else {
-			if(flagsOut & BackupProtocolListDirectory::Flags_File)
-			{
-				mrConnection.QueryDeleteFile(parentId, fn);
-			}
-			else
-			{
-				mrConnection.QueryDeleteDirectory(fileId);
-			}
+		if(flagsOut & BackupProtocolListDirectory::Flags_File)
+		{
+			mrConnection.QueryDeleteFile(parentId, fn, removeFlags);
 		}
-		
+		else
+		{
+			mrConnection.QueryDeleteDirectory(fileId, removeFlags);
+		}
+	
 		
 	}
 	catch (BoxException &e)

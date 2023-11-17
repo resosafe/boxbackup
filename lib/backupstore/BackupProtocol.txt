@@ -146,11 +146,11 @@ ListDirectory	21	Command(Success)
 	CONSTANT	Flags_INCLUDE_EVERYTHING 	-1
 	CONSTANT	Flags_EXCLUDE_NOTHING 		0
 	CONSTANT	Flags_EXCLUDE_EVERYTHING	15
-	CONSTANT	Flags_File			1
-	CONSTANT	Flags_Dir			2
-	CONSTANT	Flags_Deleted			4
+	CONSTANT	Flags_File					1
+	CONSTANT	Flags_Dir					2
+	CONSTANT	Flags_Deleted				4
 	CONSTANT	Flags_RemoveASAP			16
-	CONSTANT	Flags_OldVersion		8
+	CONSTANT	Flags_OldVersion			8
 	# make sure this is the same as in BackupStoreConstants.h
 	CONSTANT	RootDirectory			1
 
@@ -170,6 +170,7 @@ ChangeDirAttributes2	26	Command(Success)	StreamWithCommand
 
 DeleteDirectory 23	Command(Success)
 	int64		ObjectID
+	int16		Flags 0
 
 
 UndeleteDirectory	24	Command(Success)
@@ -214,6 +215,7 @@ SetReplacementFileAttributes	32	Command(Success)	StreamWithCommand
 DeleteFile	33	Command(Success)
 	int64		InDirectory
 	Filename	Filename
+	int16		Flags
 	# will return 0 if the object couldn't be found in the specified directory
 
 

@@ -660,7 +660,6 @@ std::auto_ptr<IOStream> Protocol::ReceiveStream()
 			new PartialReadStream(*mapConn, streamSize));
 	}
 }
-#include <iostream>
 
 // --------------------------------------------------------------------------
 //

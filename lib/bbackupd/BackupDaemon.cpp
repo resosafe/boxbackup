@@ -2228,8 +2228,6 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 			bool sendOK = false;
 			bool sendResponse = true;
 		
-
-
 			// Command to process!
 			if(command == "quit" || command == "")
 			{
@@ -2237,16 +2235,16 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 				CloseCommandConnection();
 				sendResponse = false;
 			}
-			else if(command.rfind("sync", 0)==0)
+			else if( command.rfind("sync", 0)==0 || (SyncIsForcedOut = (command.rfind("force-sync", 0)==0)) )
 			{
 				mLocationsAllowed.clear();
 
 				// if command contains something after "sync", extract it and split ","
 				// to get the list of locations to sync
-				if(command.length() > 4 ) {
+				if(command.length() > (SyncIsForcedOut ? 10 : 4) ) {
 
 					std::string token;
-					std::istringstream tokenStream(command.substr(5));
+					std::istringstream tokenStream(command.substr((SyncIsForcedOut ? 11 : 5)));
 					while (std::getline(tokenStream, token, ',')) {
 						mLocationsAllowed.push_back(token);
 					}
@@ -2254,28 +2252,6 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 
 				// Sync now!
 				DoSyncFlagOut = true;
-				SyncIsForcedOut = false;
-				sendOK = true;
-			}
-			else if(command == "force-sync")
-			{
-				// TODO: factorize !
-				mLocationsAllowed.clear();
-
-				// if command contains something after "sync", extract it and split ","
-				// to get the list of locations to sync
-				if(command.length() > 10 ) {
-
-					std::string token;
-					std::istringstream tokenStream(command.substr(5));
-					while (std::getline(tokenStream, token, ',')) {
-						mLocationsAllowed.push_back(token);
-					}
-				}
-
-				// Sync now (forced -- overrides any SyncAllowScript)
-				DoSyncFlagOut = true;
-				SyncIsForcedOut = true;
 				sendOK = true;
 			}
 			else if(command == "reload")
@@ -3391,7 +3367,7 @@ void BackupDaemon::DeleteUnusedRootDirEntries(BackupClientContext &rContext)
 		i(mUnusedRootDirEntries.begin());
 		i != mUnusedRootDirEntries.end(); ++i)
 	{
-		connection.QueryDeleteDirectory(i->first);
+		connection.QueryDeleteDirectory(i->first, 0);
 		rContext.GetProgressNotifier().NotifyFileDeleted(
 			i->first, i->second);
 	}

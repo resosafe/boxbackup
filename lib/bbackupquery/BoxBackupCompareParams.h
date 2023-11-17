@@ -32,7 +32,6 @@ private:
 	bool mQuickCompare;
 	bool mIgnoreExcludes;
 	bool mIgnoreAttributes;
-	bool mDoNotKeepDeletedFiles;
 	box_time_t mLatestFileUploadTime;
 	
 public:
@@ -41,7 +40,6 @@ public:
 	: mQuickCompare(QuickCompare),
 	  mIgnoreExcludes(IgnoreExcludes),
 	  mIgnoreAttributes(IgnoreAttributes),
-	  mDoNotKeepDeletedFiles(false),
 	  mLatestFileUploadTime(LatestFileUploadTime)
 	{ }
 	
@@ -67,7 +65,6 @@ public:
 		if (!mapExcludeDirs.get()) return false;
 		return mapExcludeDirs->IsExcluded(rLocalPath);
 	}
-	bool DoNotKeepDeletedFiles() { return mDoNotKeepDeletedFiles; }
 
 	virtual void NotifyLocalDirMissing(const std::string& rLocalPath,
 		const std::string& rRemotePath) = 0;

@@ -218,7 +218,6 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 //		Created: 2003/08/26
 //
 // --------------------------------------------------------------------------
-#include <iostream>
 #include "autogen_BackupProtocol.h"
 
 void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo, uint32_t ProtocolVersion) const
@@ -290,9 +289,7 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	dir_StreamFormat hdr;
 	if( ProtocolVersion < PROTOCOL_VERSION_V2 ) {
 		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V0);
-		std::cout << "IS V0" << std::endl;
 	} else {
-		std::cout << "IS V1" << std::endl;
 		hdr.mMagicValue = htonl(OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
 	}
 	hdr.mNumEntries = htonl(entries.size());
@@ -318,7 +315,6 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	// Then write all the entries
 	for ( auto local_it = entries.cbegin(); local_it!= entries.cend(); ++local_it ) {
 		Entry *pen = local_it->second;
-		std::cout << "protocol "<< ProtocolVersion << std::endl;
 		pen->WriteToStream(rStream, ProtocolVersion < PROTOCOL_VERSION_V2);
 	}
 	
@@ -631,7 +627,6 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream, bool IgnoreBa
 	mAttributes.WriteToStream(rStream);
 
 	if( !IgnoreBackupTime ) {
-		std::cout << "writing backup time" << std::endl;
 		// Write the backup time
 		box_time_t backupTime = box_hton64(mBackupTime);
 		rStream.Write((void*)&backupTime, sizeof(mBackupTime));
