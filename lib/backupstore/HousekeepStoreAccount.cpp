@@ -429,6 +429,8 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime,
 			BackupStoreDirectory::Entry *en = 0;
 			while((en = i.Next()) != 0)
 			{
+				int16_t enFlags = en->GetFlags();
+
 				if( rBackupStoreInfo.HasTimeLineOption() ) {
 
 					if( flags & HousekeepStoreAccount::FixForTimelineMode ) {
@@ -487,8 +489,13 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime,
 							
 							
 
-					} else if( en->IsFile() && en->GetBackupTime() <= PointInTime ) {
-						// here we should delete only the files based on their backup date
+					} else if( en->IsFile() 
+						&& (
+							(en->GetBackupTime()!=0 && en->GetBackupTime() <= PointInTime) 
+							|| (enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0 && (en->IsDeleted() || en->IsOld())
+					)) 
+					{
+						// here we should delete only the files based on their backup date (if set)
 						// this file is too old, delete it
 						BOX_INFO("Going to remove Object " << BOX_FORMAT_OBJECTID(en->GetObjectID())
 								<< " BackupTime: " << BoxTimeToISO8601String(en->GetBackupTime(), false) );
@@ -507,7 +514,6 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime,
 
 				} else if (en->IsFile()) {
 					// Only Treat Files at this point
-					int16_t enFlags = en->GetFlags();
 					if( ( (enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0
 							&& (en->IsDeleted() || en->IsOld())
 						)
