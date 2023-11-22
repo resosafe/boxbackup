@@ -1611,6 +1611,7 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 {
 	// Get attributes
 	box_time_t attrModTime = 0;
+	box_time_t modTime = 0;
 	InodeRefType inodeNum = 0;
 	BackupClientFileAttributes attr;
 	*pHaveJustCreatedDirOnServer = false;
@@ -1620,7 +1621,7 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 	{
 		attr.ReadAttributes(localDirPath,
 			true /* directories have zero mod times */,
-			0 /* not interested in mod time */,
+			&modTime,
 			&attrModTime, 0 /* not file size */,
 			&inodeNum);
 	}
@@ -1704,8 +1705,8 @@ int64_t BackupClientDirectoryRecord::CreateRemoteDir(const std::string& localDir
 		// Create a new directory
 		try
 		{
-			subDirObjectID = connection.QueryCreateDirectory(
-				mObjectID, attrModTime, storeFilename,
+			subDirObjectID = connection.QueryCreateDirectory2(
+				mObjectID, attrModTime, modTime, storeFilename,
 				attrStream)->GetObjectID();
 			// Flag as having done this for optimisation later
 			*pHaveJustCreatedDirOnServer = true;

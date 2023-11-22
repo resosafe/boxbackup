@@ -590,7 +590,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolCreateDirectory::DoCommand(
 	IOStream& rDataStream) const
 {
 	return BackupProtocolCreateDirectory2(mContainingDirectoryID,
-		mAttributesModTime, 0 /* ModificationTime */,
+		mAttributesModTime, mAttributesModTime /* ModificationTime */,
 		mDirectoryName).DoCommand(rProtocol, rContext, rDataStream);
 }
 
