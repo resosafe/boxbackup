@@ -256,7 +256,7 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 	}
 }
 
-#define LIST_OPTION_POINT_IN_TIME       'p'
+#define LIST_OPTION_SNAPSHOT_TIME       'p'
 #define LIST_OPTION_BY_OBJECT_ID        'i'
 #define LIST_OPTION_TIMES_ATTRIBS	    'a'
 #define LIST_OPTION_SORT_NO_DIRS_FIRST	'D'
@@ -270,8 +270,8 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 #define LIST_OPTION_SORT_SIZE		    'S'
 #define LIST_OPTION_TIMES_LOCAL		    't'
 #define LIST_OPTION_TIMES_UTC		    'T'
-#define LIST_OPTION_BCK_TIMES			'b'
-#define LIST_OPTION_DEL_TIMES			'B'
+#define LIST_OPTION_BCK_TIMES			'B'
+#define LIST_OPTION_DEL_TIMES			'X'
 #define LIST_OPTION_SORT_NONE		    'U'
 
 // --------------------------------------------------------------------------
@@ -290,12 +290,12 @@ void BackupQueries::CommandList(const std::vector<std::string> &args, const bool
 
 	// name of base directory
 	std::string listRoot;	// blank
-	box_time_t pointInTime = 0;
+	box_time_t snapshotTime = 0;
 	// Got a directory in the arguments?
-	if( opts[LIST_OPTION_POINT_IN_TIME] && args.size() > 0 )
+	if( opts[LIST_OPTION_SNAPSHOT_TIME] && args.size() > 0 )
 	{
 
-		pointInTime = ::strtoull(args[0].c_str(), 0, 10);
+		snapshotTime = ::strtoull(args[0].c_str(), 0, 10);
 		directoryArgIndex = 1;
 	} 
 
@@ -334,7 +334,7 @@ void BackupQueries::CommandList(const std::vector<std::string> &args, const bool
 	}
 
 	// List it
-	List(rootDir, listRoot, opts, pointInTime, true /* first level to list */);
+	List(rootDir, listRoot, opts, snapshotTime, true /* first level to list */);
 }
 
 static std::string GetTimeString(BackupStoreDirectory::Entry& en,
@@ -462,7 +462,7 @@ bool SortByName(BackupStoreDirectory::Entry* a,
 //
 // --------------------------------------------------------------------------
 void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
-	const bool *opts, box_time_t pointInTime, bool FirstLevel, std::ostream* pOut)
+	const bool *opts, box_time_t snapshotTime, bool FirstLevel, std::ostream* pOut)
 {
 #ifdef WIN32
 	DWORD n_chars;
@@ -483,7 +483,7 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 			// both files and directories
 			excludeFlags,
 			true /* want attributes */,
-			pointInTime);
+			snapshotTime);
 	}
 	catch (std::exception &e)
 	{
@@ -594,9 +594,7 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 			}
 		}
 		
-		// buf << BoxTimeToISO8601String(en->GetModificationTime(), true) << " ";
-		// buf << BoxTimeToISO8601String(en->GetBackupTime(), true) << " ";
-		
+	
 		if(opts[LIST_OPTION_BCK_TIMES])
 		{
 			buf << BoxTimeToISO8601String(en->GetBackupTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
@@ -604,7 +602,7 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 
 		if(opts[LIST_OPTION_DEL_TIMES])
 		{
-			buf << BoxTimeToISO8601String(en->GetDeletedTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			buf << BoxTimeToISO8601String(en->GetDeleteTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
 		}
 
 		if(opts[LIST_OPTION_TIMES_UTC])
@@ -706,7 +704,7 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 				std::string subroot(rListRoot);
 				if(!FirstLevel) subroot += '/';
 				subroot += clear.GetClearFilename();
-				List(en->GetObjectID(), subroot, opts, pointInTime,
+				List(en->GetObjectID(), subroot, opts, snapshotTime,
 					false /* not the first level to list */,
 					pOut);
 			}
@@ -728,7 +726,7 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 //
 // --------------------------------------------------------------------------
 int64_t BackupQueries::FindDirectoryObjectID(const std::string &rDirName,
-	bool AllowOldVersion, bool AllowDeletedDirs, box_time_t PointInTime,
+	bool AllowOldVersion, bool AllowDeletedDirs, box_time_t SnapshotTime,
 	std::vector<std::pair<std::string, int64_t> > *pStack)
 {
 	// Split up string into elements
@@ -791,7 +789,7 @@ int64_t BackupQueries::FindDirectoryObjectID(const std::string &rDirName,
 						BackupProtocolListDirectory::Flags_Dir,	// just directories
 						excludeFlags,
 						true /* want attributes */,
-						PointInTime));
+						SnapshotTime));
 
 				// Retrieve the directory from the stream following
 				BackupStoreDirectory dir;
@@ -2059,11 +2057,11 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	bool restoreDeleted = opts['d'];
 
 	int directoryArgIndex = 0;
-	box_time_t pointInTime = 0;
+	box_time_t snapshotTime = 0;
 	// Got a directory in the arguments?
-	if( opts[LIST_OPTION_POINT_IN_TIME] && args.size() > 0 )
+	if( opts[LIST_OPTION_SNAPSHOT_TIME] && args.size() > 0 )
 	{
-		pointInTime = ::strtoull(args[0].c_str(), 0, 10);
+		snapshotTime = ::strtoull(args[0].c_str(), 0, 10);
 		directoryArgIndex = 1;
 	} 
 
@@ -2109,7 +2107,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 			false /* no old versions */, 
 			/* The above code is not doing anything. It appears to be a comment or placeholder text. */
 			restoreDeleted /* find deleted dirs */,
-			pointInTime);
+			snapshotTime);
 	}
 	
 	// Allowable?
@@ -2153,7 +2151,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 		result = BackupClientRestore(mrConnection, dirID, 
 			storeDirEncoded.c_str(), localName.c_str(), 
-			pointInTime,
+			snapshotTime,
 			true /* print progress dots */, restoreDeleted, 
 			opts['a'] /* restore any deleted or not-deleted */,
 			false /* don't undelete after restore! */, 

@@ -51,7 +51,7 @@ public:
 		int StoreDiscSet, HousekeepingCallback* pHousekeepingCallback);
 	~HousekeepStoreAccount();
 	
-	bool DoHousekeeping(int32_t flags=DefaultAction, box_time_t PointInTime=0, bool KeepTryingForever = false, bool lock = true);
+	bool DoHousekeeping(int32_t flags=DefaultAction, box_time_t SnapshotTime=0, bool KeepTryingForever = false, bool lock = true);
 	int GetErrorCount() { return mErrorCount; }
 	SessionInfos& GetNewSessionsInfos() { return mNewSessionsInfos; }
 	
@@ -59,7 +59,7 @@ private:
 	// utility functions
 	void MakeObjectFilename(int64_t ObjectID, std::string &rFilenameOut);
 
-	bool ScanDirectory(int32_t flags, box_time_t PointInTime, int64_t ObjectID, BackupStoreInfo& rBackupStoreInfo);
+	bool ScanDirectory(int32_t flags, box_time_t SnapshotTime, int64_t ObjectID, BackupStoreInfo& rBackupStoreInfo);
 	bool DeleteFiles(BackupStoreInfo& rBackupStoreInfo);
 	bool DeleteEmptyDirectories(BackupStoreInfo& rBackupStoreInfo);
 	void DeleteEmptyDirectory(int64_t dirId, std::vector<int64_t>& rToExamine,

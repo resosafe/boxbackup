@@ -78,7 +78,7 @@ public:
 		bool ReturnNumErrorsFound = false);
     int CreateAccount(int32_t ID, int32_t Options, int32_t DiscNumber, int64_t SoftLimit,
         int64_t HardLimit, int32_t VersionsLimit);
-	int HousekeepAccountNow(int32_t ID,  int32_t flags, box_time_t PointInTime);
+	int HousekeepAccountNow(int32_t ID,  int32_t flags, box_time_t SnapshotTime);
 	int PrintBackups(int32_t ID, std::string tz);
 
 };

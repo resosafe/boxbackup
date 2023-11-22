@@ -990,7 +990,7 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 				if ( (Flags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0 ) {
 					e->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
 				} 
-				e->SetDeletedTime(GetSessionStartTime());
+				e->SetDeleteTime(GetSessionStartTime());
 				
 				// Mark as made a change
 				madeChanges = true;

@@ -90,7 +90,7 @@ public:
 	int GetReturnCode() {return mReturnCode;}
 
 	void List(int64_t DirID, const std::string &rListRoot, const bool *opts,
-		box_time_t pointInTime, bool FirstLevel,  std::ostream* pOut = NULL);
+		box_time_t snapshotTime, bool FirstLevel,  std::ostream* pOut = NULL);
 	void CommandList(const std::vector<std::string> &args, const bool *opts);
 	
 	// Commands
@@ -384,7 +384,7 @@ public:
 	int64_t GetCurrentDirectoryID();
 	int64_t FindDirectoryObjectID(const std::string &rDirName,
 		bool AllowOldVersion = false, bool AllowDeletedDirs = false,
-		box_time_t PointInTime = 0,
+		box_time_t SnapshotTime = 0,
 		std::vector<std::pair<std::string, int64_t> > *pStack = 0);
 
 private:

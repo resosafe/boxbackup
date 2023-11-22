@@ -56,7 +56,7 @@ void PrintUsageAndExit()
 "  setlimit <accounts> <softlimit> <hardlimit> <versionslimit>\n"
 "        Changes the limits of the account as specified. Numbers are\n"
 "        interpreted as for the 'create' command (suffixed with B, M or G)\n"
-"  setoptions <accounts> <options> [fix]\n"
+"  setoptions <account> <options> [fix]\n"
 "        Changes the options of the account like 'timeline'. specify 'none' to remove any options\n"
 "        If the 'fix' parameter is specified, and old account will be prepared for timeline support:\n"
 "        remove old and deleted files, stamp other object with the current datetime\n"
@@ -72,7 +72,7 @@ void PrintUsageAndExit()
 "        Changes the \"name\" of the account to the specified string.\n"
 "        The name is purely cosmetic and intended to make it easier to\n"
 "        identify your accounts.\n"
-"  housekeep <account> [remove-deleted] [remove-old] [disable-auto-clean]\n"
+"  housekeep <account> [remove-deleted] [remove-old] [remove-before <date iso8601>] [disable-auto-clean]\n"
 "        Runs housekeeping immediately on the account. If it cannot be locked,\n"
 "        bbstoreaccounts returns an error status code (1), otherwise success\n"
 "        (0) even if any errors were fixed by housekeeping.\n"
@@ -340,7 +340,7 @@ int main(int argc, const char *argv[])
 	else if(command == "housekeep")
 	{
 		int32_t flags=HousekeepStoreAccount::DefaultAction;
-		box_time_t pointInTime = 0;
+		box_time_t snapshotTime = 0;
 
 		// Look at other options
 		for(int o = 2; o < argc; ++o)
@@ -358,8 +358,8 @@ int main(int argc, const char *argv[])
 					BOX_ERROR("remove-before requires a date");
 					return 2;
 				}
-				pointInTime=StringToBoxTime(argv[o+1]);
-				if(!pointInTime) {
+				snapshotTime=StringToBoxTime(argv[o+1]);
+				if(!snapshotTime) {
 					BOX_ERROR("remove-before requires a date");
 					return 2;
 				}
@@ -378,7 +378,7 @@ int main(int argc, const char *argv[])
 
 
 
-		return control.HousekeepAccountNow(id, flags, pointInTime);
+		return control.HousekeepAccountNow(id, flags, snapshotTime);
 	}
 	else if(command == "backups")
 	{

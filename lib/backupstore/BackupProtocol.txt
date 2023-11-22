@@ -112,7 +112,7 @@ ObjectName		13	Reply
 	int64		ModificationTime
 	int64		AttributesHash
 	int64       BackupTime
-	int64       DeletedTime
+	int64       DeleteTime
 	int16		Flags
 	# NumNameElements is zero if the object doesn't exist
 	CONSTANT	NumNameElements_ObjectDoesntExist	0
@@ -141,7 +141,7 @@ ListDirectory	21	Command(Success)
 	int16		FlagsMustBeSet
 	int16		FlagsNotToBeSet
 	bool		SendAttributes
-	int64		PointInTime 0
+	int64		SnapshotTime 0
 	# make sure these flags are synced with those in BackupStoreDirectory
 	CONSTANT	Flags_INCLUDE_EVERYTHING 	-1
 	CONSTANT	Flags_EXCLUDE_NOTHING 		0

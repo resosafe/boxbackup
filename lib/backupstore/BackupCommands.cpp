@@ -296,7 +296,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolListDirectory::DoCommand(Back
 		rContext.GetDirectory(mObjectID));
 	rdir.WriteToStream(*stream, mFlagsMustBeSet,
 		mFlagsNotToBeSet, 
-		mPointInTime,
+		mSnapshotTime,
 		mSendAttributes,
 		false /* never send dependency info to the client */,
 		rContext.GetProtocolVersion());
@@ -946,7 +946,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 	int64_t modTime = 0;
 	uint64_t attrModHash = 0;
 	int64_t backupTime = 0;
-	int64_t deletedTime = 0;
+	int64_t deleteTime = 0;
 	bool haveModTimes = false;
 
 	do
@@ -1005,7 +1005,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 				modTime = en->GetModificationTime();
 				attrModHash = en->GetAttributesHash();
 				backupTime = en->GetBackupTime();
-				deletedTime = en->GetDeletedTime();
+				deleteTime = en->GetDeleteTime();
 				haveModTimes = true;
 			}
 
@@ -1032,7 +1032,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 	}
 
 	// Make reply
-	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(numNameElements, modTime, attrModHash, backupTime, deletedTime, objectFlags));
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(numNameElements, modTime, attrModHash, backupTime, deleteTime, objectFlags));
 }
 
 

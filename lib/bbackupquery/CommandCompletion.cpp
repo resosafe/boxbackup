@@ -430,7 +430,7 @@ QueryCommandSpecification commands[] =
 {
 	{ "quit",	"",		Command_Quit, 	{} },
 	{ "exit",	"",		Command_Quit,	{} },
-	{ "list",	"adDFhiIorRsStTUpObB",	Command_List,	{CompleteRemoteDir} },
+	{ "list",	"adDFhiIorRsStTUOpBX",	Command_List,	{CompleteRemoteDir} },
 	{ "pwd",	"",		Command_pwd,	{} },
 	{ "cd",		"od",		Command_cd,	{CompleteRemoteDir} },
 	{ "lcd",	"",		Command_lcd,	{CompleteLocalDir} },

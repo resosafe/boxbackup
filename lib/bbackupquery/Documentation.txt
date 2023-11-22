@@ -33,8 +33,8 @@ start with '/'. The initial directory is always the root directory.
 
 	List contents of current directory, or specified directory.
 		
-	-p -- point in time (timestamp must be specified)
-	-i --  directory name is actually an ID
+	-p -- snapshot time (timestamp must be specified)
+	-i -- directory name is actually an ID
 	-R -- recursively list all files
 	-d -- list deleted files/directories
 	-o -- list old versions of files/directories
@@ -43,8 +43,8 @@ start with '/'. The initial directory is always the root directory.
 	-t -- show file modification time in local time
 	      (and attr mod time if has the object has attributes, ~ separated)
 	-T -- show file modification time in GMT
-	-b -- show backup time (based on the file modification format or GMT by default)
-	-B -- show delete time (based on the file modification format or GMT by default)
+	-B -- show backup time (based on the file modification format or GMT by default)
+	-X -- show delete time (based on the file modification format or GMT by default)
 	-a -- show updated attribute instead of file modification time
 	-s -- show file size in blocks used on server
 	      (only very approximate indication of size locally)
@@ -141,7 +141,7 @@ compare <store-dir-name> <local-dir-name>
 	-a -- restore both deleted and not-deleted files or directory
 	-r -- resume an interrupted restoration
 	-i -- directory name is actually an ID
-	-p -- point in time (timestamp must be specified)
+	-p -- snapshot time (timestamp must be specified)
 	-f -- force restore to continue if errors are encountered
 
 	If a restore operation is interrupted for any reason, it can be restarted

@@ -220,7 +220,7 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 // --------------------------------------------------------------------------
 #include "autogen_BackupProtocol.h"
 
-void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t PointInTime, bool StreamAttributes, bool StreamDependencyInfo, uint32_t ProtocolVersion) const
+void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t SnapshotTime, bool StreamAttributes, bool StreamDependencyInfo, uint32_t ProtocolVersion) const
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
 	
@@ -231,7 +231,7 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	bool hide_deleted = FlagsNotToBeSet & BackupProtocolListDirectory::Flags_Deleted;
 
 	// If we're travelling in time we won't filter old or deleted objects
- 	if( PointInTime != 0 )
+ 	if( SnapshotTime != 0 )
 	{
 		FlagsNotToBeSet &= ~BackupProtocolListDirectory::Flags_OldVersion;
 		FlagsNotToBeSet &= ~BackupProtocolListDirectory::Flags_Deleted;
@@ -241,12 +241,12 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 	Iterator i(*this);
 	while((pen = i.Next(FlagsMustBeSet, FlagsNotToBeSet)) != 0)
 	{
-		if ( PointInTime != 0 ) {
+		if ( SnapshotTime != 0 ) {
 
-			// if object was backed up before the point in time
-			// and it wasn't deleted before the point in time (in case we are hiding deleted objects)
-			if( pen->GetBackupTime() <= PointInTime &&
-				!(pen->IsDeleted() && pen->GetDeletedTime() <= PointInTime)
+			// if object was backed up before the SnapshotTime
+			// and it wasn't deleted before the SnapshotTime (in case we are hiding deleted objects)
+			if( pen->GetBackupTime() <= SnapshotTime &&
+				!(pen->IsDeleted() && pen->GetDeleteTime() <= SnapshotTime)
 				)  {
 				if( auto res = entries.find(pen->mName.GetEncodedFilename()); res != entries.end() ) {
 					// Be sure to keep the newest version
@@ -364,11 +364,11 @@ BackupStoreDirectory::Entry *BackupStoreDirectory::AddEntry(const Entry &rEntryT
 // --------------------------------------------------------------------------
 BackupStoreDirectory::Entry *
 BackupStoreDirectory::AddEntry(const BackupStoreFilename &rName,
-	box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeletedTime, int64_t ObjectID, int64_t SizeInBlocks,
+	box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeleteTime, int64_t ObjectID, int64_t SizeInBlocks,
 	int16_t Flags, uint64_t AttributesHash)
 {
 	ASSERT(!mInvalidated); // Compiled out of release builds
-	Entry *pnew = new Entry(rName, ModificationTime, BackupTime, DeletedTime, ObjectID,
+	Entry *pnew = new Entry(rName, ModificationTime, BackupTime, DeleteTime, ObjectID,
 		SizeInBlocks, Flags, AttributesHash);
 	try
 	{
@@ -516,7 +516,7 @@ BackupStoreDirectory::Entry::Entry(const Entry &rToCopy)
 //		Created: 2003/08/27
 //
 // --------------------------------------------------------------------------
-BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeletedTime,  int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
+BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeleteTime,  int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash)
 :
 #ifndef BOX_RELEASE_BUILD
   mInvalidated(false),
@@ -524,7 +524,7 @@ BackupStoreDirectory::Entry::Entry(const BackupStoreFilename &rName, box_time_t 
   mName(rName),
   mModificationTime(ModificationTime),
   mBackupTime(BackupTime),
-  mDeletedTime(DeletedTime),
+  mDeleteTime(DeleteTime),
   mObjectID(ObjectID),
   mSizeInBlocks(SizeInBlocks),
   mFlags(Flags),
@@ -568,7 +568,7 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout,
 
 	if( magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V0 ) {
 		mBackupTime = 0;
-		mDeletedTime = 0;
+		mDeleteTime = 0;
 	} else {
 		// Get the Backup and Deleted Time
 		uint64_t backupTime = 0;
@@ -578,12 +578,12 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout,
 		}
 		mBackupTime = box_ntoh64(backupTime);
 
-		uint64_t deletedTime = 0;
-		if(!rStream.ReadFullBuffer(&deletedTime, sizeof(deletedTime), 0, Timeout))
+		uint64_t deleteTime = 0;
+		if(!rStream.ReadFullBuffer(&deleteTime, sizeof(deleteTime), 0, Timeout))
 		{
 			THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
 		}
-		mDeletedTime = box_ntoh64(deletedTime);
+		mDeleteTime = box_ntoh64(deleteTime);
 
 	}
 
@@ -631,8 +631,8 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream, bool IgnoreBa
 		box_time_t backupTime = box_hton64(mBackupTime);
 		rStream.Write((void*)&backupTime, sizeof(mBackupTime));
 
-		box_time_t deletedTime = box_hton64(mDeletedTime);
-		rStream.Write((void*)&deletedTime, sizeof(mDeletedTime));
+		box_time_t deleteTime = box_hton64(mDeleteTime);
+		rStream.Write((void*)&deleteTime, sizeof(mDeleteTime));
 	}
 }
 

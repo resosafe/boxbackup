@@ -608,7 +608,7 @@ int BackupStoreAccountsControl::CreateAccount(int32_t ID, int32_t Options, int32
 	return 0;
 }
 
-int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags, box_time_t PointInTime)
+int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags, box_time_t SnapshotTime)
 {
 	std::string rootDir;
 	int discSetNum;
@@ -623,7 +623,7 @@ int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags, b
 	}
 
 	HousekeepStoreAccount housekeeping(ID, rootDir, discSetNum, NULL);
-	bool success = housekeeping.DoHousekeeping(flags, PointInTime);
+	bool success = housekeeping.DoHousekeeping(flags, SnapshotTime);
 
 	if(!success)
 	{

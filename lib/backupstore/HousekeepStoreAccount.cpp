@@ -107,7 +107,7 @@ HousekeepStoreAccount::~HousekeepStoreAccount()
 //		Created: 11/12/03
 //
 // --------------------------------------------------------------------------
-bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t PointInTime,  bool KeepTryingForever, bool lock)
+bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t SnapshotTime,  bool KeepTryingForever, bool lock)
 {
     BOX_INFO("Starting housekeeping on account " <<
 		BOX_FORMAT_ACCOUNT(mAccountID));
@@ -170,8 +170,8 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t PointInTime
 		mTagWithClientID.Change(tag.str());
 	}
 
-	if( info->HasTimeLineOption() && PointInTime == 0 ) {
-		BOX_ERROR("PointInTime must be specified when using the timeline option");
+	if( info->HasTimeLineOption() && SnapshotTime == 0 ) {
+		BOX_ERROR("SnapshotTime must be specified when using the timeline option");
 		return false;
 	}
 
@@ -188,7 +188,7 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t PointInTime
 
 	// Scan the directory for potential things to delete
 	// This will also remove eligible items marked with RemoveASAP
-	bool continueHousekeeping = ScanDirectory(flags, PointInTime, BACKUPSTORE_ROOT_DIRECTORY_ID,
+	bool continueHousekeeping = ScanDirectory(flags, SnapshotTime, BACKUPSTORE_ROOT_DIRECTORY_ID,
 		*info);
 
 	if(!continueHousekeeping)
@@ -355,7 +355,7 @@ void HousekeepStoreAccount::MakeObjectFilename(int64_t ObjectID, std::string &rF
 //		Created: 11/12/03
 //
 // --------------------------------------------------------------------------
-bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime, int64_t ObjectID, 
+bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime, int64_t ObjectID, 
 	BackupStoreInfo& rBackupStoreInfo)
 {
 #ifndef WIN32
@@ -437,7 +437,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime,
 
 						// delete any old or deleted files without a timestamp
 						int16_t enFlags = en->GetFlags();
-						if( en->IsFile() && en->IsDeleted() && en->GetDeletedTime() == 0) {
+						if( en->IsFile() && en->IsDeleted() && en->GetDeleteTime() == 0) {
 
 							if ( en->GetBackupTime()==0 )
 							{
@@ -455,7 +455,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime,
 								break;
 							} else {
 								// strange, but the delete timestamp is missing ??
-								en->SetDeletedTime(mNewSessionsInfos.GetStartTime());
+								en->SetDeleteTime(mNewSessionsInfos.GetStartTime());
 								mNewSessionsInfos.RecordFileDeleted(en->GetSizeInBlocks());
 								needSave = true;
 							}
@@ -491,7 +491,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime,
 
 					} else if( en->IsFile() 
 						&& (
-							(en->GetBackupTime()!=0 && en->GetBackupTime() <= PointInTime) 
+							(en->GetBackupTime()!=0 && en->GetBackupTime() <= SnapshotTime) 
 							|| (enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0 && (en->IsDeleted() || en->IsOld())
 					)) 
 					{
@@ -544,11 +544,11 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime,
 		} while(deletedSomething);
 
 
-		// we are cleaning up a Timeline, just delete all backups records at and before this point in time
+		// we are cleaning up a Timeline, just delete all backups records at and before this BackupTime
 		if( rBackupStoreInfo.HasTimeLineOption() && (flags & HousekeepStoreAccount::FixForTimelineMode == 0)  ) 
 		{
 			BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, mStoreRoot, 1));
-			list.RemoveAt(PointInTime);
+			list.RemoveAt(SnapshotTime);
 			list.Save();
 		}
 
@@ -687,7 +687,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t PointInTime,
 		{
 			ASSERT(en->IsDir());
 			
-			if(!ScanDirectory(flags, PointInTime, en->GetObjectID(), rBackupStoreInfo))
+			if(!ScanDirectory(flags, SnapshotTime, en->GetObjectID(), rBackupStoreInfo))
 			{
 				// Halting operation
 				return false;
