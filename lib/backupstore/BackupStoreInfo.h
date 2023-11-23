@@ -87,7 +87,7 @@ public:
 	enum
 	{
 		OPTION_NONE 		= 0,
-		OPTION_TIMELINE		= 1, /* in this mode, housekeeping will only delete objects based on their backup date */
+		OPTION_SNAPSHOT		= 1, /* in this mode, housekeeping will only delete objects based on their backup date */
 	};
 
 	// Create a New account, saving a blank info object to the disc
@@ -128,12 +128,12 @@ public:
     int32_t GetVersionCountLimit() const { return mVersionCountLimit; }
 	int32_t GetOptions() const {return mOptions;}
 	bool HasTimeLineOption() const {
-		return (mOptions & OPTION_TIMELINE) != 0;
+		return (mOptions & OPTION_SNAPSHOT) != 0;
 	}
 	std::vector<std::string> GetOptionsStrings() const {
 		std::vector<std::string> options;
-		if (mOptions & OPTION_TIMELINE) {
-			options.push_back("timeline");
+		if (mOptions & OPTION_SNAPSHOT) {
+			options.push_back("snapshot");
 		}
 		return options;
 	}

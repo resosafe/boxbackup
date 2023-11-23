@@ -57,8 +57,8 @@ void PrintUsageAndExit()
 "        Changes the limits of the account as specified. Numbers are\n"
 "        interpreted as for the 'create' command (suffixed with B, M or G)\n"
 "  setoptions <account> <options> [fix]\n"
-"        Changes the options of the account like 'timeline'. specify 'none' to remove any options\n"
-"        If the 'fix' parameter is specified, and old account will be prepared for timeline support:\n"
+"        Changes the options of the account like 'snapshot'. specify 'none' to remove any options\n"
+"        If the 'fix' parameter is specified, and old account will be prepared for snapshot support:\n"
 "        remove old and deleted files, stamp other object with the current datetime\n"
 "  delete <account> [yes]\n"
 "        Deletes the specified account. Prompts for confirmation unless\n"
@@ -199,9 +199,9 @@ int main(int argc, const char *argv[])
 			SplitString(argv[6], ',', options_list);
 			for( std::vector<std::string>::iterator it=options_list.begin(); it!=options_list.end(); ++it ) 
 			{
-				if( *it=="timeline" ) 
+				if( *it=="snapshot" ) 
 				{
-					options |= BackupStoreInfo::OPTION_TIMELINE;
+					options |= BackupStoreInfo::OPTION_SNAPSHOT;
 				}
 				else 
 				{
@@ -231,9 +231,9 @@ int main(int argc, const char *argv[])
 		SplitString(argv[2], ',', options_list);
 		for( std::vector<std::string>::iterator it=options_list.begin(); it!=options_list.end(); ++it ) 
 		{
-			if( *it=="timeline" ) 
+			if( *it=="snapshot" ) 
 			{
-				options |= BackupStoreInfo::OPTION_TIMELINE;
+				options |= BackupStoreInfo::OPTION_SNAPSHOT;
 			}
 			else if( *it=="none" )
 			{

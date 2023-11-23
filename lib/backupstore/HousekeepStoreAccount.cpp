@@ -171,7 +171,7 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t SnapshotTim
 	}
 
 	if( info->HasTimeLineOption() && SnapshotTime == 0 ) {
-		BOX_ERROR("SnapshotTime must be specified when using the timeline option");
+		BOX_ERROR("SnapshotTime must be specified when using the snapshot option");
 		return false;
 	}
 

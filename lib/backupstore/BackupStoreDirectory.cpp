@@ -227,7 +227,7 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 
 	std::multimap<std::string, BackupStoreDirectory::Entry*> entries;
  
-	// we'll use this to filter deleted versions for the timeline
+	// we'll use this to filter deleted versions for the snapshot
 	bool hide_deleted = FlagsNotToBeSet & BackupProtocolListDirectory::Flags_Deleted;
 
 	// If we're travelling in time we won't filter old or deleted objects
