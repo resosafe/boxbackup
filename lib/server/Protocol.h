@@ -113,7 +113,7 @@ public:
 		{ 
 			Read(rOut);
 		} 
-		catch (std::exception &e) 
+		catch (...) 
 		{
 			rOut = Default;
 		}
@@ -125,7 +125,7 @@ public:
 		{ 
 			Read(rOut);
 		} 
-		catch (std::exception &e) 
+		catch (...) 
 		{
 			rOut = Default;
 		}
@@ -137,7 +137,7 @@ public:
 		{ 
 			Read(rOut);
 		} 
-		catch (std::exception &e) 
+		catch (...) 
 		{
 			rOut = Default;
 		}
@@ -149,7 +149,7 @@ public:
 		{ 
 			Read(rOut);
 		} 
-		catch (std::exception &e) 
+		catch (...) 
 		{
 			rOut = Default;
 		}
@@ -161,7 +161,7 @@ public:
 		{ 
 			Read(rOut);
 		} 
-		catch (std::exception &e) 
+		catch (...) 
 		{
 			rOut = Default;
 		}
