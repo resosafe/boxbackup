@@ -101,7 +101,7 @@ public:
 		{ 
 			Read(rOut);
 		} 
-		catch (std::exception &e) 
+		catch (...) 
 		{
 			rOut = Default;
 		}
