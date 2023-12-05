@@ -215,7 +215,7 @@ SetReplacementFileAttributes	32	Command(Success)	StreamWithCommand
 DeleteFile	33	Command(Success)
 	int64		InDirectory
 	Filename	Filename
-	int16		Flags
+	int16		Flags 	0
 	# will return 0 if the object couldn't be found in the specified directory
 
 
