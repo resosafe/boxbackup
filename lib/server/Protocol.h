@@ -34,7 +34,6 @@ class SocketStream;
 //		Created: 2003/08/19
 //
 // --------------------------------------------------------------------------
-#include <iostream>
 class Protocol
 {
 public:
@@ -104,7 +103,6 @@ public:
 		} 
 		catch (std::exception &e) 
 		{
-			
 			rOut = Default;
 		}
 	}
@@ -117,8 +115,6 @@ public:
 		} 
 		catch (...) 
 		{
-						std::cout << "ReadWithDefault: caught exception" << std::endl;
-
 			rOut = Default;
 		}
 	}
@@ -131,7 +127,6 @@ public:
 		} 
 		catch (std::exception &e) 
 		{
-			std::cout << "ReadWithDefault: caught exception" << std::endl;
 			rOut = Default;
 		}
 	}
@@ -144,8 +139,6 @@ public:
 		} 
 		catch (std::exception &e) 
 		{
-									std::cout << "ReadWithDefault: caught exception" << std::endl;
-
 			rOut = Default;
 		}
 	}
@@ -154,14 +147,10 @@ public:
 	{
 		try 
 		{ 
-									std::cout << "ReadWithDefault: caught exception" << std::endl;
-
 			Read(rOut);
 		} 
 		catch (std::exception &e) 
 		{
-									std::cout << "ReadWithDefault: caught exception" << std::endl;
-
 			rOut = Default;
 		}
 	}
@@ -174,8 +163,6 @@ public:
 		} 
 		catch (std::exception &e) 
 		{
-									std::cout << "ReadWithDefault: caught exception" << std::endl;
-
 			rOut = Default;
 		}
 	}

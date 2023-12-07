@@ -449,6 +449,7 @@ QueryCommandSpecification commands[] =
 		{CompleteGetFileOrId} },
 	{ "delete",	"i",		Command_Delete,	{CompleteGetFileOrId} },
 	{ "listbackups", "tT", Command_ListBackups, {}},
+	{ "search", "pidoRIFtTBXasCr", Command_Search, {CompleteRemoteDir}},
 	{ NULL, 	NULL,		Command_Unknown, {} } 
 };
 

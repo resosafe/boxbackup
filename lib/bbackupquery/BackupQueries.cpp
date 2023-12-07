@@ -193,6 +193,10 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 		CommandList(args, opts);
 		break;
 		
+	case Command_Search:
+		CommandSearch(args, opts);
+		break;
+
 	case Command_pwd:
 		{
 			// Simple implementation, so do it here
@@ -273,6 +277,9 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 #define LIST_OPTION_BCK_TIMES			'B'
 #define LIST_OPTION_DEL_TIMES			'X'
 #define LIST_OPTION_SORT_NONE		    'U'
+#define SEARCH_OPTION_REGEX				'r'
+#define SEARCH_OPTION_CASE_INSENSITIVE	'C'
+
 
 // --------------------------------------------------------------------------
 //
@@ -711,6 +718,279 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 		}
 	}
 }
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::CommandSearch(const std::vector<std::string> &, const bool *)
+//		Purpose: Search for an object
+//		Created: 2023/12/05
+//
+// --------------------------------------------------------------------------
+void BackupQueries::CommandSearch(const std::vector<std::string> &args, const bool *opts)
+{
+
+	if( args.size() < 1 )
+	{
+		BOX_ERROR("Search requires at least one argument");
+		return;
+	}
+
+	// default to using the current directory
+	int64_t rootDir = GetCurrentDirectoryID();
+	size_t directoryArgIndex = 0;
+
+	// name of base directory
+	std::string searchRoot;	// blank
+	box_time_t snapshotTime = 0;
+	// Got a directory in the arguments?
+	if( opts[LIST_OPTION_SNAPSHOT_TIME] && args.size() > 0 )
+	{
+
+		snapshotTime = ::strtoull(args[0].c_str(), 0, 10);
+		directoryArgIndex = 1;
+	} 
+
+	if( args.size() > directoryArgIndex + 1 )
+	{	
+		if( opts[LIST_OPTION_BY_OBJECT_ID] ) {
+			rootDir = ::strtoll(args[directoryArgIndex].c_str(), 0, 16);
+			if(rootDir == std::numeric_limits<long long>::min() || rootDir == std::numeric_limits<long long>::max() || rootDir == 0)
+			{
+				BOX_ERROR("Not a valid object ID (specified in hex): "
+					<< args[directoryArgIndex]);
+				return;
+			}
+		} else {
+
+#ifdef WIN32
+			std::string storeDirEncoded;
+			if(!ConvertConsoleToUtf8(args[directoryArgIndex].c_str(), storeDirEncoded))
+				return;
+#else
+			const std::string& storeDirEncoded(args[directoryArgIndex]);
+#endif
+			// Attempt to find the directory
+			rootDir = FindDirectoryObjectID(storeDirEncoded,
+				opts[LIST_OPTION_ALLOWOLD],
+				opts[LIST_OPTION_ALLOWDELETED]);
+
+			if(rootDir == 0)
+			{
+				BOX_ERROR("Directory '" << args[directoryArgIndex] << "' not found "
+					"on store.");
+				SetReturnCode(ReturnCode::Command_Error);
+				return;
+			}
+		}
+	}
+
+	// get the last argument
+	std::string searchPattern = args[args.size() - 1];
+
+	// Search
+	Search(rootDir, searchRoot, searchPattern, opts, snapshotTime, true /* first level to list */);
+}
+
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::Search(int64_t, const std::string &, const bool *, bool)
+//		Purpose: Do the actual search
+//		Created: 2023/12/05
+//
+// --------------------------------------------------------------------------
+void BackupQueries::Search(int64_t DirID, const std::string &rListRoot, const std::string &rSearchPattern,
+	const bool *opts, box_time_t snapshotTime, bool FirstLevel, std::ostream* pOut)
+{
+#ifdef WIN32
+	DWORD n_chars;
+	HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+#endif
+	
+	// Generate exclude flags
+	int16_t excludeFlags = BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING;
+	if(!opts[LIST_OPTION_ALLOWOLD]) excludeFlags |= BackupProtocolListDirectory::Flags_OldVersion;
+	if(!opts[LIST_OPTION_ALLOWDELETED]) excludeFlags |= BackupProtocolListDirectory::Flags_Deleted;
+
+	// Do communication
+	try
+	{
+		mrConnection.QueryListDirectory(
+			DirID,
+			BackupProtocolListDirectory::Flags_INCLUDE_EVERYTHING,
+			// both files and directories
+			excludeFlags,
+			true /* want attributes */,
+			snapshotTime);
+	}
+	catch (std::exception &e)
+	{
+		BOX_ERROR("Failed to list directory: " << e.what());
+		SetReturnCode(ReturnCode::Command_Error);
+		return;
+	}
+	catch (...)
+	{
+		BOX_ERROR("Failed to list directory: unknown error");
+		SetReturnCode(ReturnCode::Command_Error);
+		return;
+	}
+
+	// Retrieve the directory from the stream following
+	BackupStoreDirectory dir;
+	std::auto_ptr<IOStream> dirstream(mrConnection.ReceiveStream());
+	dir.ReadFromStream(*dirstream, mrConnection.GetTimeout());
+
+	// Store entry pointers in a std::vector for sorting
+	BackupStoreDirectory::Iterator i(dir);
+
+	
+		
+		std::regex re(rSearchPattern.c_str(),  opts[SEARCH_OPTION_CASE_INSENSITIVE] ? std::regex_constants::icase : std::regex_constants::ECMAScript );
+	
+
+	BackupStoreDirectory::Entry *en = 0;
+	std::vector<BackupStoreDirectory::Entry*> sorted_entries;
+	while((en = i.Next()) != 0)
+	{
+		BackupStoreFilenameClear clear(en->GetName());
+
+		if( (opts[SEARCH_OPTION_REGEX] && std::regex_search(clear.GetClearFilename().c_str(), re))
+			||(!opts[SEARCH_OPTION_REGEX] && 
+				(
+					clear.GetClearFilename() == rSearchPattern ||
+					(opts[SEARCH_OPTION_CASE_INSENSITIVE] && strcasecmp(clear.GetClearFilename().c_str(), rSearchPattern.c_str())==0 ))
+				)
+		) 
+		{
+			
+			std::ostringstream buf;
+			if(!opts[LIST_OPTION_NOOBJECTID])
+			{
+				// add object ID to line
+				buf << std::hex << std::internal << std::setw(8) <<
+					std::setfill('0') << en->GetObjectID() <<
+					std::dec << " ";
+			}
+			
+			// Flags?
+			if(!opts[LIST_OPTION_NOFLAGS])
+			{
+				static const char *flags = BACKUPSTOREDIRECTORY_ENTRY_FLAGS_DISPLAY_NAMES;
+				char displayflags[16];
+				// make sure f is big enough
+				ASSERT(sizeof(displayflags) >= sizeof(BACKUPSTOREDIRECTORY_ENTRY_FLAGS_DISPLAY_NAMES) + 3);
+				// Insert flags
+				char *f = displayflags;
+				const char *t = flags;
+				int16_t en_flags = en->GetFlags();
+				while(*t != 0)
+				{
+					*f = ((en_flags&1) == 0)?'-':*t;
+					en_flags >>= 1;
+					f++;
+					t++;
+				}
+				// attributes flags
+				*(f++) = (en->HasAttributes())?'a':'-';
+
+				// terminate
+				*(f++) = ' ';
+				*(f++) = '\0';
+				buf << displayflags;
+				
+				if(en_flags != 0)
+				{
+					buf << "[ERROR: Entry has additional flags set] ";
+				}
+			}
+			
+		
+			if(opts[LIST_OPTION_BCK_TIMES])
+			{
+				buf << BoxTimeToISO8601String(en->GetBackupTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			}
+
+			if(opts[LIST_OPTION_DEL_TIMES])
+			{
+				buf << BoxTimeToISO8601String(en->GetDeleteTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			}
+
+			if(opts[LIST_OPTION_TIMES_UTC])
+			{
+				// Show UTC times...
+				buf << GetTimeString(*en, false,
+					opts[LIST_OPTION_TIMES_ATTRIBS]) << " ";
+			}
+
+			if(opts[LIST_OPTION_TIMES_LOCAL])
+			{
+				// Show local times...
+				buf << GetTimeString(*en, true,
+					opts[LIST_OPTION_TIMES_ATTRIBS]) << " ";
+			}
+			
+			if(opts[LIST_OPTION_DISPLAY_HASH])
+			{
+				buf << std::hex << std::internal << std::setw(16) <<
+					std::setfill('0') << en->GetAttributesHash() <<
+					std::dec;
+			}
+			
+			if(opts[LIST_OPTION_SIZEINBLOCKS])
+			{
+				buf << std::internal << std::setw(5) <<
+					std::setfill('0') << en->GetSizeInBlocks() <<
+					" ";
+			}
+
+			buf << rListRoot << "/" << clear.GetClearFilename();
+
+			buf << std::endl;
+		
+			if(pOut)
+			{
+				(*pOut) << buf.str();
+			}
+			else
+			{
+#ifdef WIN32
+				std::string line = buf.str();
+				if (!WriteConsole(hOut, line.c_str(), line.size(),
+					&n_chars, NULL))
+				{
+					// WriteConsole failed, try standard method
+					std::cout << buf.str();
+				}
+#else
+				std::cout << buf.str();
+#endif
+			}
+		}
+
+		// Directory?
+		if((en->GetFlags() & BackupStoreDirectory::Entry::Flags_Dir) != 0)
+		{
+			// Recurse?
+			if(opts[LIST_OPTION_RECURSIVE])
+			{
+				std::string subroot(rListRoot);
+				if(!FirstLevel) subroot += '/';
+				subroot += clear.GetClearFilename();
+				Search(en->GetObjectID(), subroot, rSearchPattern, opts, snapshotTime,
+					false /* not the first level to list */,
+					pOut);
+			}
+		}
+	}
+
+}
+
+
 
 
 // --------------------------------------------------------------------------

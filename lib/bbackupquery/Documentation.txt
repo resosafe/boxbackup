@@ -62,6 +62,30 @@ list can be used as an alias.
 	Alias for 'ls'. Type 'help ls' for options.
 <
 
+> search [options] [timestamp] [directory-name] <pattern>
+
+	Search for objects in current directory, or specified directory.
+		
+	-p -- snapshot time (timestamp must be specified)
+	-i -- directory name is actually an ID
+	-R -- recursive search
+	-d -- search deleted files/directories
+	-o -- search old versions of files/directories
+	-I -- don't display object ID
+	-F -- don't display flags
+	-t -- show file modification time in local time
+	      (and attr mod time if has the object has attributes, ~ separated)
+	-T -- show file modification time in GMT
+	-B -- show backup time (based on the file modification format or GMT by default)
+	-X -- show delete time (based on the file modification format or GMT by default)
+	-a -- show updated attribute instead of file modification time
+	-s -- show file size in blocks used on server
+	      (only very approximate indication of size locally)
+	-C -- case insensitive
+	-r -- treat the pattern as a regex
+
+<
+
 > cd [options] <directory-name>
 
 	Change directory

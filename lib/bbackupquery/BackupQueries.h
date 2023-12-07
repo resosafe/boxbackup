@@ -10,6 +10,7 @@
 #ifndef BACKUPQUERIES__H
 #define BACKUPQUERIES__H
 
+#include <regex>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -40,6 +41,7 @@ typedef enum
 	Command_Undelete,
 	Command_Delete,
 	Command_ListBackups,
+	Command_Search,
 }
 CommandType;
 
@@ -89,11 +91,15 @@ public:
 	// Return code?
 	int GetReturnCode() {return mReturnCode;}
 
-	void List(int64_t DirID, const std::string &rListRoot, const bool *opts,
-		box_time_t snapshotTime, bool FirstLevel,  std::ostream* pOut = NULL);
-	void CommandList(const std::vector<std::string> &args, const bool *opts);
 	
 	// Commands
+	void CommandList(const std::vector<std::string> &args, const bool *opts);
+	void List(int64_t DirID, const std::string &rListRoot, const bool *opts,
+		box_time_t snapshotTime, bool FirstLevel,  std::ostream* pOut = NULL);
+	void CommandSearch(const std::vector<std::string> &args, const bool *opts);
+	void Search(int64_t DirID, const std::string &rListRoot, const std::string &rSearchPattern, 
+		const bool *opts, box_time_t snapshotTime, bool FirstLevel,  std::ostream* pOut = NULL);
+
 	void CommandChangeDir(const std::vector<std::string> &args, const bool *opts);
 	void CommandChangeLocalDir(const std::vector<std::string> &args);
 	void CommandGetObject(const std::vector<std::string> &args, const bool *opts);
