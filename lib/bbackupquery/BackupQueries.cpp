@@ -278,7 +278,7 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 #define LIST_OPTION_DEL_TIMES			'X'
 #define LIST_OPTION_SORT_NONE		    'U'
 #define SEARCH_OPTION_REGEX				'r'
-#define SEARCH_OPTION_CASE_INSENSITIVE	'C'
+#define SEARCH_OPTION_CASE_SENSITIVE	'C'
 
 
 // --------------------------------------------------------------------------
@@ -850,7 +850,7 @@ void BackupQueries::Search(int64_t DirID, const std::string &rListRoot, const st
 
 	
 		
-		std::regex re(rSearchPattern.c_str(),  opts[SEARCH_OPTION_CASE_INSENSITIVE] ? std::regex_constants::icase : std::regex_constants::ECMAScript );
+	std::regex re(rSearchPattern.c_str(),  opts[SEARCH_OPTION_CASE_SENSITIVE] ? std::regex_constants::ECMAScript : std::regex_constants::icase );
 	
 
 	BackupStoreDirectory::Entry *en = 0;
@@ -862,8 +862,8 @@ void BackupQueries::Search(int64_t DirID, const std::string &rListRoot, const st
 		if( (opts[SEARCH_OPTION_REGEX] && std::regex_search(clear.GetClearFilename().c_str(), re))
 			||(!opts[SEARCH_OPTION_REGEX] && 
 				(
-					clear.GetClearFilename() == rSearchPattern ||
-					(opts[SEARCH_OPTION_CASE_INSENSITIVE] && strcasecmp(clear.GetClearFilename().c_str(), rSearchPattern.c_str())==0 ))
+					(opts[SEARCH_OPTION_CASE_SENSITIVE] && clear.GetClearFilename() == rSearchPattern) ||
+					(!opts[SEARCH_OPTION_CASE_SENSITIVE] && strcasecmp(clear.GetClearFilename().c_str(), rSearchPattern.c_str())==0 ))
 				)
 		) 
 		{

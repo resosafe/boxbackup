@@ -81,7 +81,7 @@ list can be used as an alias.
 	-a -- show updated attribute instead of file modification time
 	-s -- show file size in blocks used on server
 	      (only very approximate indication of size locally)
-	-C -- case insensitive
+	-C -- case sensitive
 	-r -- treat the pattern as a regex
 
 <
