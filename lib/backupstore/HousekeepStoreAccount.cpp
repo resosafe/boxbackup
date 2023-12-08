@@ -121,8 +121,8 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t SnapshotTim
 	if ( (flags & HousekeepStoreAccount::DisableAutoClean) !=0 ) {
 		BOX_INFO("AutoClean option deactivated.")
 	}
-	if ( (flags & HousekeepStoreAccount::FixForTimelineMode) !=0 ) {
-		BOX_INFO("FixForTimelineMode option activated.")
+	if ( (flags & HousekeepStoreAccount::FixForSnapshotMode) !=0 ) {
+		BOX_INFO("FixForSnapshotMode option activated.")
 	}
 
 	NamedLock writeLock;
@@ -170,7 +170,7 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t SnapshotTim
 		mTagWithClientID.Change(tag.str());
 	}
 
-	if( info->HasTimeLineOption() && SnapshotTime == 0 ) {
+	if( info->HasSnapsnotOption() && SnapshotTime == 0 ) {
 		BOX_ERROR("SnapshotTime must be specified when using the snapshot option");
 		return false;
 	}
@@ -431,9 +431,9 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime
 			{
 				int16_t enFlags = en->GetFlags();
 
-				if( rBackupStoreInfo.HasTimeLineOption() ) {
+				if( rBackupStoreInfo.HasSnapsnotOption() ) {
 
-					if( flags & HousekeepStoreAccount::FixForTimelineMode ) {
+					if( flags & HousekeepStoreAccount::FixForSnapshotMode ) {
 
 						// delete any old or deleted files without a timestamp
 						int16_t enFlags = en->GetFlags();
@@ -545,7 +545,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime
 
 
 		// we are cleaning up a Timeline, just delete all backups records at and before this BackupTime
-		if( rBackupStoreInfo.HasTimeLineOption() && (flags & HousekeepStoreAccount::FixForTimelineMode == 0)  ) 
+		if( rBackupStoreInfo.HasSnapsnotOption() && (flags & HousekeepStoreAccount::FixForSnapshotMode == 0)  ) 
 		{
 			BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, mStoreRoot, 1));
 			list.RemoveAt(SnapshotTime);

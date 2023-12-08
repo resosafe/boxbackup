@@ -257,7 +257,7 @@ int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options, bool fix
 		// add a "now" backup time to all active objects that don't have a backup time
 		// remove all "old" and "deleted" objects without a deleted timestamp
 		HousekeepStoreAccount housekeeping(ID, rootDir, discSetNum, NULL);
-		housekeeping.DoHousekeeping(HousekeepStoreAccount::FixForTimelineMode, GetCurrentBoxTime(), false, false);
+		housekeeping.DoHousekeeping(HousekeepStoreAccount::FixForSnapshotMode, GetCurrentBoxTime(), false, false);
 		if( housekeeping.GetNewSessionsInfos().HasChanges() ) 
 		{
 			housekeeping.GetNewSessionsInfos().SetEnd();

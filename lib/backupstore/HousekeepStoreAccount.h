@@ -44,7 +44,7 @@ public:
 		RemoveDeleted=0x1,
 		RemoveOldVersions=0x2,
 		DisableAutoClean=0x4,
-		FixForTimelineMode=0x8,
+		FixForSnapshotMode=0x8,
 	}ActionFlags;
 
 	HousekeepStoreAccount(int AccountID, const std::string &rStoreRoot,
@@ -120,7 +120,7 @@ private:
 	int64_t mFilesDeleted;
 	int64_t mEmptyDirectoriesDeleted;
 
-	// Store informations about the changes made from FixForTimelineMode
+	// Store informations about the changes made from FixForSnapshotMode
 	SessionInfos mNewSessionsInfos; 
 
 
