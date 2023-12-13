@@ -695,10 +695,10 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 				&n_chars, NULL))
 			{
 				// WriteConsole failed, try standard method
-				std::cout << buf.str();
+				std::cout << buf.str() << std::flush;
 			}
 #else
-			std::cout << buf.str();
+			std::cout << buf.str() << std::flush;
 #endif
 		}
 		
@@ -791,6 +791,7 @@ void BackupQueries::CommandSearch(const std::vector<std::string> &args, const bo
 
 	// Search
 	Search(rootDir, searchRoot, searchPattern, opts, snapshotTime, true /* first level to list */);
+
 }
 
 
@@ -964,10 +965,10 @@ void BackupQueries::Search(int64_t DirID, const std::string &rListRoot, const st
 					&n_chars, NULL))
 				{
 					// WriteConsole failed, try standard method
-					std::cout << buf.str();
+					std::cout << buf.str() << std::flush;
 				}
 #else
-				std::cout << buf.str();
+				std::cout << buf.str() << std::flush;
 #endif
 			}
 		}
