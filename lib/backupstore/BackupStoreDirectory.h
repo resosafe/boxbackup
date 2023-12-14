@@ -230,7 +230,7 @@ public:
 			Flags_Dir					= 2,
 			Flags_Deleted				= 4,
 			Flags_OldVersion			= 8,
-			Flags_RemoveASAP			= 16	// if this flag is set, housekeeping will remove it as it is marked Deleted or OldVersion
+			Flags_RemoveASAP			= 16,	// if this flag is set, housekeeping will remove it as it is marked Deleted or OldVersion
 		};
 		// characters for textual listing of files -- see bbackupquery/BackupQueries
 		#define BACKUPSTOREDIRECTORY_ENTRY_FLAGS_DISPLAY_NAMES "fdXoR"

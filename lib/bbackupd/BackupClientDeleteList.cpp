@@ -137,12 +137,8 @@ void BackupClientDeleteList::PerformDeletions(BackupClientContext &rContext, con
 	for(std::vector<DirToDelete>::iterator i(mDirectoryList.begin());
 		i != mDirectoryList.end(); ++i)
 	{
-		if( rBackupLocation.mDoNotKeepDeletedFiles ) {
-
-			connection.QueryDeleteDirectory(i->mObjectID, BackupStoreDirectory::Entry::Flags_RemoveASAP);
-		} else {
-			connection.QueryDeleteDirectory(i->mObjectID, 0);
-		}
+		connection.QueryDeleteDirectory(i->mObjectID, 0, rBackupLocation.mDoNotKeepDeletedFiles);
+		
 		rContext.GetProgressNotifier().NotifyDirectoryDeleted(
 			i->mObjectID, i->mLocalPath);
 	}
@@ -154,11 +150,7 @@ void BackupClientDeleteList::PerformDeletions(BackupClientContext &rContext, con
 	for(std::vector<FileToDelete>::iterator i(mFileList.begin());
 		i != mFileList.end(); ++i)
 	{
-		if( rBackupLocation.mDoNotKeepDeletedFiles ) {
-			connection.QueryDeleteFile(i->mDirectoryID, i->mFilename, BackupStoreDirectory::Entry::Flags_RemoveASAP);
-		} else {
-			connection.QueryDeleteFile(i->mDirectoryID, i->mFilename, 0);
-		}
+		connection.QueryDeleteFile(i->mDirectoryID, i->mFilename, 0, rBackupLocation.mDoNotKeepDeletedFiles);
 		rContext.GetProgressNotifier().NotifyFileDeleted(
 			i->mDirectoryID, i->mLocalPath);
 	}

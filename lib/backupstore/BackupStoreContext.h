@@ -244,9 +244,9 @@ public:
 		bool &rAlreadyExists);
 	void ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime, int64_t ModificationTime = 0);
 	bool ChangeFileAttributes(const BackupStoreFilename &rFilename, int64_t InDirectory, const StreamableMemBlock &Attributes, int64_t AttributesHash, int64_t &rObjectIDOut);
-	bool DeleteFile(const BackupStoreFilename &rFilename, int64_t InDirectory, int64_t &rObjectIDOut, uint16_t Flags = 0);
+	bool DeleteFile(const BackupStoreFilename &rFilename, int64_t InDirectory, int64_t &rObjectIDOut, uint16_t Flags = 0, bool DeleteFromStore = false);
 	bool UndeleteFile(int64_t ObjectID, int64_t InDirectory);
-	void DeleteDirectory(int64_t ObjectID, bool Undelete = false, uint16_t Flags = 0);
+	void DeleteDirectory(int64_t ObjectID, bool Undelete = false, uint16_t Flags = 0, bool DeleteFromStore = false);
 	void MoveObject(int64_t ObjectID, int64_t MoveFromDirectory, int64_t MoveToDirectory, const BackupStoreFilename &rNewFilename, bool MoveAllWithSameName, bool AllowMoveOverDeletedObject);
 
 	// Manipulating objects
@@ -276,7 +276,7 @@ private:
 	void SaveDirectory(BackupStoreDirectory &rDir);
 	void RemoveDirectoryFromCache(int64_t ObjectID);
 	void ClearDirectoryCache();
-	void DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete);
+	void DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete, uint16_t Flags = 0, bool DeleteFromStore = false);
 	int64_t AllocateObjectID();
 
 	std::string mConnectionDetails;

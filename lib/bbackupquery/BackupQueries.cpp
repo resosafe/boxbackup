@@ -2817,13 +2817,22 @@ void BackupQueries::CommandDelete(const std::vector<std::string> &args,
 		BackupProtocolListDirectory::Flags_Deleted;
 	
 	int16_t removeFlags = 0;
-
-	if(args.size() == 2) {
-		if(args[1] == "now" ) { // going to tag the Flags_RemoveASAP
+	bool removeFromStore = false;
+	for(size_t i = 1; i < args.size(); i++)
+	{
+		if(args[i] == "asap")
+		{
 			removeFlags = BackupProtocolListDirectory::Flags_RemoveASAP;
 			listFlags = BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING;
 		}
+
+		if(args[i] == "now")
+		{
+			listFlags = BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING;
+			removeFromStore = true;
+		}
 	}
+
 
 	// Find object ID somehow
 	int64_t fileId, parentId;
@@ -2850,11 +2859,11 @@ void BackupQueries::CommandDelete(const std::vector<std::string> &args,
 		// Delete object
 		if(flagsOut & BackupProtocolListDirectory::Flags_File)
 		{
-			mrConnection.QueryDeleteFile(parentId, fn, removeFlags);
+			mrConnection.QueryDeleteFile(parentId, fn, removeFlags, removeFromStore);
 		}
 		else
 		{
-			mrConnection.QueryDeleteDirectory(fileId, removeFlags);
+			mrConnection.QueryDeleteDirectory(fileId, removeFlags, removeFromStore);
 		}
 	
 		

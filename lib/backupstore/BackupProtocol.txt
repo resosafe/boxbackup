@@ -171,6 +171,7 @@ ChangeDirAttributes2	26	Command(Success)	StreamWithCommand
 DeleteDirectory 23	Command(Success)
 	int64		ObjectID
 	int16		Flags 0
+	bool       DeleteFromStore 0
 
 
 UndeleteDirectory	24	Command(Success)
@@ -216,6 +217,7 @@ DeleteFile	33	Command(Success)
 	int64		InDirectory
 	Filename	Filename
 	int16		Flags 	0
+	bool       DeleteFromStore 0
 	# will return 0 if the object couldn't be found in the specified directory
 
 
@@ -243,6 +245,7 @@ UndeleteFile	36	Command(Success)
 DeleteFileASAP	37	Command(Success)
 	int64		InDirectory
 	Filename	Filename
+	
 	# will return 0 if the object couldn't be found in the specified directory
 
 
