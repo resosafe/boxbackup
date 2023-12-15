@@ -45,6 +45,7 @@ public:
 		RemoveOldVersions=0x2,
 		DisableAutoClean=0x4,
 		FixForSnapshotMode=0x8,
+		ForceDeleteEmptyDirectories=0x10,
 	}ActionFlags;
 
 	HousekeepStoreAccount(int AccountID, const std::string &rStoreRoot,
@@ -61,14 +62,15 @@ private:
 
 	bool ScanDirectory(int32_t flags, box_time_t SnapshotTime, int64_t ObjectID, BackupStoreInfo& rBackupStoreInfo);
 	bool DeleteFiles(BackupStoreInfo& rBackupStoreInfo);
-	bool DeleteEmptyDirectories(BackupStoreInfo& rBackupStoreInfo);
+	bool DeleteEmptyDirectories(BackupStoreInfo& rBackupStoreInfo, bool ForceDelete = false);
 	void DeleteEmptyDirectory(int64_t dirId, std::vector<int64_t>& rToExamine,
-		BackupStoreInfo& rBackupStoreInfo);
+		BackupStoreInfo& rBackupStoreInfo, bool ForceDelete = false);
 	BackupStoreRefCountDatabase::refcount_t DeleteFile(int64_t InDirectory,
 		int64_t ObjectID,
 		BackupStoreDirectory &rDirectory,
 		const std::string &rDirectoryFilename,
-		BackupStoreInfo& rBackupStoreInfo);
+		BackupStoreInfo& rBackupStoreInfo,
+		bool ForceDelete = false);
 	void UpdateDirectorySize(BackupStoreDirectory &rDirectory,
 		IOStream::pos_type new_size_in_blocks);
 

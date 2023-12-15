@@ -567,7 +567,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	bool reversedDiffIsCompletelyDifferent = false;
 	int64_t oldVersionNewBlocksUsed = 0;
 	BackupStoreInfo::Adjustment adjustment = {};
-	bool isVersionned = mapStoreInfo->HasSnapsnotOption() || mapStoreInfo->GetVersionCountLimit()!=1;
+	bool isVersionned = mapStoreInfo->HasSnapshotOption() || mapStoreInfo->GetVersionCountLimit()!=1;
 	IOStream::pos_type offset = 0;
 
 
@@ -817,7 +817,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			}
 
             int versionsCount=0;
-            if ( !mapStoreInfo->HasSnapsnotOption() && mapStoreInfo->GetVersionCountLimit()>0 ) {
+            if ( !mapStoreInfo->HasSnapshotOption() && mapStoreInfo->GetVersionCountLimit()>0 ) {
                 BackupStoreDirectory::Entry *oldestVersionToKeep=0;
                 for (std::list<BackupStoreDirectory::Entry*>::reverse_iterator it=oldEntries.rbegin(); it != oldEntries.rend(); ++it) {
 

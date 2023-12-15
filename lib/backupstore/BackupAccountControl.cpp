@@ -24,6 +24,66 @@
 
 #include "MemLeakFindOn.h"
 
+
+int64_t BackupAccountControl::StringToSeconds(const char *string)
+{
+	// Get number
+	char *endptr = (char*)string;
+	int64_t number = strtol(string, &endptr, 0);
+	if(endptr == string || number == LONG_MIN || number == LONG_MAX)
+	{
+		BOX_FATAL("'" << string << "' is not a valid number.");
+		exit(1);
+	}
+	
+	// Check units
+	switch(*endptr)
+	{
+	case 's':
+	case 'S':
+		// Units: Seconds
+		return number;
+		break;
+		
+	case 'm':
+	case 'M':
+		// Units: Minutes
+		return number * 60;
+		break;
+		
+	case 'h':
+	case 'H':
+		// Units: Hours
+		return number * 60 * 60;
+		break;
+		
+	case 'd':
+	case 'D':
+		// Units: Days
+		return number * 60 * 60 * 24;
+		break;
+		
+	case 'w':
+	case 'W':
+		// Units: Weeks
+		return number * 60 * 60 * 24 * 7;
+		break;
+		
+	case 'y':
+	case 'Y':
+		// Units: Years
+		return number * 60 * 60 * 24 * 365;
+		break;
+	
+	default:
+		BOX_FATAL(string << " has an invalid units specifier "
+			"(use s for seconds, m for minutes, h for hours, "
+			"d for days, w for weeks, y for years, eg 2d)");
+		exit(1);
+		break;		
+	}
+}
+
 void BackupAccountControl::CheckSoftHardLimits(int64_t SoftLimit, int64_t HardLimit)
 {
 	if(SoftLimit > HardLimit)
@@ -106,8 +166,13 @@ int BackupAccountControl::PrintAccountInfo(const BackupStoreInfo& info,
     }
 	std::cout << FormatUsageLineStart("Options", mMachineReadableOutput) <<
 		ss.str() << std::endl;
-    std::cout << FormatUsageLineStart("Version Count limit", mMachineReadableOutput) <<
-        info.GetVersionCountLimit() << std::endl;
+
+	if(!info.HasSnapshotOption())
+	{
+		std::cout << FormatUsageLineStart("Version Count limit", mMachineReadableOutput) <<
+			info.GetVersionCountLimit() << std::endl;
+	}	
+	
 	std::cout << FormatUsageLineStart("Last object ID", mMachineReadableOutput) <<
 		BOX_FORMAT_OBJECTID(info.GetLastObjectIDUsed()) << std::endl;
 	std::cout << FormatUsageLineStart("Used", mMachineReadableOutput) <<

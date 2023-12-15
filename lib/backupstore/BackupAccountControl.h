@@ -33,6 +33,7 @@ public:
 	  mMachineReadableOutput(machineReadableOutput)
 	{ }
 	void CheckSoftHardLimits(int64_t SoftLimit, int64_t HardLimit);
+	int64_t StringToSeconds(const char *string);
 	int64_t SizeStringToBlocks(const char *string, int BlockSize);
 	std::string BlockSizeToString(int64_t Blocks, int64_t MaxBlocks, int BlockSize);
 	int PrintAccountInfo(const BackupStoreInfo& info, int BlockSize);

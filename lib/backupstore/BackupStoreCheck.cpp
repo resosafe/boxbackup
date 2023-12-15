@@ -567,7 +567,8 @@ bool BackupStoreCheck::CheckAndAddObject(int64_t ObjectID,
 		case OBJECTMAGIC_DIR_MAGIC_VALUE_V1:
 #ifndef BOX_DISABLE_BACKWARDS_COMPATIBILITY_BACKUPSTOREFILE
 		case OBJECTMAGIC_DIR_MAGIC_VALUE_V0:
-#endif			isFile = false;
+#endif			
+			isFile = false;
 			containerID = CheckDirInitial(ObjectID, *file);
 			break;
 

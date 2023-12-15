@@ -31,7 +31,7 @@
 #include "StoreStructure.h"
 #include "UnixUser.h"
 #include "Utils.h"
-
+#include "BoxTimeToText.h"
 #include "MemLeakFindOn.h"
 
 #include <cstring>
@@ -72,10 +72,11 @@ void PrintUsageAndExit()
 "        Changes the \"name\" of the account to the specified string.\n"
 "        The name is purely cosmetic and intended to make it easier to\n"
 "        identify your accounts.\n"
-"  housekeep <account> [remove-deleted] [remove-old] [remove-before <date iso8601>] [disable-auto-clean]\n"
+"  housekeep <account> [remove-deleted] [remove-old] [purge-empty-dirs] [remove-backuped-before <iso8601 date | offset>] [disable-auto-clean]\n"
 "        Runs housekeeping immediately on the account. If it cannot be locked,\n"
 "        bbstoreaccounts returns an error status code (1), otherwise success\n"
 "        (0) even if any errors were fixed by housekeeping.\n"
+"        Specify offset as a string like '1d' or '2w' or '3m' or '4y'\n"
 "  backups <account> <epoch|utc|local>\n"
 "        Display the list of backups for the specified account.\n"
 	);
@@ -353,16 +354,26 @@ int main(int argc, const char *argv[])
 			{
 				flags|=HousekeepStoreAccount::RemoveOldVersions;
 			}
-			else if(::strcmp(argv[o], "remove-before") ==0 ) {
+			else if(::strcmp(argv[o], "purge-empty-dirs") == 0)
+			{
+				flags|=HousekeepStoreAccount::ForceDeleteEmptyDirectories;
+			}
+			else if(::strcmp(argv[o], "remove-backuped-before") ==0 ) {
 				if(argc<o+2) {
-					BOX_ERROR("remove-before requires a date");
+					BOX_ERROR("remove-backuped-before requires a date");
 					return 2;
 				}
-				snapshotTime=StringToBoxTime(argv[o+1]);
-				if(!snapshotTime) {
-					BOX_ERROR("remove-before requires a date");
-					return 2;
+				o++;
+				try {
+					snapshotTime=StringToBoxTime(argv[o]);
+				} catch( ... ) {
+					// try to parse as a number of seconds
+					// StringToSeconds() will exit if it fails
+					snapshotTime = GetCurrentBoxTime() - control.StringToSeconds(argv[o]) * MICRO_SEC_IN_SEC_LL;
 				}
+
+				BOX_INFO("Will remove all versions backuped before " << BoxTimeToISO8601String(snapshotTime, false));
+				
 			}
 			else if(::strcmp(argv[o], "disable-auto-clean") == 0)
 			{
