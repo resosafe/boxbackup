@@ -1511,22 +1511,22 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, uint16
 					writeParentDir.Commit(BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY);
 
 					// Update the directory entry in the grandparent, to ensure
-					std::string grandParentFilename;
-					MakeObjectFilename(parentDir.GetContainerID(), grandParentFilename);
-					std::auto_ptr<RaidFileRead> grandParentStream(
-						RaidFileRead::Open(mStoreDiscSet, grandParentFilename));
-					BackupStoreDirectory grandParent(*grandParentStream);
-					grandParentStream.reset();
+					// std::string grandParentFilename;
+					// MakeObjectFilename(parentDir.GetContainerID(), grandParentFilename);
+					// std::auto_ptr<RaidFileRead> grandParentStream(
+					// 	RaidFileRead::Open(mStoreDiscSet, grandParentFilename));
+					// BackupStoreDirectory grandParent(*grandParentStream);
+					// grandParentStream.reset();
 
-					BackupStoreDirectory::Entry* en = grandParent.FindEntryByID(parentDir.GetObjectID());
-					if(en != NULL)
-					{
-						en->SetSizeInBlocks(dirSize);
-						RaidFileWrite writeGrandParentDir(mStoreDiscSet, grandParentFilename, mapRefCount->GetRefCount(parentDir.GetContainerID()));
-						writeGrandParentDir.Open(true /* allow overwriting */);
-						grandParent.WriteToStream(writeGrandParentDir);
-						writeGrandParentDir.Commit(BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY);
-					}
+					// BackupStoreDirectory::Entry* en = grandParent.FindEntryByID(parentDir.GetObjectID());
+					// if(en != NULL)
+					// {
+					// 	en->SetSizeInBlocks(dirSize);
+					// 	RaidFileWrite writeGrandParentDir(mStoreDiscSet, grandParentFilename, mapRefCount->GetRefCount(parentDir.GetContainerID()));
+					// 	writeGrandParentDir.Open(true /* allow overwriting */);
+					// 	grandParent.WriteToStream(writeGrandParentDir);
+					// 	writeGrandParentDir.Commit(BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY);
+					// }
 					mapStoreInfo->AdjustNumDirectories(-1);
 
 					mapStoreInfo->ChangeBlocksUsed(-dirSizeInBlocks);
