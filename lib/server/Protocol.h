@@ -21,8 +21,8 @@
 class IOStream;
 class SocketStream;
 
-// default timeout is 2 minutes
-#define PROTOCOL_DEFAULT_TIMEOUT	(2*60*1000)
+// default timeout is 15 minutes
+#define PROTOCOL_DEFAULT_TIMEOUT	(15*60*1000)
 // 16 default maximum object size -- should be enough
 #define PROTOCOL_DEFAULT_MAXOBJSIZE	(16*1024)
 
