@@ -484,6 +484,8 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	bool MarkFileWithSameNameAsOldVersions,
 	uint64_t ResumeOffset)
 {
+	
+
 	if(mapStoreInfo.get() == 0)
 	{
 		THROW_EXCEPTION(BackupStoreException, StoreInfoNotLoaded)
@@ -547,7 +549,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
 	}
 
-
+	
 
 	// Stream the file to disc
 	std::string fn;
@@ -596,6 +598,11 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		}
 		else
 		{
+			BOX_NOTICE("Adding file id " << id << " to directory " <<
+				BOX_FORMAT_OBJECTID(InDirectory) << " with diff from " <<
+				BOX_FORMAT_OBJECTID(DiffFromFileID) << " and resume offset " <<
+				ResumeOffset); 
+
 			// Check that the diffed from ID actually exists in the directory
 			if(dir.FindEntryByID(DiffFromFileID) == 0)
 			{
@@ -634,6 +641,8 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 					THROW_EXCEPTION(BackupStoreException, ReadFileFromStreamTimedOut)
 				}
 			
+				
+				BOX_NOTICE("Diff transfert done, now patching");
 				// transfert is done, delete the temporaty and resume files
 				resume.Cleanup();
 
@@ -643,7 +652,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				{
 					THROW_EXCEPTION(BackupStoreException, AddedFileDoesNotVerify)
 				}
-
+				BOX_NOTICE("Diff verified");
 				// Seek to beginning of diff file
 				diff.Seek(0, IOStream::SeekType_Absolute);
 
@@ -654,7 +663,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				// Reassemble that diff -- open previous file, and combine the patch and file
 				std::auto_ptr<RaidFileRead> from(RaidFileRead::Open(mStoreDiscSet, oldVersionFilename));
 				BackupStoreFile::CombineFile(diff, diff2, *from, storeFile);
-
+				BOX_NOTICE("Diff CombineFile done");
 
 				if (isVersionned == false) {
 					// we'll keep only one version, dismiss the patch
@@ -670,7 +679,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 					diff.Seek(0, IOStream::SeekType_Absolute);
 					BackupStoreFile::ReverseDiffFile(diff, *from, *from2, *ppreviousVerStoreFile,
 							DiffFromFileID, &reversedDiffIsCompletelyDifferent);
-
+					BOX_NOTICE("Diff ReverseDiffFile done");
 					// Store disc space used
 					oldVersionNewBlocksUsed = ppreviousVerStoreFile->GetDiscUsageInBlocks();
 
@@ -722,6 +731,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 
 		// Commit the file
 		storeFile.Commit(BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY);
+		BOX_NOTICE("File committed");
 	}
 	catch(...)
 	{
