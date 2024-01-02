@@ -614,7 +614,7 @@ int Daemon::Main(const std::string &rConfigFileName)
 		}
 		#endif // BOX_MEMORY_LEAK_TESTING
 	
-		if(asDaemon && !mKeepConsoleOpenAfterFork)
+		if(std::getenv("INVOCATION_ID") != nullptr || (asDaemon && !mKeepConsoleOpenAfterFork))
 		{
 #ifndef WIN32
 			// Close standard streams
