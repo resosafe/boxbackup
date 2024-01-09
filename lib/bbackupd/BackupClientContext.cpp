@@ -52,7 +52,8 @@ BackupClientContext::BackupClientContext
 	std::string ExtendedLogFile,
 	ProgressNotifier& rProgressNotifier,
 	SyncResumeInfo& rSyncResumeInfo,
-	bool TcpNiceMode
+	bool TcpNiceMode,
+	int ProtocolTimeout
 )
 : mExperimentalSnapshotMode(false),
   mrResolver(rResolver),
@@ -76,7 +77,8 @@ BackupClientContext::BackupClientContext
   mrProgressNotifier(rProgressNotifier),
   mrSyncResumeInfo(rSyncResumeInfo),
   mTcpNiceMode(TcpNiceMode),
-  mpNice(NULL)
+  mpNice(NULL),
+  mProtocolTimeout(ProtocolTimeout)
 {
 }
 
@@ -150,6 +152,7 @@ BackupProtocolCallable &BackupClientContext::GetConnection()
 		// BackupProtocolCallable, so we need to hang onto a more
 		// strongly typed pointer (to avoid far too many casts).
 		BackupProtocolClient *pClient = new BackupProtocolClient(apSocket);
+		pClient->SetTimeout(mProtocolTimeout);
 		mapConnection.reset(pClient);
 
 		// Set logging option
