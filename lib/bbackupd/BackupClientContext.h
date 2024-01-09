@@ -110,7 +110,8 @@ public:
 		std::string ExtendedLogFile,
 		ProgressNotifier &rProgressNotifier,
 		SyncResumeInfo &rSyncResumeInfo,
-		bool TcpNiceMode
+		bool TcpNiceMode,
+		int ProtocolTimeout
 	);
 	virtual ~BackupClientContext();
 
@@ -284,6 +285,11 @@ public:
 		}
 	}
 
+	void SetProtocolTimeout(int timeout)
+	{
+		mProtocolTimeout = timeout;
+	}
+
 	bool mExperimentalSnapshotMode;
 
 private:
@@ -292,6 +298,7 @@ private:
 	std::string mHostname;
 	int mPort;
 	uint32_t mAccountNumber;
+	int mProtocolTimeout;
 	std::auto_ptr<BackupProtocolCallable> mapConnection;
 	bool mExtendedLogging;
 	bool mExtendedLogToFile;

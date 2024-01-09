@@ -256,7 +256,8 @@ protected:
 		std::string ExtendedLogFile,
 		ProgressNotifier &rProgressNotifier,
 		SyncResumeInfo &rSyncResumeInfo,
-		bool TcpNiceMode
+		bool TcpNiceMode,
+		int ProtocolTimeout
 	);
 
 private:

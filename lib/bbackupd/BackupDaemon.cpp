@@ -936,13 +936,14 @@ std::auto_ptr<BackupClientContext> BackupDaemon::GetNewContext
 	std::string ExtendedLogFile,
 	ProgressNotifier &rProgressNotifier,
 	SyncResumeInfo &rSyncResumeInfo,
-	bool TcpNiceMode
+	bool TcpNiceMode,
+	int ProtocolTimeout
 )
 {
 	std::auto_ptr<BackupClientContext> context(new BackupClientContext(
 		rResolver, rTLSContext, rHostname, Port, AccountNumber,
 		ExtendedLogging, ExtendedLogToFile, ExtendedLogFile,
-		rProgressNotifier, rSyncResumeInfo, TcpNiceMode));
+		rProgressNotifier, rSyncResumeInfo, TcpNiceMode, ProtocolTimeout));
 	return context;
 }
 
@@ -1008,6 +1009,14 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
     if ( mStatsHistoryLength<1)
         mStatsHistoryLength=1;  // should at least contains the current sync
 
+	int protocolTimeout = PROTOCOL_DEFAULT_TIMEOUT;
+	if (conf.KeyExists("ProtocolTimeout"))
+	{
+		protocolTimeout = conf.GetKeyValueInt("ProtocolTimeout");
+		if(protocolTimeout > 0) {
+			 protocolTimeout *= 1000;
+		}
+	}
 
 	// prepare the resume info object
 	std::string resumeFilename(conf.GetKeyValue("DataDirectory") + DIRECTORY_SEPARATOR_ASCHAR);
@@ -1027,7 +1036,8 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
 		extendedLogFile,
 		*mpProgressNotifier,
 		*mpSyncResumeInfo,
-		conf.GetKeyValueBool("TcpNice")
+		conf.GetKeyValueBool("TcpNice"),
+		protocolTimeout
 	);
 
 	// The minimum age a file needs to be before it will be
