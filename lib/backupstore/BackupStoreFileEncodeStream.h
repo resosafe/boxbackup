@@ -87,6 +87,8 @@ public:
 		int Timeout = IOStream::TimeOutInfinite);
 	virtual bool StreamDataLeft();
 	virtual bool StreamClosed();
+	uint64_t SeekToBlockOffset(pos_type BlockOffset);
+
 	int64_t GetBytesToUpload() { return mBytesToUpload; }
 	int64_t GetTotalBytesSent() { return mTotalBytesSent; }
 

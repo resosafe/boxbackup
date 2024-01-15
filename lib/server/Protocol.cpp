@@ -660,6 +660,7 @@ std::auto_ptr<IOStream> Protocol::ReceiveStream()
 			new PartialReadStream(*mapConn, streamSize));
 	}
 }
+#include <iostream>
 
 // --------------------------------------------------------------------------
 //
@@ -737,6 +738,7 @@ void Protocol::SendStream(IOStream &rStream)
 				
 				// Send as much as we can out
 				bytesInBlock -= SendStreamSendBlock(block, bytesInBlock);
+
 			}
 
 			// Everything recieved from stream, but need to send whatevers left in the block
@@ -750,6 +752,7 @@ void Protocol::SendStream(IOStream &rStream)
 			uint8_t endOfStream = ProtocolStreamHeader_EndOfStream;
 			mapConn->Write(&endOfStream, 1, GetTimeout());
 			BOX_TRACE("Sent end of stream byte");
+
 		}
 		catch(...)
 		{

@@ -57,7 +57,8 @@ RaidFileWrite::RaidFileWrite(int SetNumber, const std::string &Filename)
 	: mSetNumber(SetNumber),
 	  mFilename(Filename),
 	  mOSFileHandle(-1), // not valid file handle
-	  mRefCount(-1) // unknown refcount
+	  mRefCount(-1), // unknown refcount
+	  mCanDiscard(true) // file will be discarded if not committed
 {
 }
 
@@ -76,7 +77,8 @@ RaidFileWrite::RaidFileWrite(int SetNumber, const std::string &Filename,
 	: mSetNumber(SetNumber),
 	  mFilename(Filename),
 	  mOSFileHandle(-1),		// not valid file handle
-	  mRefCount(refcount)
+	  mRefCount(refcount),
+	  mCanDiscard(true)		// file will be discarded if not committed
 {
 	// Can't check for zero refcount here, because it's legal
 	// to create a RaidFileWrite to delete an object with zero refcount.
@@ -136,7 +138,7 @@ RaidFileWrite::~RaidFileWrite()
 //		Created: 2003/07/10
 //
 // --------------------------------------------------------------------------
-void RaidFileWrite::Open(bool AllowOverwrite)
+void RaidFileWrite::Open(bool AllowOverwrite, bool NoTruncate)
 {
 	if(mOSFileHandle != -1)
 	{
@@ -218,18 +220,21 @@ void RaidFileWrite::Open(bool AllowOverwrite)
 		}
 	}
 	
-	// Truncate it to size zero
-	if(::ftruncate(mOSFileHandle, 0) != 0)
+	if(!NoTruncate)
 	{
-		int errnoSaved = errno;
+		// Truncate it to size zero
+		if(::ftruncate(mOSFileHandle, 0) != 0)
+		{
+			int errnoSaved = errno;
 
-		// Close the file
-		::close(mOSFileHandle);
-		mOSFileHandle = -1;
+			// Close the file
+			::close(mOSFileHandle);
+			mOSFileHandle = -1;
 
-		THROW_SYS_FILE_ERRNO("Failed to truncate RaidFile",
-			mTempFilename, errnoSaved, RaidFileException,
-			ErrorOpeningWriteFileOnTruncate);
+			THROW_SYS_FILE_ERRNO("Failed to truncate RaidFile",
+				mTempFilename, errnoSaved, RaidFileException,
+				ErrorOpeningWriteFileOnTruncate);
+		}
 	}
 	
 	// Done!
@@ -402,6 +407,13 @@ void RaidFileWrite::Commit(bool ConvertToRaidNow)
 // --------------------------------------------------------------------------
 void RaidFileWrite::Discard()
 {
+
+	// we were asked to keep this file no matter what
+	if(!mCanDiscard)
+	{
+		return;
+	}
+
 	// open?
 	if(mOSFileHandle == -1)
 	{

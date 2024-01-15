@@ -124,7 +124,6 @@ void BackupStoreFileEncodeStream::Setup(const std::string& Filename,
 {
 	// Pointer to a blank recipe which we might create
 	BackupStoreFileEncodeStream::Recipe *pblankRecipe = 0;
-
 	try
 	{
 		// Get file attributes
@@ -326,7 +325,6 @@ void BackupStoreFileEncodeStream::CalculateBlockSizes(int64_t DataSize, int64_t 
 }
 
 
-
 // --------------------------------------------------------------------------
 //
 // Function
@@ -337,6 +335,7 @@ void BackupStoreFileEncodeStream::CalculateBlockSizes(int64_t DataSize, int64_t 
 // --------------------------------------------------------------------------
 int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 {
+
 	// Check there's something to do.
 	if(mStatus == Status_Finished)
 	{
@@ -353,8 +352,8 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 		BackgroundTask::State state = (mpRecipe->at(0).mBlocks == 0)
 			? BackgroundTask::Uploading_Full
 			: BackgroundTask::Uploading_Patch;
-		if(!mpBackgroundTask->RunBackgroundTask(state, mBytesUploaded,
-			mBytesToUpload))
+		if(!mpBackgroundTask->RunBackgroundTask(state, mCurrentBlock >= 0 ? mCurrentBlock : 0,
+			mNumBlocks))
 		{
 			THROW_EXCEPTION(BackupStoreException,
 				CancelledByBackgroundTask);
@@ -485,6 +484,7 @@ int BackupStoreFileEncodeStream::Read(void *pBuffer, int NBytes, int Timeout)
 	// Add encoded size to stats
 	BackupStoreFile::msStats.mTotalFileStreamSize += (NBytes - bytesToRead);
 	mTotalBytesSent += (NBytes - bytesToRead);
+
 
 	// Return size of data to caller
 	return NBytes - bytesToRead;
@@ -686,6 +686,97 @@ bool BackupStoreFileEncodeStream::StreamDataLeft()
 	return (mStatus != Status_Finished);
 }
 
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupStoreFileEncodeStream::Seek(pos_type, int)
+//		Purpose: Seek to a position (in blocks)
+//		Created: 12/09/23
+//
+// --------------------------------------------------------------------------
+uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
+
+
+	// Trying to seek if we started reading already will break everything
+	if(mCurrentBlock != -1) {
+		THROW_EXCEPTION(BackupStoreException, CannotSeekToBlockOffset);
+	}
+
+	// go directly in block reading
+	mStatus = Status_Blocks;
+
+	// go through the headers
+	uint64_t totalBytes = mData.GetSize();
+	mData.Reset();
+
+	// we are in "block phase", prepare the block index header
+	file_BlockIndexHeader blkhdr;
+	blkhdr.mMagicValue = htonl(OBJECTMAGIC_FILE_BLOCKS_MAGIC_VALUE_V1);
+	ASSERT(mpRecipe != 0);
+	blkhdr.mOtherFileID = box_hton64(mpRecipe->GetOtherFileID());
+	blkhdr.mNumBlocks = box_hton64(mTotalBlocks);
+	Random::Generate(&mEntryIVBase, sizeof(mEntryIVBase));
+	blkhdr.mEntryIVBase = box_hton64(mEntryIVBase);
+	mData.Write(&blkhdr, sizeof(blkhdr));
+
+
+
+
+	while(mCurrentBlock < BlockOffset && mStatus == Status_Blocks)
+	{
+		// Next block!
+		++mCurrentBlock;
+		++mAbsoluteBlockNumber;
+
+		if(mCurrentBlock >= mNumBlocks)
+		{
+			// Output extra blocks for this instruction and move forward in file
+			if(mInstructionNumber >= 0)
+			{
+				SkipPreviousBlocksInInstruction();
+			}
+
+			// Is there another instruction to go?
+			++mInstructionNumber;
+
+			// Skip instructions which don't contain any data
+			while(mInstructionNumber < static_cast<int64_t>(mpRecipe->size())
+				&& (*mpRecipe)[mInstructionNumber].mSpaceBefore == 0)
+			{
+				SkipPreviousBlocksInInstruction();
+				++mInstructionNumber;
+			}
+
+			if(mInstructionNumber >= static_cast<int64_t>(mpRecipe->size()))
+			{
+				// End of blocks, go to next phase
+				++mStatus;
+			}
+			else
+			{
+				// Get ready for this instruction
+				SetForInstruction();
+			}
+		}
+
+		if(mCurrentBlock < mNumBlocks)
+		{
+			// encode and reset some variables
+			EncodeCurrentBlock();
+			totalBytes += mCurrentBlockEncodedSize;
+			mPositionInCurrentBlock = mCurrentBlockEncodedSize = 0;
+		}
+	}
+
+	// some stats
+	BackupStoreFile::msStats.mTotalFileStreamSize = totalBytes;
+	BackupStoreFile::msStats.mBytesAlreadyOnServer = totalBytes;
+
+	mTotalBytesSent = totalBytes;
+
+	return totalBytes;
+}
 
 // --------------------------------------------------------------------------
 //

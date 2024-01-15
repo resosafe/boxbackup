@@ -99,6 +99,10 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolReplyable::HandleException(Bo
 		{
 			return PROTOCOL_ERROR(Err_PatchConsistencyError);
 		}
+		else if(e.GetSubType() == BackupStoreException::CannotResumeUpload)
+		{
+			return PROTOCOL_ERROR(Err_CannotResumeUpload);
+		}
 	}
 
 	throw;
@@ -311,13 +315,55 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFile::DoCommand(
 	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
 		mModificationTime, mAttributesHash, mDiffFromFileID,
 		mFilename,
-		true /* mark files with same name as old versions */);
+		true /* mark files with same name as old versions */,
+		0 /* don't support resuming */);
 
 	// Tell the caller what the file ID was
 	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(id));
 }
 
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolStoreFileWithResume::DoCommand(Protocol &, BackupStoreContext &)
+//		Purpose: Command to store a file on the server with an optional resumable status
+//		Created: 2023/09/11
+//
+// --------------------------------------------------------------------------
+std::auto_ptr<BackupProtocolMessage> BackupProtocolStoreFileWithResume::DoCommand(
+	BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext,
+	IOStream& rDataStream) const
+{
+	CHECK_PHASE(Phase_Commands)
+	CHECK_WRITEABLE_SESSION
 
+	std::auto_ptr<BackupProtocolMessage> hookResult =
+		rContext.StartCommandHook(*this);
+	if(hookResult.get())
+	{
+		return hookResult;
+	}
+
+	// Check that the diff from file actually exists, if it's specified
+	if(mDiffFromFileID != 0)
+	{
+		if(!rContext.ObjectExists(mDiffFromFileID,
+			BackupStoreContext::ObjectExists_File))
+		{
+			return PROTOCOL_ERROR(Err_DiffFromFileDoesNotExist);
+		}
+	}
+
+	// Ask the context to store it
+	int64_t id = rContext.AddFile(rDataStream, mDirectoryObjectID,
+		mModificationTime, mAttributesHash, mDiffFromFileID,
+		mFilename,
+		true /* mark files with same name as old versions */,
+		mResumeOffset);
+
+	// Tell the caller what the file ID was
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolSuccess(id));
+}
 
 
 // --------------------------------------------------------------------------

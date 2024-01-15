@@ -237,7 +237,8 @@ BackupDaemon::BackupDaemon()
 	  mpLocationResolver(this),
 	  mpRunStatusProvider(this),
 	  mpSysadminNotifier(this),
-	  mapCommandSocketPollTimer(NULL)
+	  mapCommandSocketPollTimer(NULL),
+	  mpSyncResumeInfo(NULL)
 	#ifdef WIN32
 	, mInstallService(false),
 	  mRemoveService(false),
@@ -933,13 +934,15 @@ std::auto_ptr<BackupClientContext> BackupDaemon::GetNewContext
 	bool ExtendedLogToFile,
 	std::string ExtendedLogFile,
 	ProgressNotifier &rProgressNotifier,
-	bool TcpNiceMode
+	SyncResumeInfo &rSyncResumeInfo,
+	bool TcpNiceMode,
+	int ProtocolTimeout
 )
 {
 	std::auto_ptr<BackupClientContext> context(new BackupClientContext(
 		rResolver, rTLSContext, rHostname, Port, AccountNumber,
 		ExtendedLogging, ExtendedLogToFile, ExtendedLogFile,
-		rProgressNotifier, TcpNiceMode));
+		rProgressNotifier, rSyncResumeInfo, TcpNiceMode, ProtocolTimeout));
 	return context;
 }
 
@@ -1005,6 +1008,20 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
     if ( mStatsHistoryLength<1)
         mStatsHistoryLength=1;  // should at least contains the current sync
 
+	int protocolTimeout = PROTOCOL_DEFAULT_TIMEOUT;
+	if (conf.KeyExists("ProtocolTimeout"))
+	{
+		protocolTimeout = conf.GetKeyValueInt("ProtocolTimeout");
+		if(protocolTimeout > 0) {
+			 protocolTimeout *= 1000;
+		}
+	}
+
+	// prepare the resume info object
+	std::string resumeFilename(conf.GetKeyValue("DataDirectory") + DIRECTORY_SEPARATOR_ASCHAR);
+	resumeFilename += "resume.dat";
+	mpSyncResumeInfo = new SyncResumeInfo(resumeFilename);
+
 	// Then create a client context object (don't
 	// just connect, as this may be unnecessary)
 	mapClientContext = GetNewContext(
@@ -1017,7 +1034,9 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
 		conf.KeyExists("ExtendedLogFile"),
 		extendedLogFile,
 		*mpProgressNotifier,
-		conf.GetKeyValueBool("TcpNice")
+		*mpSyncResumeInfo,
+		conf.GetKeyValueBool("TcpNice"),
+		protocolTimeout
 	);
 
 	// The minimum age a file needs to be before it will be
@@ -2039,6 +2058,12 @@ bool BackupDaemon::RunBackgroundTask(State state, uint64_t progress,
 {
 	BOX_TRACE("BackupDaemon::RunBackgroundTask: state = " << state <<
 		", progress = " << progress << "/" << maximum);
+
+
+	if( state == State::Uploading_Full || state == Uploading_Patch ) {
+		// while uploading we'll have the blocks count
+		mpSyncResumeInfo->SetBlocksCount(progress);
+	}
 
 	if(!mapCommandSocketPollTimer.get())
 	{

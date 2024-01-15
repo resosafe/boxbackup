@@ -378,9 +378,11 @@ void SocketStreamTLS::Write(const void *pBuffer, int NBytes, int Timeout)
 	// complete contents of buf of length num has been written.
 	//
 	// So no worries about partial writes and moving the buffer around
+	int mNumWriteRetries = 0;
 
 	while(true)
 	{
+
 		// try the write
 		int r = ::SSL_write(mpSSL, pBuffer, NBytes);
 		
@@ -413,7 +415,13 @@ void SocketStreamTLS::Write(const void *pBuffer, int NBytes, int Timeout)
 		
 		default:
 			CryptoUtils::LogError("writing");
-			THROW_EXCEPTION(ConnectionException, TLSWriteFailed)
+		 	// Retry up to 5 times
+			if (mNumWriteRetries++ < 5) {
+				CryptoUtils::LogError("SSL_write failed, retrying");
+				WaitWhenRetryRequired(SSL_ERROR_WANT_WRITE, Timeout);
+			} else {
+				THROW_EXCEPTION(ConnectionException, TLSWriteFailed)
+			}
 			break;
 		}
 	}

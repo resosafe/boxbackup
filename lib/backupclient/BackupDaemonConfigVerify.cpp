@@ -141,6 +141,9 @@ static const ConfigurationVerifyKey verifyrootkeys[] =
 	ConfigurationVerifyKey("TcpNice", ConfigTest_IsBool, false),
 	// optional enable of tcp nice/background mode
 
+	ConfigurationVerifyKey("ProtocolTimeout", ConfigTest_IsInt),
+	// optional timeout for protocol operations in seconds
+	
 	ConfigurationVerifyKey("KeysFile", ConfigTest_Exists),
 	ConfigurationVerifyKey("DataDirectory", ConfigTest_Exists),
 

@@ -28,6 +28,64 @@ class BackupStoreFilenameClear;
 
 #include <string>
 
+class SyncResumeInfo: public FileStream
+{
+	private:
+		uint64_t mAttributesHash;
+		uint64_t mBlocksCount;
+
+	public:
+		SyncResumeInfo(std::string filename): FileStream(filename, (O_RDWR | O_BINARY | O_CREAT)), mAttributesHash(0), mBlocksCount(0)
+		{
+			try
+			{
+				Read(&mAttributesHash, sizeof(mAttributesHash));
+				Read(&mBlocksCount, sizeof(mBlocksCount));
+			}
+			catch(...)
+			{
+				// ignore
+			}
+
+		};
+
+		void SetAttributes(uint64_t AttributesHash)
+		{
+			mAttributesHash = AttributesHash;
+			Seek(0, IOStream::SeekType_Absolute);
+			Write(&AttributesHash, sizeof(AttributesHash));
+		}
+
+		bool AttributesMatch(uint64_t AttributesHash)
+		{
+			return AttributesHash == mAttributesHash;
+		}
+
+		uint64_t GetAttributes()
+		{
+			return mAttributesHash;
+		}
+
+		void SetBlocksCount(uint64_t BlocksCount)
+		{
+			mBlocksCount = BlocksCount;
+			Seek(sizeof(uint64_t), IOStream::SeekType_Absolute);
+			Write(&BlocksCount, sizeof(BlocksCount));
+		}
+
+		uint64_t GetBlocksCount(uint64_t AttributesHash)
+		{
+			return AttributesMatch(AttributesHash) ? mBlocksCount : 0;
+		}
+
+		void Clear()
+		{
+			SetAttributes(0);
+			SetBlocksCount(0);
+		}
+
+};
+
 
 // --------------------------------------------------------------------------
 //
@@ -51,7 +109,9 @@ public:
 		bool ExtendedLogToFile,
 		std::string ExtendedLogFile,
 		ProgressNotifier &rProgressNotifier,
-		bool TcpNiceMode
+		SyncResumeInfo &rSyncResumeInfo,
+		bool TcpNiceMode,
+		int ProtocolTimeout
 	);
 	virtual ~BackupClientContext();
 
@@ -212,12 +272,22 @@ public:
 		return mrProgressNotifier;
 	}
 	
+	SyncResumeInfo& GetSyncResumeInfo() const
+	{
+		return mrSyncResumeInfo;
+	}
+
 	void SetNiceMode(bool enabled)
 	{
 		if(mTcpNiceMode)
 		{
 			mpNice->SetEnabled(enabled);
 		}
+	}
+
+	void SetProtocolTimeout(int timeout)
+	{
+		mProtocolTimeout = timeout;
 	}
 
 	bool mExperimentalSnapshotMode;
@@ -228,6 +298,7 @@ private:
 	std::string mHostname;
 	int mPort;
 	uint32_t mAccountNumber;
+	int mProtocolTimeout;
 	std::auto_ptr<BackupProtocolCallable> mapConnection;
 	bool mExtendedLogging;
 	bool mExtendedLogToFile;
@@ -245,6 +316,7 @@ private:
 	int mKeepAliveTime;
 	int mMaximumDiffingTime;
 	ProgressNotifier &mrProgressNotifier;
+	SyncResumeInfo &mrSyncResumeInfo;
 	bool mTcpNiceMode;
 	NiceSocketStream *mpNice;
 };

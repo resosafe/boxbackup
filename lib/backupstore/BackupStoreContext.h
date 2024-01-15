@@ -179,7 +179,8 @@ public:
 		int64_t AttributesHash,
 		int64_t DiffFromFileID,
 		const BackupStoreFilename &rFilename,
-		bool MarkFileWithSameNameAsOldVersions);
+		bool MarkFileWithSameNameAsOldVersions,
+		uint64_t ResumeOffset);
 	int64_t AddDirectory(int64_t InDirectory,
 		const BackupStoreFilename &rFilename,
 		const StreamableMemBlock &Attributes,

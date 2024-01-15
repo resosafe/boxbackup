@@ -18,6 +18,7 @@
 #include "BackupStoreFile.h"
 #include "BackupStoreInfo.h"
 #include "BackupStoreObjectMagic.h"
+#include "BackupStoreFileResumeInfo.h"
 #include "BufferedStream.h"
 #include "BufferedWriteStream.h"
 #include "FileStream.h"
@@ -469,19 +470,22 @@ int64_t BackupStoreContext::AllocateObjectID()
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupStoreContext::AddFile(IOStream &, int64_t,
-//			 int64_t, int64_t, const BackupStoreFilename &, bool)
-//		Purpose: Add a file to the store, from a given stream, into
-//			 a specified directory. Returns object ID of the new
-//			 file.
-//		Created: 2003/09/03
+//             Name:    BackupStoreContext::AddFile(IOStream &, int64_t,
+//                      int64_t, int64_t, const BackupStoreFilename &, bool, uint64_t)
+//             Purpose: Add a file to the store, from a given stream, into
+//                      a specified directory. Returns object ID of the new
+//                      file.
+//             Created: 2003/09/03
 //
 // --------------------------------------------------------------------------
 int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	int64_t ModificationTime, int64_t AttributesHash,
 	int64_t DiffFromFileID, const BackupStoreFilename &rFilename,
-	bool MarkFileWithSameNameAsOldVersions)
+	bool MarkFileWithSameNameAsOldVersions,
+	uint64_t ResumeOffset)
 {
+	
+
 	if(mapStoreInfo.get() == 0)
 	{
 		THROW_EXCEPTION(BackupStoreException, StoreInfoNotLoaded)
@@ -501,11 +505,51 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	// and the object ID allocation code is tolerant of missed IDs.
 	// (the info is written lazily, so these are necessary)
 
+
+
+	// Checking the resume before any ID allocation
+	BackupStoreResumeFileInfo resume(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
+	if(ResumeOffset > 0) 
+	{
+		BOX_NOTICE("Asked upload file with resume offset of " << ResumeOffset);
+
+		uint64_t bytesOffset = 0;
+		try
+		{
+			bytesOffset = resume.GetFileToBeResumedSize(this, AttributesHash);
+			BOX_NOTICE("Found resume for file " << resume.GetFilePath() << " with size " << bytesOffset);
+		} catch(BoxException &e) {
+			BOX_ERROR("Cannot get resume status on the server for this file.");
+		}
+
+		// will throw an exception if the file cannot be resumed
+		if( bytesOffset < ResumeOffset)
+		{
+			BOX_ERROR("Resume offset requested is higher than the offset found on the server ! Cannot resume.");
+			resume.Cleanup(); // cleanup for next pass
+			THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
+		}
+
+		BOX_INFO("Going to try resume transfert of " << resume.GetFilePath() << " at offset " << ResumeOffset);
+	}
+
+
 	// Get the directory we want to modify
 	BackupStoreDirectory &dir(GetDirectoryInternal(InDirectory));
 
 	// Allocate the next ID
 	int64_t id = AllocateObjectID();
+
+	// check that the id match the resume file
+	if(ResumeOffset > 0 && id != resume.GetObjectID())
+	{
+		// Ids don't match. We'll lost an allocated ID but that's ok.
+		BOX_ERROR("Resume file ID does not match the ID of the file to be uploaded");
+		resume.Cleanup(); // cleanup for next pass
+		THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
+	}
+
+	
 
 	// Stream the file to disc
 	std::string fn;
@@ -515,25 +559,50 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	bool reversedDiffIsCompletelyDifferent = false;
 	int64_t oldVersionNewBlocksUsed = 0;
 	BackupStoreInfo::Adjustment adjustment = {};
+	bool isVersionned = mapStoreInfo->GetVersionCountLimit()!=1;
+	IOStream::pos_type offset = 0;
+
+
+
 
 	try
 	{
 		RaidFileWrite storeFile(mStoreDiscSet, fn);
-		storeFile.Open(false /* no overwriting */);
 
+		storeFile.Open(false /* no overwriting */, ResumeOffset > 0 /* no truncate if resuming*/);
+		storeFile.SetDiscardable(false);
 		int64_t spaceSavedByConversionToPatch = 0;
 
 		// Diff or full file?
 		if(DiffFromFileID == 0)
 		{
+			if(ResumeOffset > 0)
+			{
+				// resuming...
+				storeFile.Seek(ResumeOffset, IOStream::SeekType_Absolute);
+			}
+			else
+			{
+				// preparing for resuming
+				resume.Set(new BackupStoreResumeInfos(storeFile.GetTempFilename(), id, AttributesHash));
+			}
+
 			// A full file, just store to disc
 			if(!rFile.CopyStreamTo(storeFile, BACKUP_STORE_TIMEOUT))
 			{
 				THROW_EXCEPTION(BackupStoreException, ReadFileFromStreamTimedOut)
 			}
+
+			// transfert is done, delete the resume file
+			resume.Delete();
 		}
 		else
 		{
+			BOX_NOTICE("Adding file id " << id << " to directory " <<
+				BOX_FORMAT_OBJECTID(InDirectory) << " with diff from " <<
+				BOX_FORMAT_OBJECTID(DiffFromFileID) << " and resume offset " <<
+				ResumeOffset); 
+
 			// Check that the diffed from ID actually exists in the directory
 			if(dir.FindEntryByID(DiffFromFileID) == 0)
 			{
@@ -548,27 +617,34 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			try
 			{
 				// Open it twice
-#ifdef WIN32
-				InvisibleTempFileStream diff(tempFn.c_str(), 
-					O_RDWR | O_CREAT | O_BINARY);
-				InvisibleTempFileStream diff2(tempFn.c_str(), 
-					O_RDWR | O_BINARY);
-#else
-				FileStream diff(tempFn.c_str(), O_RDWR | O_CREAT | O_EXCL);
+				int flags = O_RDWR | O_CREAT;
+				if (ResumeOffset == 0) {
+					flags |= O_TRUNC;
+				}
+
+				FileStream diff(tempFn.c_str(), flags);
 				FileStream diff2(tempFn.c_str(), O_RDONLY);
 
-				// Unlink it immediately, so it definitely goes away
-				if(::unlink(tempFn.c_str()) != 0)
+				if(ResumeOffset > 0)
 				{
-					THROW_EXCEPTION(CommonException, OSFileError);
+					// resuming diff transfert
+					diff.Seek(ResumeOffset, IOStream::SeekType_Absolute);
 				}
-#endif
+				else
+				{
+					resume.Set(new BackupStoreResumeInfos(tempFn, id, AttributesHash));
+				}
 
 				// Stream the incoming diff to this temporary file
 				if(!rFile.CopyStreamTo(diff, BACKUP_STORE_TIMEOUT))
 				{
 					THROW_EXCEPTION(BackupStoreException, ReadFileFromStreamTimedOut)
 				}
+			
+				
+				BOX_NOTICE("Diff transfert done, now patching");
+				// transfert is done, delete the temporaty and resume files
+				resume.Cleanup();
 
 				// Verify the diff
 				diff.Seek(0, IOStream::SeekType_Absolute);
@@ -576,7 +652,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				{
 					THROW_EXCEPTION(BackupStoreException, AddedFileDoesNotVerify)
 				}
-
+				BOX_NOTICE("Diff verified");
 				// Seek to beginning of diff file
 				diff.Seek(0, IOStream::SeekType_Absolute);
 
@@ -587,41 +663,50 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				// Reassemble that diff -- open previous file, and combine the patch and file
 				std::auto_ptr<RaidFileRead> from(RaidFileRead::Open(mStoreDiscSet, oldVersionFilename));
 				BackupStoreFile::CombineFile(diff, diff2, *from, storeFile);
+				BOX_NOTICE("Diff CombineFile done");
 
-				// Then... reverse the patch back (open the from file again, and create a write file to overwrite it)
-				std::auto_ptr<RaidFileRead> from2(RaidFileRead::Open(mStoreDiscSet, oldVersionFilename));
-				ppreviousVerStoreFile = new RaidFileWrite(mStoreDiscSet, oldVersionFilename);
-				ppreviousVerStoreFile->Open(true /* allow overwriting */);
-				from->Seek(0, IOStream::SeekType_Absolute);
-				diff.Seek(0, IOStream::SeekType_Absolute);
-				BackupStoreFile::ReverseDiffFile(diff, *from, *from2, *ppreviousVerStoreFile,
-						DiffFromFileID, &reversedDiffIsCompletelyDifferent);
+				if (isVersionned == false) {
+					// we'll keep only one version, dismiss the patch
+					adjustment.mBlocksUsed -= from->GetDiscUsageInBlocks();
+					adjustment.mBlocksInCurrentFiles -= from->GetDiscUsageInBlocks();
+				} else {
+					// Then... reverse the patch back (open the from file again, and create a write file to overwrite it)
 
-				// Store disc space used
-				oldVersionNewBlocksUsed = ppreviousVerStoreFile->GetDiscUsageInBlocks();
+					std::auto_ptr<RaidFileRead> from2(RaidFileRead::Open(mStoreDiscSet, oldVersionFilename));
+					ppreviousVerStoreFile = new RaidFileWrite(mStoreDiscSet, oldVersionFilename);
+					ppreviousVerStoreFile->Open(true /* allow overwriting */);
+					from->Seek(0, IOStream::SeekType_Absolute);
+					diff.Seek(0, IOStream::SeekType_Absolute);
+					BackupStoreFile::ReverseDiffFile(diff, *from, *from2, *ppreviousVerStoreFile,
+							DiffFromFileID, &reversedDiffIsCompletelyDifferent);
+					BOX_NOTICE("Diff ReverseDiffFile done");
+					// Store disc space used
+					oldVersionNewBlocksUsed = ppreviousVerStoreFile->GetDiscUsageInBlocks();
 
-				// And make a space adjustment for the size calculation
-				spaceSavedByConversionToPatch =
-					from->GetDiscUsageInBlocks() - 
-					oldVersionNewBlocksUsed;
+					// And make a space adjustment for the size calculation
+					spaceSavedByConversionToPatch =
+						from->GetDiscUsageInBlocks() -
+						oldVersionNewBlocksUsed;
 
-				adjustment.mBlocksUsed -= spaceSavedByConversionToPatch;
-				// The code below will change the patch from a
-				// Current file to an Old file, so we need to
-				// account for it as a Current file here.
-				adjustment.mBlocksInCurrentFiles -=
-					spaceSavedByConversionToPatch;
+					adjustment.mBlocksUsed -= spaceSavedByConversionToPatch;
+					// The code below will change the patch from a
+					// Current file to an Old file, so we need to
+					// account for it as a Current file here.
+					adjustment.mBlocksInCurrentFiles -=
+						spaceSavedByConversionToPatch;
 
+				}
 				// Don't adjust anything else here. We'll do it
 				// when we update the directory just below,
 				// which also accounts for non-diff replacements.
 
 				// Everything cleans up here...
+				// ::unlink(tempFn.c_str());
 			}
 			catch(...)
 			{
 				// Be very paranoid about deleting this temp file -- we could only leave a zero byte file anyway
-				::unlink(tempFn.c_str());
+				// ::unlink(tempFn.c_str());
 				throw;
 			}
 		}
@@ -646,6 +731,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 
 		// Commit the file
 		storeFile.Commit(BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY);
+		BOX_NOTICE("File committed");
 	}
 	catch(...)
 	{
@@ -732,22 +818,24 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			}
 
             int versionsCount=0;
-            if ( mapStoreInfo->GetVersionCountLimit()>0 && !oldEntries.empty() ) {
-                //  we have a version limit, let's do some cleanup
-                BackupStoreDirectory::Entry *latestVersion=0;
+            if ( mapStoreInfo->GetVersionCountLimit()>0 ) {
+                BackupStoreDirectory::Entry *oldestVersionToKeep=0;
                 for (std::list<BackupStoreDirectory::Entry*>::reverse_iterator it=oldEntries.rbegin(); it != oldEntries.rend(); ++it) {
 
                     if ( ++versionsCount>mapStoreInfo->GetVersionCountLimit()-1 ) {
-                        int64_t objectID=(*it)->GetObjectID();
+                        
+						// get infos before it becomes invalid on delete
+						int64_t objectID=(*it)->GetObjectID();
+						int64_t oldSize = (*it)->GetSizeInBlocks();
+
                         dir.DeleteEntry(objectID);
-                        adjustment.mBlocksUsed -= (*it)->GetSizeInBlocks();
-                        adjustment.mBlocksInOldFiles -= (*it)->GetSizeInBlocks();
+
+                        adjustment.mBlocksUsed -= oldSize;
+                        adjustment.mBlocksInOldFiles -= oldSize;
                         adjustment.mNumOldFiles--;
 
                         std::string objFilename;
                         MakeObjectFilename(objectID, objFilename);
-
-
                         mapRefCount->RemoveReference(objectID);
 
                         BackupStoreRefCountDatabase::refcount_t refs=mapRefCount->GetRefCount(objectID);
@@ -757,12 +845,13 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
                             del.Delete();
                         }
 
-                        if ( latestVersion ) {
-                            latestVersion->SetDependsOlder(0);
-                            latestVersion=0;
+                        if ( oldestVersionToKeep ) {
+                            oldestVersionToKeep->SetDependsOlder(0);
+                            oldestVersionToKeep=0;
                         }
                     } else {
-                        latestVersion=(*it);
+						// this is not a version to delete, may be the oldest to keep
+                        oldestVersionToKeep=(*it);
                     }
                 }
             }
@@ -776,7 +865,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			AttributesHash);
 
 		// Adjust dependency info of file?
-		if(DiffFromFileID && poldEntry && !reversedDiffIsCompletelyDifferent)
+		if(ppreviousVerStoreFile && !reversedDiffIsCompletelyDifferent)
 		{
 			poldEntry->SetDependsNewer(id);
 			pnewEntry->SetDependsOlder(DiffFromFileID);
@@ -878,13 +967,23 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 		// Iterate through directory, only looking at files which haven't been deleted
 		BackupStoreDirectory::Iterator i(dir);
 		BackupStoreDirectory::Entry *e = 0;
-		while((e = i.Next(BackupStoreDirectory::Entry::Flags_File,
-			BackupStoreDirectory::Entry::Flags_Deleted)) != 0)
+		while((e = i.Next(BackupStoreDirectory::Entry::Flags_File)) != 0)
 		{
 			// Compare name
 			if(e->GetName() == rFilename)
 			{
-				// Check that it's definately not already deleted
+
+				// if the file is already deleted, we may want to flag it as remove ASAP
+				if( e->IsDeleted() ) {
+					if ( RemoveASAP && !e->IsRemoveASAP() ) {
+						e->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
+						madeChanges = true;
+					}
+
+					continue;
+				}
+
+
 				ASSERT(!e->IsDeleted());
 				// Set deleted flag
 				e->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);

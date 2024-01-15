@@ -57,13 +57,16 @@ public:
 	virtual bool StreamClosed();
 
 	// Extra bits
-	void Open(bool AllowOverwrite = false);
+	void Open(bool AllowOverwrite = false, bool NoTruncate = false);
 	void Commit(bool ConvertToRaidNow = false);
+	void SetDiscardable(bool Discardable) { mCanDiscard = Discardable; }
 	void Discard();
 	void TransformToRaidStorage();
 	void Delete();
 	pos_type GetFileSize();
 	pos_type GetDiscUsageInBlocks();
+	std::string GetFilename() const { return mFilename; }
+	std::string GetTempFilename() const { return mTempFilename; }
 	
 	static void CreateDirectory(int SetNumber, const std::string &rDirName, bool Recursive = false, int mode = 0777);
 	static void CreateDirectory(const RaidFileDiscSet &rSet, const std::string &rDirName, bool Recursive = false, int mode = 0777);
@@ -73,6 +76,7 @@ private:
 	std::string mFilename, mTempFilename;
 	int mOSFileHandle;
 	int mRefCount;
+	bool mCanDiscard;
 };
 
 #endif // RAIDFILEWRITE__H

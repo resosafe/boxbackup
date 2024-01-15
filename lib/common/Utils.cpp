@@ -306,19 +306,25 @@ std::string HumanReadableSize(int64_t Bytes)
 	if (readableValue > 1024)
 	{
 		readableValue /= 1024;
-		units = "kB";
+		units = "kiB";
 	}
   
 	if (readableValue > 1024)
 	{
 		readableValue /= 1024;
-		units = "MB";
+		units = "MiB";
 	}
   
 	if (readableValue > 1024)
 	{
 		readableValue /= 1024;
-		units = "GB";
+		units = "GiB";
+	}
+
+	if (readableValue > 1024)
+	{
+		readableValue /= 1024;
+		units = "TiB";
 	}
   
 	std::ostringstream result;
@@ -382,7 +388,6 @@ std::string FormatUsageLineStart(const std::string& rName,
 }
 
 
-#include <iostream>
 // --------------------------------------------------------------------------
 //
 // Function
@@ -394,7 +399,6 @@ std::string FormatUsageLineStart(const std::string& rName,
 void CreatePath(const std::string& rPath) {
 	std::string::size_type pos = 0;
 	EMU_STRUCT_STAT st;
-	std::cout << "Creating path " << rPath << std::endl;
 
 	// loop through the path, creating directories as we go
 	while(pos != std::string::npos)
@@ -409,7 +413,6 @@ void CreatePath(const std::string& rPath) {
 			// Last component
 			if(EMU_STAT(rPath.c_str(), &st) != 0)
 			{
-				std::cout << "Creating directory " << rPath << std::endl;
 				if(errno == ENOENT)
 				{
 #ifdef WIN32
@@ -436,7 +439,6 @@ void CreatePath(const std::string& rPath) {
 			std::string dir = rPath.substr(0, pos);
 			if(EMU_STAT(dir.c_str(), &st) != 0)
 			{
-				std::cout << "Creating directory " << dir << std::endl;
 				if(errno == ENOENT)
 				{
 					#ifdef WIN32

@@ -27,6 +27,7 @@ class IOStream;
 //		Created: 2003/08/26
 //
 // --------------------------------------------------------------------------
+
 class BackupStoreDirectory
 {
 private:
@@ -227,6 +228,11 @@ public:
 		{
 			ASSERT(!mInvalidated); // Compiled out of release builds
 			return GetFlags() & Flags_Deleted;
+		}
+		bool inline IsRemoveASAP()
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			return GetFlags() & Flags_RemoveASAP;
 		}
 		bool inline MatchesFlags(int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet)
 		{
