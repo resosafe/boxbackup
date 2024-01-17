@@ -593,8 +593,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				THROW_EXCEPTION(BackupStoreException, ReadFileFromStreamTimedOut)
 			}
 
-			// transfert is done, delete the resume file
-			resume.Delete();
+			
 		}
 		else
 		{
@@ -643,7 +642,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			
 				
 				BOX_NOTICE("Diff transfert done, now patching");
-				// transfert is done, delete the temporaty and resume files
+				// transfert is done, delete the temporary and resume files
 				resume.Cleanup();
 
 				// Verify the diff
@@ -725,12 +724,19 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			adjustment.mBlocksUsed;
 		if(newTotalBlocksUsed > mapStoreInfo->GetBlocksHardLimit())
 		{
+			// ensure that we didn't leave anything
+			resume.Cleanup();
+
 			THROW_EXCEPTION(BackupStoreException, AddedFileExceedsStorageLimit)
 			// The store file will be deleted automatically by the RaidFile object
 		}
 
 		// Commit the file
 		storeFile.Commit(BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY);
+		
+		// transfert is done, cleanup resume
+		resume.Delete();
+		
 		BOX_NOTICE("File committed");
 	}
 	catch(...)
