@@ -434,7 +434,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime
 
 				if( rBackupStoreInfo.HasSnapshotOption() ) {
 
-					if( flags & HousekeepStoreAccount::FixForSnapshotMode != 0  ) {
+					if( (flags & HousekeepStoreAccount::FixForSnapshotMode) != 0  ) {
 printf("doing fix\n");
 						// delete any old or deleted files without a timestamp
 						int16_t enFlags = en->GetFlags();
