@@ -87,6 +87,7 @@ Daemon::Daemon()
 	  mRunInForeground(false),
 	  mKeepConsoleOpenAfterFork(false),
 	#endif
+	  mStopWritingMessagesToConsole(false),
 	  mHaveConfigFile(false),
 	  mLogFileLevel(Log::INVALID),
 	  mAppName(DaemonName())
@@ -148,6 +149,7 @@ void Daemon::Usage()
 #endif
 	"  -k         Keep console open after fork, keep writing log messages to it\n"
 	"  -K         Stop writing log messages to console while daemon is running\n"
+	"  -S         Stop writing log messages to console\n"
 	"  -o <file>  Log to a file, defaults to maximum verbosity\n"
 	"  -O <level> Set file log verbosity to error/warning/notice/info/trace/everything\n"
 	<< Logging::OptionParser::GetUsageString();
@@ -205,6 +207,12 @@ int Daemon::ProcessOption(signed int option)
 		case 'K':
 		{
 			mKeepConsoleOpenAfterFork = false;
+		}
+		break;
+
+		case 'S':
+		{
+			mStopWritingMessagesToConsole = true;
 		}
 		break;
 
@@ -614,7 +622,7 @@ int Daemon::Main(const std::string &rConfigFileName)
 		}
 		#endif // BOX_MEMORY_LEAK_TESTING
 	
-		if(std::getenv("INVOCATION_ID") != nullptr || (asDaemon && !mKeepConsoleOpenAfterFork))
+		if(mStopWritingMessagesToConsole || (asDaemon && !mKeepConsoleOpenAfterFork))
 		{
 #ifndef WIN32
 			// Close standard streams
