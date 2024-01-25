@@ -2320,6 +2320,9 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir,
 		}
 		throw;
 	}
+
+	
+	
 }
 
 
@@ -2365,7 +2368,20 @@ std::string BackupQueries::GetFullPathFromObjectID(int64_t ObjectId)
 	std::cout << "parent iD:" << dir.GetContainerID()<< std::endl;
 
 		if(dir.GetContainerID() == BackupProtocolListDirectory::RootDirectory) {
-			return std::string("/")+ clearName;
+
+			const Configuration &locations(mrConfiguration.GetSubConfiguration("BackupLocations"));
+			if(!locations.SubConfigurationExists(clearName.c_str()))
+			{
+				BOX_ERROR("Location " << clearName << " does not exist.");
+			}
+			const Configuration &loc(locations.GetSubConfiguration(clearName.c_str()));
+			
+			
+			
+			std::string path = loc.GetKeyValue("Path");
+			std::cout << path << std::endl;
+
+			return std::string("/")+ path;
 		}
 		else {
 			return GetFullPathFromObjectID(dir.GetContainerID()) + "/" + clearName;
