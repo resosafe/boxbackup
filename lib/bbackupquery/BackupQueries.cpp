@@ -2323,6 +2323,57 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir,
 }
 
 
+std::string BackupQueries::GetFullPathFromObjectID(int64_t ObjectId)
+{
+	
+	std::auto_ptr<BackupProtocolSuccess> dirreply(mrConnection.QueryListDirectory(
+		ObjectId,
+		BackupProtocolListDirectory::Flags_EXCLUDE_EVERYTHING,	// not intersted in content
+		0,
+		true /* want attributes */,
+		0));
+
+	// Retrieve the directory from the stream following
+	BackupStoreDirectory dir;
+	std::auto_ptr<IOStream> dirstream(mrConnection.ReceiveStream());
+	dir.ReadFromStream(*dirstream, mrConnection.GetTimeout());
+
+	std::auto_ptr<BackupProtocolSuccess> dirreply2(mrConnection.QueryListDirectory(
+		dir.GetContainerID(),
+		BackupProtocolListDirectory::Flags_Dir,	// only dirs
+		0,
+		true /* want attributes */,
+		0));
+
+		BackupStoreDirectory dir2;
+	std::auto_ptr<IOStream> dirstream2(mrConnection.ReceiveStream());
+	dir2.ReadFromStream(*dirstream2, mrConnection.GetTimeout());
+
+	BackupStoreDirectory::Iterator i(dir2);
+	BackupStoreDirectory::Entry *en = 0;
+	std::string clearName;
+	std::vector<BackupStoreDirectory::Entry*> sorted_entries;
+	while((en = i.Next()) != 0)
+	{
+		if( en->GetObjectID() == ObjectId ) {
+			BackupStoreFilenameClear clear(en->GetName());
+			clearName = clear.GetClearFilename();
+			std::cout << "name " << clearName << std::endl;
+		}
+	}
+
+	std::cout << "parent iD:" << dir.GetContainerID()<< std::endl;
+
+		if(dir.GetContainerID() == BackupProtocolListDirectory::RootDirectory) {
+			return std::string("/")+ clearName;
+		}
+		else {
+			return GetFullPathFromObjectID(dir.GetContainerID()) + "/" + clearName;
+			
+		}
+	
+}
+
 // --------------------------------------------------------------------------
 //
 // Function
@@ -2370,9 +2421,15 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 				<< args[directoryArgIndex]);
 			return;
 		}
+
+
 		std::ostringstream oss;
 		oss << BOX_FORMAT_OBJECTID(args[directoryArgIndex]);
 		storeDirEncoded = oss.str();
+
+		std::string fullpath = GetFullPathFromObjectID(dirID);
+		std::cout << "fullpath: " << fullpath << std::endl;
+
 	}
 	else
 	{

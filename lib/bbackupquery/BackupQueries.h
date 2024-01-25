@@ -106,6 +106,8 @@ public:
 	void CommandGet(std::vector<std::string> args, const bool *opts);
 	void CommandCompare(const std::vector<std::string> &args, const bool *opts);
 	void CommandRestore(const std::vector<std::string> &args, const bool *opts);
+	std::string GetFullPathFromObjectID(int64_t ObjectId);
+
 	void CommandUndelete(const std::vector<std::string> &args, const bool *opts);
 	void CommandDelete(const std::vector<std::string> &args,
 		const bool *opts);
