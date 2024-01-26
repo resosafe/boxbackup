@@ -929,14 +929,12 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolMoveObject::DoCommand(BackupP
 //		Created: 24/01/26
 //
 // --------------------------------------------------------------------------
-#include <iostream>
 std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectInfos::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
 {
 		CHECK_PHASE(Phase_Commands)
 		bool isDir;
 		int64_t containerID;
 		rContext.GetObjectInfos(mObjectID, isDir, containerID);
-		std::cout << "BackupProtocolGetObjectInfos::DoCommand " << mObjectID << " " << isDir << " " << containerID << std::endl;
 
 		return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectInfos(isDir, containerID));
 

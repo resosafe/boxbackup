@@ -2524,7 +2524,9 @@ if( infosreply->GetIsDir() ) {
 
 			int64_t fileSize=0;
 			FileExists(localName.c_str(), &fileSize, true );
-
+			infos.totalFilesRestored++;
+			infos.totalBytesRestored += fileSize;
+			
 			// Done.
 			BOX_INFO("Object ID " << BOX_FORMAT_OBJECTID(dirID) <<
 				" fetched successfully. ("<<fileSize<<" B)");
