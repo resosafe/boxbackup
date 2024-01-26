@@ -924,6 +924,27 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolMoveObject::DoCommand(BackupP
 // --------------------------------------------------------------------------
 //
 // Function
+//		Name:    BackupProtocolGetObjectInfos::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
+//		Purpose: Command to gather some infos from an object
+//		Created: 24/01/26
+//
+// --------------------------------------------------------------------------
+#include <iostream>
+std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectInfos::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+{
+		CHECK_PHASE(Phase_Commands)
+		bool isDir;
+		int64_t containerID;
+		rContext.GetObjectInfos(mObjectID, isDir, containerID);
+		std::cout << "BackupProtocolGetObjectInfos::DoCommand " << mObjectID << " " << isDir << " " << containerID << std::endl;
+
+		return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectInfos(isDir, containerID));
+
+}
+
+// --------------------------------------------------------------------------
+//
+// Function
 //		Name:    BackupProtocolGetObjectName::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
 //		Purpose: Command to find the name of an object
 //		Created: 12/11/03

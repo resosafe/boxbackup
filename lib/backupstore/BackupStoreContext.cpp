@@ -1903,6 +1903,49 @@ bool BackupStoreContext::ChangeFileAttributes(const BackupStoreFilename &rFilena
 	return true;
 }
 
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupStoreContext::GetObjectInfos(int64_t, bool&, int64_t&)
+//		Purpose: Gather some information about an object
+//		Created: 2024/01/26
+//
+// --------------------------------------------------------------------------
+void BackupStoreContext::GetObjectInfos(int64_t ObjectID, bool &rIsDirectory, int64_t &rContainerID)
+{
+	std::auto_ptr<IOStream> stream = OpenObject(ObjectID);
+	int32_t magic;
+	// read the magic number
+	if(!stream->ReadFullBuffer(&magic, sizeof(magic), 0))
+	{		
+		THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
+	}
+
+	// rewind
+	uint32_t magicValue = ntohl(magic);
+	stream->Seek(0, IOStream::SeekType_Absolute);
+	std::cout << magicValue << std::endl;
+	if( magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V0 || magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V1)
+	{
+		// this is a directory
+		std::auto_ptr<BackupStoreDirectory> dir(new BackupStoreDirectory(stream));
+		rIsDirectory = true;
+		rContainerID = dir->GetContainerID();
+		
+	}
+	else if( magicValue == OBJECTMAGIC_FILE_MAGIC_VALUE_V0 || magicValue == OBJECTMAGIC_FILE_MAGIC_VALUE_V1)
+	{	
+		// a file
+		file_StreamFormat hdr=BackupStoreFile::GetHeader(*stream);
+		rIsDirectory = false;
+		rContainerID = box_ntoh64(hdr.mContainerID);
+
+	} else {
+		// unknown
+		THROW_EXCEPTION(BackupStoreException, BadBackupStoreFile)
+	}
+
+}
 
 // --------------------------------------------------------------------------
 //

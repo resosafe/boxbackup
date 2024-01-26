@@ -258,6 +258,7 @@ public:
 	};
 	bool ObjectExists(int64_t ObjectID, int MustBe = ObjectExists_Anything);
 	std::auto_ptr<IOStream> OpenObject(int64_t ObjectID);
+	void GetObjectInfos(int64_t ObjectID, bool &rIsDirectory, int64_t &rContainerID);
 	
 	// Info
 	int32_t GetClientID() const {return mClientID;}

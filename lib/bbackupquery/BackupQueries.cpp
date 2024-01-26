@@ -2326,67 +2326,64 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir,
 }
 
 
-std::string BackupQueries::GetFullPathFromObjectID(int64_t ObjectId)
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::GetLocalFullPathFromObjectID(int64_t)
+//		Purpose: Retrieve the full path of an object from its ID
+//		Created: 24/01/25
+//
+// --------------------------------------------------------------------------
+std::string BackupQueries::GetLocalFullPathFromObjectID(int64_t ObjectId, bool IsDir, int64_t ContainerId)
 {
 	
-	std::auto_ptr<BackupProtocolSuccess> dirreply(mrConnection.QueryListDirectory(
-		ObjectId,
-		BackupProtocolListDirectory::Flags_EXCLUDE_EVERYTHING,	// not intersted in content
-		0,
-		true /* want attributes */,
-		0));
-
-	// Retrieve the directory from the stream following
-	BackupStoreDirectory dir;
-	std::auto_ptr<IOStream> dirstream(mrConnection.ReceiveStream());
-	dir.ReadFromStream(*dirstream, mrConnection.GetTimeout());
-
+	
+	
+	// Then query the parent in order to retrieve the object name
 	std::auto_ptr<BackupProtocolSuccess> dirreply2(mrConnection.QueryListDirectory(
-		dir.GetContainerID(),
-		BackupProtocolListDirectory::Flags_Dir,	// only dirs
+		ContainerId,
+		IsDir ? BackupProtocolListDirectory::Flags_Dir : BackupProtocolListDirectory::Flags_File,
 		0,
-		true /* want attributes */,
+		false,
 		0));
 
-		BackupStoreDirectory dir2;
-	std::auto_ptr<IOStream> dirstream2(mrConnection.ReceiveStream());
-	dir2.ReadFromStream(*dirstream2, mrConnection.GetTimeout());
+	BackupStoreDirectory parent_dir;
+	std::auto_ptr<IOStream> parent_dir_stream(mrConnection.ReceiveStream());
+	parent_dir.ReadFromStream(*parent_dir_stream, mrConnection.GetTimeout());
 
-	BackupStoreDirectory::Iterator i(dir2);
+	BackupStoreDirectory::Iterator i(parent_dir);
 	BackupStoreDirectory::Entry *en = 0;
 	std::string clearName;
 	std::vector<BackupStoreDirectory::Entry*> sorted_entries;
+
+	// Find the directory name
 	while((en = i.Next()) != 0)
 	{
 		if( en->GetObjectID() == ObjectId ) {
 			BackupStoreFilenameClear clear(en->GetName());
 			clearName = clear.GetClearFilename();
-			std::cout << "name " << clearName << std::endl;
+			break;
 		}
 	}
 
-	std::cout << "parent iD:" << dir.GetContainerID()<< std::endl;
-
-		if(dir.GetContainerID() == BackupProtocolListDirectory::RootDirectory) {
-
-			const Configuration &locations(mrConfiguration.GetSubConfiguration("BackupLocations"));
-			if(!locations.SubConfigurationExists(clearName.c_str()))
-			{
-				BOX_ERROR("Location " << clearName << " does not exist.");
-			}
-			const Configuration &loc(locations.GetSubConfiguration(clearName.c_str()));
-			
-			
-			
-			std::string path = loc.GetKeyValue("Path");
-			std::cout << path << std::endl;
-
-			return std::string("/")+ path;
+	if(ContainerId == BackupProtocolListDirectory::RootDirectory) {
+		// At first level we'll get the path from the location name
+		const Configuration &locations(mrConfiguration.GetSubConfiguration("BackupLocations"));
+		if(!locations.SubConfigurationExists(clearName.c_str()))
+		{
+			THROW_EXCEPTION(CommonException, CannotFindLocation)
 		}
-		else {
-			return GetFullPathFromObjectID(dir.GetContainerID()) + "/" + clearName;
-			
+		const Configuration &loc(locations.GetSubConfiguration(clearName.c_str()));		
+
+		return loc.GetKeyValue("Path");
 		}
+	else {
+		// Query the object infos
+		std::auto_ptr<BackupProtocolObjectInfos> infosreply(mrConnection.QueryGetObjectInfos(ContainerId));
+		uint32_t parentContainerId = infosreply->GetContainerID();
+
+		return GetLocalFullPathFromObjectID(ContainerId, infosreply->GetIsDir(), parentContainerId) + "/" + clearName;		
+	}
 	
 }
 
@@ -2442,10 +2439,6 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 		std::ostringstream oss;
 		oss << BOX_FORMAT_OBJECTID(args[directoryArgIndex]);
 		storeDirEncoded = oss.str();
-
-		std::string fullpath = GetFullPathFromObjectID(dirID);
-		std::cout << "fullpath: " << fullpath << std::endl;
-
 	}
 	else
 	{
@@ -2479,6 +2472,8 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 	std::string localName;
 
+	std::auto_ptr<BackupProtocolObjectInfos> infosreply(mrConnection.QueryGetObjectInfos(dirID));
+
 	if(args.size() == 2 + directoryArgIndex)
 	{
 		#ifdef WIN32
@@ -2492,26 +2487,48 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	}
 	else
 	{
-		localName = args[directoryArgIndex];
+		// retrieve the local name from the object ID
+		localName = GetLocalFullPathFromObjectID(dirID, infosreply->GetIsDir(), infosreply->GetContainerID());
 	}
-
+if( infosreply->GetIsDir() ) {
+	std::cout << "restoring dir : "<< localName;
+} else {
+	std::cout << "restoring file : "<< localName;
+}
 	// Go and restore...
 	RestoreInfos infos;
-	int result;
+	int result = 0;
 	try
 	{
 		// At TRACE level, we print a line for each file and
 		// directory, so we don't need dots.
+		if( infosreply->GetIsDir() ) {
 
-		result = BackupClientRestore(mrConnection, dirID, 
-			storeDirEncoded.c_str(), localName.c_str(), 
-			snapshotTime,
-			true /* print progress dots */, restoreDeleted, 
-			opts['a'] /* restore any deleted or not-deleted */,
-			false /* don't undelete after restore! */, 
-			opts['r'] /* resume? */,
-			opts['f'] /* force continue after errors */,
-			infos /* gather some infos */);
+			result = BackupClientRestore(mrConnection, dirID, 
+				storeDirEncoded.c_str(), localName.c_str(), 
+				snapshotTime,
+				true /* print progress dots */, restoreDeleted, 
+				opts['a'] /* restore any deleted or not-deleted */,
+				false /* don't undelete after restore! */, 
+				opts['r'] /* resume? */,
+				opts['f'] /* force continue after errors */,
+				infos /* gather some infos */);
+		} else {
+			mrConnection.QueryGetFile(infosreply->GetContainerID(), dirID);
+
+			// Stream containing encoded file
+			std::auto_ptr<IOStream> objectStream(mrConnection.ReceiveStream());
+
+			// Decode it
+			BackupStoreFile::DecodeFile(*objectStream, localName.c_str(), mrConnection.GetTimeout());
+
+			int64_t fileSize=0;
+			FileExists(localName.c_str(), &fileSize, true );
+
+			// Done.
+			BOX_INFO("Object ID " << BOX_FORMAT_OBJECTID(dirID) <<
+				" fetched successfully. ("<<fileSize<<" B)");
+		}
 		infos.endTime = GetCurrentBoxTime();
 	}
 	catch(std::exception &e)

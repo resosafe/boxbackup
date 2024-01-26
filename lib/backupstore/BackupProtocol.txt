@@ -119,6 +119,13 @@ ObjectName		13	Reply
 	# a stream of Filename objects follows, if and only if NumNameElements > 0
 
 
+GetObjectInfos	14	Command(ObjectInfos)
+	int64		ObjectID
+
+ObjectInfos		15	Reply
+	bool		IsDir
+	int64		ContainerID
+
 # -------------------------------------------------------------------------------------
 #  Directory commands
 # -------------------------------------------------------------------------------------
