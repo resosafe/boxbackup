@@ -2329,17 +2329,13 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir,
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupQueries::GetLocalFullPathFromObjectID(int64_t)
-//		Purpose: Retrieve the full path of an object from its ID
+//		Name:    BackupQueries::GetObjectFilename(int64_t, std::string &, bool, int64_t)
+//		Purpose: Retrieve some infos for an object from its ID
 //		Created: 24/01/25
 //
 // --------------------------------------------------------------------------
-std::string BackupQueries::GetLocalFullPathFromObjectID(int64_t ObjectId, bool IsDir, int64_t ContainerId)
+std::string  BackupQueries::GetObjectFilename(int64_t ObjectId, bool IsDir, int64_t ContainerId)
 {
-	
-	
-	
-	// Then query the parent in order to retrieve the object name
 	std::auto_ptr<BackupProtocolSuccess> dirreply2(mrConnection.QueryListDirectory(
 		ContainerId,
 		IsDir ? BackupProtocolListDirectory::Flags_Dir : BackupProtocolListDirectory::Flags_File,
@@ -2361,10 +2357,27 @@ std::string BackupQueries::GetLocalFullPathFromObjectID(int64_t ObjectId, bool I
 	{
 		if( en->GetObjectID() == ObjectId ) {
 			BackupStoreFilenameClear clear(en->GetName());
-			clearName = clear.GetClearFilename();
-			break;
+			return clear.GetClearFilename();
 		}
 	}
+
+	THROW_EXCEPTION(CommonException, CannotFindLocation)
+
+}
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::GetLocalFullPathFromObjectID(int64_t, bool, int64_t)
+//		Purpose: Retrieve the full path of an object from its ID
+//		Created: 24/01/25
+//
+// --------------------------------------------------------------------------
+std::string BackupQueries::GetLocalFullPathFromObjectID(int64_t ObjectId, bool IsDir, int64_t ContainerId)
+{
+	
+	std::string clearName = GetObjectFilename(ObjectId, IsDir, ContainerId);
 
 	if(ContainerId == BackupProtocolListDirectory::RootDirectory) {
 		// At first level we'll get the path from the location name
@@ -2490,11 +2503,25 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 		// retrieve the local name from the object ID
 		localName = GetLocalFullPathFromObjectID(dirID, infosreply->GetIsDir(), infosreply->GetContainerID());
 	}
-if( infosreply->GetIsDir() ) {
-	std::cout << "restoring dir : "<< localName;
-} else {
-	std::cout << "restoring file : "<< localName;
-}
+
+
+	if(opts['c'])
+	{
+		// create the parents directories if they don't exist
+		std::string::size_type pos = localName.find_last_of(DIRECTORY_SEPARATOR);
+		if(pos != std::string::npos)
+		{
+			std::string parentDir = localName.substr(0, pos);
+			CreatePath(parentDir);
+		}
+	}
+
+	if( infosreply->GetIsDir() ) {
+		std::cout << "restoring dir : "<< localName;
+	} else {
+		std::cout << "restoring file : "<< localName;
+	}
+	
 	// Go and restore...
 	RestoreInfos infos;
 	int result = 0;

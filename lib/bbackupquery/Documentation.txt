@@ -167,6 +167,7 @@ compare <store-dir-name> <local-dir-name>
 	-i -- directory name is actually an ID
 	-p -- snapshot time (timestamp must be specified)
 	-f -- force restore to continue if errors are encountered
+	-c -- create parent directories if needed
 
 	If a restore operation is interrupted for any reason, it can be restarted
 	using the -r switch. Restore progress information is saved in a file at
