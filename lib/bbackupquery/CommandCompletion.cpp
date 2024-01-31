@@ -430,7 +430,7 @@ QueryCommandSpecification commands[] =
 {
 	{ "quit",	"",		Command_Quit, 	{} },
 	{ "exit",	"",		Command_Quit,	{} },
-	{ "list",	"adDFhiIorRsStTUOpBXE",	Command_List,	{CompleteRemoteDir} },
+	{ "list",	"adDFhiIorRsStTUOPBXE",	Command_List,	{CompleteRemoteDir} },
 	{ "pwd",	"",		Command_pwd,	{} },
 	{ "cd",		"od",		Command_cd,	{CompleteRemoteDir} },
 	{ "lcd",	"",		Command_lcd,	{CompleteLocalDir} },
@@ -441,7 +441,7 @@ QueryCommandSpecification commands[] =
 		{CompleteGetFileOrId, CompleteLocalDir} },
 	{ "compare",	"alcqAEQ",	Command_Compare,
 		{CompleteCompareLocationOrRemoteDir, CompleteCompareNoneOrLocalDir} },
-	{ "restore",	"cdarifsop",		Command_Restore,
+	{ "restore",	"cdarifPop",		Command_Restore,
 		{CompleteRestoreRemoteDirOrId, CompleteLocalDir} },
 	{ "help",	"",		Command_Help,	{} },
 	{ "usage",	"m",		Command_Usage,	{} },
@@ -449,7 +449,7 @@ QueryCommandSpecification commands[] =
 		{CompleteGetFileOrId} },
 	{ "delete",	"i",		Command_Delete,	{CompleteGetFileOrId} },
 	{ "listbackups", "tT", Command_ListBackups, {}},
-	{ "search", "pidoRIFtTBXasCr", Command_Search, {CompleteRemoteDir}},
+	{ "search", "PidoRIFtTBXasCr", Command_Search, {CompleteRemoteDir}},
 	{ NULL, 	NULL,		Command_Unknown, {} } 
 };
 

@@ -260,7 +260,7 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 	}
 }
 
-#define LIST_OPTION_SNAPSHOT_TIME       'p'
+#define LIST_OPTION_SNAPSHOT_TIME       'P'
 #define LIST_OPTION_BY_OBJECT_ID        'i'
 #define LIST_OPTION_TIMES_ATTRIBS	    'a'
 #define LIST_OPTION_SORT_NO_DIRS_FIRST	'D'
@@ -2437,7 +2437,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	int directoryArgIndex = 0;
 	box_time_t snapshotTime = 0;
 	// Got a directory in the arguments?
-	if( opts['s'] && args.size() > 0 )
+	if( opts[LIST_OPTION_SNAPSHOT_TIME] && args.size() > 0 )
 	{
 		snapshotTime = ::strtoull(args[0].c_str(), 0, 10);
 		directoryArgIndex = 1;

@@ -33,7 +33,7 @@ start with '/'. The initial directory is always the root directory.
 
 	List contents of current directory, or specified directory.
 		
-	-p -- snapshot time (timestamp must be specified)
+	-P -- snapshot time (timestamp must be specified)
 	-i -- directory name is actually an ID
 	-R -- recursively list all files
 	-d -- list deleted files/directories
@@ -66,7 +66,7 @@ list can be used as an alias.
 
 	Search for objects in current directory, or specified directory.
 		
-	-p -- snapshot time (timestamp must be specified)
+	-P -- snapshot time (timestamp must be specified)
 	-i -- directory name is actually an ID
 	-R -- recursive search
 	-d -- search deleted files/directories
@@ -165,7 +165,7 @@ compare <store-dir-name> <local-dir-name>
 	-a -- restore both deleted and not-deleted files or directory
 	-r -- resume an interrupted restoration
 	-i -- object-name is actually an ID
-	-s -- snapshot time (timestamp must be specified)
+	-P -- snapshot time (timestamp must be specified)
 	-f -- force restore to continue if errors are encountered
 	-c -- create parent directories if needed
 	-o -- restore to the original object path
