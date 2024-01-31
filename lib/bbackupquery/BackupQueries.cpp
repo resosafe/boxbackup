@@ -277,6 +277,7 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 #define LIST_OPTION_BCK_TIMES			'B'
 #define LIST_OPTION_DEL_TIMES			'X'
 #define LIST_OPTION_SORT_NONE		    'U'
+#define LIST_OPTION_EPOCH_TIME		    'E'
 #define SEARCH_OPTION_REGEX				'r'
 #define SEARCH_OPTION_CASE_SENSITIVE	'C'
 
@@ -604,12 +605,26 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 	
 		if(opts[LIST_OPTION_BCK_TIMES])
 		{
-			buf << BoxTimeToISO8601String(en->GetBackupTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			if(opts[LIST_OPTION_EPOCH_TIME])
+			{
+				buf << en->GetBackupTime() << " ";			
+			}
+			else
+			{
+				buf << BoxTimeToISO8601String(en->GetBackupTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			}
 		}
 
 		if(opts[LIST_OPTION_DEL_TIMES])
 		{
-			buf << BoxTimeToISO8601String(en->GetDeleteTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			if(opts[LIST_OPTION_EPOCH_TIME])
+			{
+				buf << en->GetDeleteTime() << " ";			
+			}
+			else
+			{
+				buf << BoxTimeToISO8601String(en->GetDeleteTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			}
 		}
 
 		if(opts[LIST_OPTION_TIMES_UTC])
@@ -1358,7 +1373,7 @@ void BackupQueries::CommandGetObject(const std::vector<std::string> &args, const
 //
 // --------------------------------------------------------------------------
 int64_t BackupQueries::FindFileID(const std::string& rNameOrIdString,
-	const bool *opts, int64_t *pDirIdOut, std::string* pFileNameOut,
+	const bool *opts, box_time_t SnapshotTime, int64_t *pDirIdOut, std::string* pFileNameOut,
 	int16_t flagsInclude, int16_t flagsExclude, int16_t* pFlagsOut)
 {
 	// Find object ID somehow
@@ -1391,7 +1406,7 @@ int64_t BackupQueries::FindFileID(const std::string& rNameOrIdString,
 	mrConnection.QueryListDirectory(
 		dirId, flagsInclude, flagsExclude,
 		true /* do want attributes */,
-		0);
+		SnapshotTime);
 
 	// Retrieve the directory from the stream following
 	BackupStoreDirectory dir;
@@ -1511,7 +1526,7 @@ void BackupQueries::CommandGet(std::vector<std::string> args, const bool *opts)
 	}
 
 
-	fileId = FindFileID(args[0], opts, &dirId, &localName,
+	fileId = FindFileID(args[0], opts, 0, &dirId, &localName,
 		BackupProtocolListDirectory::Flags_File, // just files
 		flagsExclude, NULL /* don't care about flags found */);
 
@@ -2374,12 +2389,17 @@ std::string  BackupQueries::GetObjectFilename(int64_t ObjectId, bool IsDir, int6
 //		Created: 24/01/25
 //
 // --------------------------------------------------------------------------
-std::string BackupQueries::GetLocalFullPathFromObjectID(int64_t ObjectId, bool IsDir, int64_t ContainerId)
+std::string BackupQueries::GetLocalFullPathFromObjectID(int64_t ObjectId, bool IsDir, int64_t ContainerId, bool TranslateRoot)
 {
 	
 	std::string clearName = GetObjectFilename(ObjectId, IsDir, ContainerId);
 
 	if(ContainerId == BackupProtocolListDirectory::RootDirectory) {
+		if(!TranslateRoot)
+		{
+			return clearName;
+		}
+
 		// At first level we'll get the path from the location name
 		const Configuration &locations(mrConfiguration.GetSubConfiguration("BackupLocations"));
 		if(!locations.SubConfigurationExists(clearName.c_str()))
@@ -2395,7 +2415,7 @@ std::string BackupQueries::GetLocalFullPathFromObjectID(int64_t ObjectId, bool I
 		std::auto_ptr<BackupProtocolObjectInfos> infosreply(mrConnection.QueryGetObjectInfos(ContainerId));
 		uint32_t parentContainerId = infosreply->GetContainerID();
 
-		return GetLocalFullPathFromObjectID(ContainerId, infosreply->GetIsDir(), parentContainerId) + "/" + clearName;		
+		return GetLocalFullPathFromObjectID(ContainerId, infosreply->GetIsDir(), parentContainerId, TranslateRoot) + "/" + clearName;		
 	}
 	
 }
@@ -2417,7 +2437,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	int directoryArgIndex = 0;
 	box_time_t snapshotTime = 0;
 	// Got a directory in the arguments?
-	if( opts[LIST_OPTION_SNAPSHOT_TIME] && args.size() > 0 )
+	if( opts['s'] && args.size() > 0 )
 	{
 		snapshotTime = ::strtoull(args[0].c_str(), 0, 10);
 		directoryArgIndex = 1;
@@ -2433,15 +2453,15 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 	
 
-	std::string storeDirEncoded;
+	std::string storeObjectEncoded;
 
-	// Get directory ID
-	int64_t dirID = 0;
+	// Get object ID
+	int64_t objectID = 0;
 	if(opts['i'])
 	{
 		// Specified as ID. 
-		dirID = ::strtoll(args[directoryArgIndex].c_str(), 0, 16);
-		if(dirID == std::numeric_limits<long long>::min() || dirID == std::numeric_limits<long long>::max() || dirID == 0)
+		objectID = ::strtoll(args[directoryArgIndex].c_str(), 0, 16);
+		if(objectID == std::numeric_limits<long long>::min() || objectID == std::numeric_limits<long long>::max() || objectID == 0)
 		{
 			BOX_ERROR("Not a valid object ID (specified in hex): "
 				<< args[directoryArgIndex]);
@@ -2451,7 +2471,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 		std::ostringstream oss;
 		oss << BOX_FORMAT_OBJECTID(args[directoryArgIndex]);
-		storeDirEncoded = oss.str();
+		storeObjectEncoded = oss.str();
 	}
 	else
 	{
@@ -2459,25 +2479,37 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 		if(!ConvertConsoleToUtf8(args[directoryArgIndex].c_str(), storeDirEncoded))
 			return;
 #else
-		storeDirEncoded = args[directoryArgIndex];
+		storeObjectEncoded = args[directoryArgIndex];
 #endif
 	
-		// Look up directory ID
-		dirID = FindDirectoryObjectID(storeDirEncoded, 
-			false /* no old versions */, 
-			/* The above code is not doing anything. It appears to be a comment or placeholder text. */
-			restoreDeleted /* find deleted dirs */,
-			snapshotTime);
+		// // Look up directory ID
+		// objectID = FindDirectoryObjectID(storeObjectEncoded, 
+		// 	false /* no old versions */, 
+		// 	/* The above code is not doing anything. It appears to be a comment or placeholder text. */
+		// 	restoreDeleted /* find deleted dirs */,
+		// 	snapshotTime);
+	
+		int64_t fileId, parentId;
+		std::string fileName;
+		int16_t flagsOut;
+	
+		int16_t excludeFlags = BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING;
+		if(!restoreDeleted) excludeFlags |= BackupProtocolListDirectory::Flags_Deleted;
+
+		objectID = FindFileID(storeObjectEncoded, opts, excludeFlags, &parentId, &fileName,
+			BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING,
+			excludeFlags,
+			&flagsOut);
 	}
 	
 	// Allowable?
-	if(dirID == 0)
+	if(objectID == 0)
 	{
 		BOX_ERROR("Directory '" << args[directoryArgIndex] << "' not found on server");
 		return;
 	}
 
-	if(dirID == BackupProtocolListDirectory::RootDirectory)
+	if(objectID == BackupProtocolListDirectory::RootDirectory)
 	{
 		BOX_ERROR("Cannot restore the root directory -- restore locations individually.");
 		return;
@@ -2485,7 +2517,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 	std::string localName;
 
-	std::auto_ptr<BackupProtocolObjectInfos> infosreply(mrConnection.QueryGetObjectInfos(dirID));
+	std::auto_ptr<BackupProtocolObjectInfos> infosreply(mrConnection.QueryGetObjectInfos(objectID));
 
 	if(args.size() == 2 + directoryArgIndex)
 	{
@@ -2497,13 +2529,23 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 		#else
 			localName = args[directoryArgIndex + 1];
 		#endif
+		if(opts['p'])
+		{		
+			localName += "/" + GetLocalFullPathFromObjectID(objectID, infosreply->GetIsDir(), infosreply->GetContainerID(), false);
+
+		}
+	}
+	else if (opts['o'])
+	{
+		// restore to the original location
+		localName = GetLocalFullPathFromObjectID(objectID, infosreply->GetIsDir(), infosreply->GetContainerID(), true);
 	}
 	else
 	{
-		// retrieve the local name from the object ID
-		localName = GetLocalFullPathFromObjectID(dirID, infosreply->GetIsDir(), infosreply->GetContainerID());
+		// restore to the current directory
+		localName = args[0];
 	}
-
+	
 
 	if(opts['c'])
 	{
@@ -2531,8 +2573,8 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 		// directory, so we don't need dots.
 		if( infosreply->GetIsDir() ) {
 
-			result = BackupClientRestore(mrConnection, dirID, 
-				storeDirEncoded.c_str(), localName.c_str(), 
+			result = BackupClientRestore(mrConnection, objectID, 
+				storeObjectEncoded.c_str(), localName.c_str(), 
 				snapshotTime,
 				true /* print progress dots */, restoreDeleted, 
 				opts['a'] /* restore any deleted or not-deleted */,
@@ -2541,7 +2583,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 				opts['f'] /* force continue after errors */,
 				infos /* gather some infos */);
 		} else {
-			mrConnection.QueryGetFile(infosreply->GetContainerID(), dirID);
+			mrConnection.QueryGetFile(infosreply->GetContainerID(), objectID);
 
 			// Stream containing encoded file
 			std::auto_ptr<IOStream> objectStream(mrConnection.ReceiveStream());
@@ -2555,7 +2597,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 			infos.totalBytesRestored += fileSize;
 			
 			// Done.
-			BOX_INFO("Object ID " << BOX_FORMAT_OBJECTID(dirID) <<
+			BOX_INFO("Object ID " << BOX_FORMAT_OBJECTID(objectID) <<
 				" fetched successfully. ("<<fileSize<<" B)");
 		}
 		infos.endTime = GetCurrentBoxTime();
@@ -2857,7 +2899,7 @@ void BackupQueries::CommandUndelete(const std::vector<std::string> &args, const 
 	std::string fileName;
 	int16_t flagsOut;
 
-	fileId = FindFileID(storeDirEncoded, opts, &parentId, &fileName,
+	fileId = FindFileID(storeDirEncoded, opts, 0, &parentId, &fileName,
 		/* include files and directories */
 		BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING,
 		/* include old and deleted files */
@@ -2958,7 +3000,7 @@ void BackupQueries::CommandDelete(const std::vector<std::string> &args,
 	std::string fileName;
 	int16_t flagsOut;
 
-	fileId = FindFileID(storeDirEncoded, opts, &parentId, &fileName,
+	fileId = FindFileID(storeDirEncoded, opts, 0, &parentId, &fileName,
 		/* include files and directories */
 		BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING,
 		listFlags,

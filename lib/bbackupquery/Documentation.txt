@@ -151,11 +151,11 @@ compare <store-dir-name> <local-dir-name>
 	This can be used for automated tests.
 <
 
-> restore [-darif] [timestamp] <directory-name> [<local-directory-name>]
+> restore [-darifcF] [timestamp] <object-name> [<local-path>]
 
-	Restores a directory to the local disc. The local directory specified
+	Restores an object (file or directory) to the local disc. The local path specified
 	must not exist (unless a previous restore is being restarted). If the
-	local directory is omitted, the default is to restore to the same
+	local path is omitted, the default is to restore to the same
 	directory name and path, relative to the current local directory,
 	as set with the "lcd" command.
 
@@ -164,10 +164,12 @@ compare <store-dir-name> <local-dir-name>
 	-d -- restore a deleted directory or deleted files inside
 	-a -- restore both deleted and not-deleted files or directory
 	-r -- resume an interrupted restoration
-	-i -- directory name is actually an ID
-	-p -- snapshot time (timestamp must be specified)
+	-i -- object-name is actually an ID
+	-s -- snapshot time (timestamp must be specified)
 	-f -- force restore to continue if errors are encountered
 	-c -- create parent directories if needed
+	-o -- restore to the original object path
+	-p -- recreate the original full path in the destination (not with -o option)
 
 	If a restore operation is interrupted for any reason, it can be restarted
 	using the -r switch. Restore progress information is saved in a file at

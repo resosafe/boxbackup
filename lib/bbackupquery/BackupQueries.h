@@ -106,9 +106,7 @@ public:
 	void CommandGet(std::vector<std::string> args, const bool *opts);
 	void CommandCompare(const std::vector<std::string> &args, const bool *opts);
 	void CommandRestore(const std::vector<std::string> &args, const bool *opts);
-	std::string GetObjectFilename(int64_t ObjectId, bool IsDir, int64_t ContainerId);
-	std::string GetLocalFullPathFromObjectID(int64_t ObjectId, bool IsDir, int64_t ContainerId);
-
+	
 	void CommandUndelete(const std::vector<std::string> &args, const bool *opts);
 	void CommandDelete(const std::vector<std::string> &args,
 		const bool *opts);
@@ -400,11 +398,13 @@ private:
 
 	// Utility functions
 	int64_t FindFileID(const std::string& rNameOrIdString,
-		const bool *opts, int64_t *pDirIdOut,
+		const bool *opts, box_time_t SnapshotTime, int64_t *pDirIdOut,
 		std::string* pFileNameOut, int16_t flagsInclude,
 		int16_t flagsExclude, int16_t* pFlagsOut);
 	std::string GetCurrentDirectoryName();
 	void SetReturnCode(int code) {mReturnCode = code;}
+	std::string GetObjectFilename(int64_t ObjectId, bool IsDir, int64_t ContainerId);
+	std::string GetLocalFullPathFromObjectID(int64_t ObjectId, bool IsDir, int64_t ContainerId, bool TranslateRoot = false);
 
 private:
 	bool mReadWrite;

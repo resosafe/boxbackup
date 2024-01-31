@@ -430,7 +430,7 @@ QueryCommandSpecification commands[] =
 {
 	{ "quit",	"",		Command_Quit, 	{} },
 	{ "exit",	"",		Command_Quit,	{} },
-	{ "list",	"adDFhiIorRsStTUOpBX",	Command_List,	{CompleteRemoteDir} },
+	{ "list",	"adDFhiIorRsStTUOpBXE",	Command_List,	{CompleteRemoteDir} },
 	{ "pwd",	"",		Command_pwd,	{} },
 	{ "cd",		"od",		Command_cd,	{CompleteRemoteDir} },
 	{ "lcd",	"",		Command_lcd,	{CompleteLocalDir} },
@@ -441,7 +441,7 @@ QueryCommandSpecification commands[] =
 		{CompleteGetFileOrId, CompleteLocalDir} },
 	{ "compare",	"alcqAEQ",	Command_Compare,
 		{CompleteCompareLocationOrRemoteDir, CompleteCompareNoneOrLocalDir} },
-	{ "restore",	"cdarifp",		Command_Restore,
+	{ "restore",	"cdarifsop",		Command_Restore,
 		{CompleteRestoreRemoteDirOrId, CompleteLocalDir} },
 	{ "help",	"",		Command_Help,	{} },
 	{ "usage",	"m",		Command_Usage,	{} },
