@@ -1924,7 +1924,7 @@ void BackupStoreContext::GetObjectInfos(int64_t ObjectID, bool &rIsDirectory, in
 	// rewind
 	uint32_t magicValue = ntohl(magic);
 	stream->Seek(0, IOStream::SeekType_Absolute);
-	std::cout << magicValue << std::endl;
+
 	if( magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V0 || magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V1)
 	{
 		// this is a directory
