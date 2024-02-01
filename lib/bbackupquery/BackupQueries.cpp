@@ -2451,8 +2451,6 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 		return;
 	}
 
-	
-
 	std::string storeObjectEncoded;
 
 	// Get object ID
@@ -2467,7 +2465,6 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 				<< args[directoryArgIndex]);
 			return;
 		}
-
 
 		std::ostringstream oss;
 		oss << BOX_FORMAT_OBJECTID(args[directoryArgIndex]);
@@ -2559,9 +2556,9 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	}
 
 	if( infosreply->GetIsDir() ) {
-		std::cout << "restoring dir : "<< localName;
+		BOX_INFO("Restoring dir "<< BOX_FORMAT_OBJECTID(objectID) << " into " << localName);
 	} else {
-		std::cout << "restoring file : "<< localName;
+		BOX_INFO("Restoring file "<< BOX_FORMAT_OBJECTID(objectID) << " into " << localName);
 	}
 	
 	// Go and restore...
