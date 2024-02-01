@@ -2441,7 +2441,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	{
 		snapshotTime = ::strtoull(args[0].c_str(), 0, 10);
 		directoryArgIndex = 1;
-	} 
+	}
 
 	// Check arguments
 	if(args.size() < 1 + directoryArgIndex || args.size() > 2 + directoryArgIndex)
@@ -2560,7 +2560,7 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 	} else {
 		BOX_INFO("Restoring file "<< BOX_FORMAT_OBJECTID(objectID) << " into " << localName);
 	}
-	
+
 	// Go and restore...
 	RestoreInfos infos;
 	int result = 0;
