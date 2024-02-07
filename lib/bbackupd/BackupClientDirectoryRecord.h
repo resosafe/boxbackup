@@ -93,6 +93,7 @@ public:
 		box_time_t mMaxFileTimeInFuture;
 		int32_t mFileTrackingSizeThreshold;
 		int32_t mDiffingUploadSizeThreshold;
+		int32_t mDiffingUploadMaxSizeThreshold;
 		BackgroundTask *mpBackgroundTask;
 		RunStatusProvider &mrRunStatusProvider;
 		SysadminNotifier &mrSysadminNotifier;
