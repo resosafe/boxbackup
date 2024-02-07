@@ -1420,6 +1420,7 @@ bool BackupClientDirectoryRecord::UpdateItems(
 				haveJustCreatedDirOnServer);
 		}
 	}
+	
 
 	// Delete everything which is on the store, but not on disc
 	for(unsigned int l = 0; l < rEntriesLeftOver.size(); ++l)

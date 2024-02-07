@@ -91,9 +91,9 @@ public:
 		box_time_t mSyncPeriodEnd;
 		box_time_t mMaxUploadWait;
 		box_time_t mMaxFileTimeInFuture;
-		int32_t mFileTrackingSizeThreshold;
-		int32_t mDiffingUploadSizeThreshold;
-		int32_t mDiffingUploadMaxSizeThreshold;
+		uint64_t mFileTrackingSizeThreshold;
+		uint64_t mDiffingUploadSizeThreshold;
+		uint64_t mDiffingUploadMaxSizeThreshold;
 		BackgroundTask *mpBackgroundTask;
 		RunStatusProvider &mrRunStatusProvider;
 		SysadminNotifier &mrSysadminNotifier;
