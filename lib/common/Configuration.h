@@ -124,6 +124,8 @@ public:
 	int GetKeyValueInt(const std::string& rKeyName) const;
 	int GetKeyValueInt(const std::string& rKeyName, int default_value) const;
 	uint32_t GetKeyValueUint32(const std::string& rKeyName) const;
+	uint64_t GetKeyValueUint64(const std::string& rKeyName) const;
+	uint64_t GetKeyValueUint64(const std::string& rKeyName, uint64_t default_value) const;
 	bool GetKeyValueBool(const std::string& rKeyName) const;
 	std::vector<std::string> GetKeyNames() const;
 	
