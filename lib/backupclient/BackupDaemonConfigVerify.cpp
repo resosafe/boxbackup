@@ -110,6 +110,8 @@ static const ConfigurationVerifyKey verifyrootkeys[] =
 		ConfigTest_Exists | ConfigTest_IsInt),
 	ConfigurationVerifyKey("DiffingUploadSizeThreshold",
 		ConfigTest_Exists | ConfigTest_IsInt),
+	ConfigurationVerifyKey("DiffingUploadMaxSizeThreshold",
+		ConfigTest_IsInt),
 	ConfigurationVerifyKey("ExtendedLogging", ConfigTest_IsBool, false),
 	// extended log to syslog
 	ConfigurationVerifyKey("ExtendedLogFile", 0),

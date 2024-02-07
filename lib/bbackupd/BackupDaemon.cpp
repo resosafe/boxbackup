@@ -1118,6 +1118,8 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
 		conf.GetKeyValueInt("FileTrackingSizeThreshold");
 	params.mDiffingUploadSizeThreshold =
 		conf.GetKeyValueInt("DiffingUploadSizeThreshold");
+	params.mDiffingUploadMaxSizeThreshold =
+		conf.GetKeyValueInt("DiffingUploadMaxSizeThreshold", 0);
 	params.mMaxFileTimeInFuture =
 		SecondsToBoxTime(conf.GetKeyValueInt("MaxFileTimeInFuture"));
 
