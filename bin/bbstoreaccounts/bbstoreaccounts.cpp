@@ -221,9 +221,9 @@ int main(int argc, const char *argv[])
 	else if(command == "setlimit")
 	{
 		// Change the limits on this account
-		if(argc < 4)
+		if(argc < 5)
 		{
-			BOX_ERROR("setlimit requires soft and hard limits.");
+			BOX_ERROR("setlimit requires soft, hard and versions limits.");
 			return 1;
 		}
 		
