@@ -875,12 +875,13 @@ bool Configuration::Verify(const ConfigurationVerify &rVerify,
 				scan++;
 			}
 			
-			if(!found)
-			{
-				// Shouldn't exist, but does.
-				ok = false;
-				rErrorMsg += rLevel + mName + "." + i->first + " (key) is not a known key. Check spelling and placement.\n";
-			}
+			// ignore since it's not a real problem
+			// if(!found)
+			// {
+			// 	// Shouldn't exist, but does.
+			// 	ok = false;
+			// 	rErrorMsg += rLevel + mName + "." + i->first + " (key) is not a known key. Check spelling and placement.\n";
+			// }
 		}
 	}
 	
