@@ -947,7 +947,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 //		Created: 2003/10/21
 //
 // --------------------------------------------------------------------------
-bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_t InDirectory, int64_t &rObjectIDOut, bool RemoveASAP)
+bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_t InDirectory, int64_t &rObjectIDOut, uint16_t Flags, bool DeleteFromStore)
 {
 	// Essential checks!
 	if(mapStoreInfo.get() == 0)
@@ -973,62 +973,122 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 		// Iterate through directory, only looking at files which haven't been deleted
 		BackupStoreDirectory::Iterator i(dir);
 		BackupStoreDirectory::Entry *e = 0;
+	// store a list of entry
+		std::list<BackupStoreDirectory::Entry*> to_delete;
+
 		while((e = i.Next(BackupStoreDirectory::Entry::Flags_File)) != 0)
 		{
 			// Compare name
 			if(e->GetName() == rFilename)
 			{
 
-				// if the file is already deleted, we may want to flag it as remove ASAP
-				if( e->IsDeleted() ) {
-					if ( RemoveASAP && !e->IsRemoveASAP() ) {
-						e->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
-						madeChanges = true;
+				if(DeleteFromStore) 
+				{
+					to_delete.push_back(e);	
+				}
+				else
+				{
+					// if the file is already deleted, we may want to flag it as remove ASAP
+					if( e->IsDeleted() ) {
+						if ( (Flags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0 && !e->IsRemoveASAP() ) {
+							e->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
+							madeChanges = true;
+						}
+
+						continue;
 					}
 
-					continue;
-				}
 
+					ASSERT(!e->IsDeleted());
+					// Set deleted flag
+					e->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+					
+					if ( (Flags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0 ) {
+						e->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
+					} 
 
-				ASSERT(!e->IsDeleted());
-				// Set deleted flag
-				e->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
-				
-				if ( RemoveASAP ) {
-					e->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
-				} 
-				
-				// Mark as made a change
-				madeChanges = true;
+					// Mark as made a change
+					madeChanges = true;
 
-				int64_t blocks = e->GetSizeInBlocks();
-				mapStoreInfo->AdjustNumDeletedFiles(1);
-				mapStoreInfo->ChangeBlocksInDeletedFiles(blocks);
+					int64_t blocks = e->GetSizeInBlocks();
+					mapStoreInfo->AdjustNumDeletedFiles(1);
+					mapStoreInfo->ChangeBlocksInDeletedFiles(blocks);
 
-				mStatistics.mDeletedFilesCount++;
-				mStatistics.mDeletedFilesSize += blocks;
+					mStatistics.mDeletedFilesCount++;
+					mStatistics.mDeletedFilesSize += blocks;
 
-				// We're marking all old versions as deleted.
-				// This is how a file can be old and deleted
-				// at the same time. So we don't subtract from
-				// number or size of old files. But if it was
-				// a current file, then it's not any more, so
-				// we do need to adjust the current counts.
-				if(!e->IsOld())
-				{
-					mapStoreInfo->AdjustNumCurrentFiles(-1);
-					mapStoreInfo->ChangeBlocksInCurrentFiles(-blocks);
-				}
+					// We're marking all old versions as deleted.
+					// This is how a file can be old and deleted
+					// at the same time. So we don't subtract from
+					// number or size of old files. But if it was
+					// a current file, then it's not any more, so
+					// we do need to adjust the current counts.
+					if(!e->IsOld())
+					{
+						mapStoreInfo->AdjustNumCurrentFiles(-1);
+						mapStoreInfo->ChangeBlocksInCurrentFiles(-blocks);
+					}
 
-				// Is this the last version?
-				if((e->GetFlags() & BackupStoreDirectory::Entry::Flags_OldVersion) == 0)
-				{
-					// Yes. It's been found.
-					rObjectIDOut = e->GetObjectID();
-					fileExisted = true;
+					// Is this the last version?
+					if((e->GetFlags() & BackupStoreDirectory::Entry::Flags_OldVersion) == 0)
+					{
+						// Yes. It's been found.
+						rObjectIDOut = e->GetObjectID();
+						fileExisted = true;
+					}
 				}
 			}
 		}
+
+		// iterate to_delete
+		for (std::list<BackupStoreDirectory::Entry*>::iterator it=to_delete.begin(); it != to_delete.end(); ++it) {
+			BackupStoreInfo::Adjustment adjustment = {};
+
+			// Delete the file
+			int64_t objectID=(*it)->GetObjectID();
+			int64_t ObjectSize = (*it)->GetSizeInBlocks();
+			
+			adjustment.mBlocksUsed -= ObjectSize;
+
+			if(!(*it)->IsOld() && !(*it)->IsDeleted())
+			{
+				adjustment.mBlocksInCurrentFiles -= ObjectSize;
+				adjustment.mNumCurrentFiles--;	
+			}
+			else if((*it)->IsOld())
+			{
+				adjustment.mBlocksInOldFiles -= ObjectSize;
+				adjustment.mNumOldFiles--;
+			}
+			else if((*it)->IsDeleted())
+			{
+				adjustment.mBlocksInDeletedFiles -= ObjectSize;
+				adjustment.mNumDeletedFiles--;
+			}
+			mapStoreInfo->AdjustNumCurrentFiles(adjustment.mNumCurrentFiles);
+			mapStoreInfo->AdjustNumOldFiles(adjustment.mNumOldFiles);
+			mapStoreInfo->AdjustNumDeletedFiles(adjustment.mNumDeletedFiles);
+			mapStoreInfo->ChangeBlocksUsed(adjustment.mBlocksUsed);
+			mapStoreInfo->ChangeBlocksInCurrentFiles(adjustment.mBlocksInCurrentFiles);
+			mapStoreInfo->ChangeBlocksInOldFiles(adjustment.mBlocksInOldFiles);
+			mapStoreInfo->ChangeBlocksInDeletedFiles(adjustment.mBlocksInDeletedFiles);
+
+			dir.DeleteEntry(objectID);
+			
+			std::string objFilename;
+			MakeObjectFilename(objectID, objFilename);
+			mapRefCount->RemoveReference(objectID);
+
+			BackupStoreRefCountDatabase::refcount_t refs=mapRefCount->GetRefCount(objectID);
+			if ( refs==0 )
+			{
+				RaidFileWrite del(mStoreDiscSet, objFilename, refs);
+				del.Delete();
+			}
+
+			madeChanges = true;
+		}
+
 
 		// Save changes?
 		if(madeChanges)
@@ -1381,7 +1441,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 //		Created: 2003/10/21
 //
 // --------------------------------------------------------------------------
-void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool RemoveASAP)
+void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, uint16_t Flags, bool DeleteFromStore)
 {
 	// Essential checks!
 	if(mapStoreInfo.get() == 0)
@@ -1408,13 +1468,13 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 			InDirectory = dir.GetContainerID();
 		
 			// Depth first delete of contents
-			DeleteDirectoryRecurse(ObjectID, Undelete);
+			DeleteDirectoryRecurse(ObjectID, Undelete, Flags, DeleteFromStore);
 		}
 
 		// Remove the entry from the directory it's in
 		ASSERT(InDirectory != 0);
-		BackupStoreDirectory &parentDir(GetDirectoryInternal(InDirectory));
-
+		BackupStoreDirectory &parentDir(GetDirectoryInternal(InDirectory));	
+		
 		BackupStoreDirectory::Iterator i(parentDir);
 		BackupStoreDirectory::Entry *en = 0;
 		while((en = i.Next(Undelete?(BackupStoreDirectory::Entry::Flags_Deleted):(BackupStoreDirectory::Entry::Flags_INCLUDE_EVERYTHING),
@@ -1423,17 +1483,81 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 			if(en->GetObjectID() == ObjectID)
 			{
 				// This is the one to delete
-				if(Undelete)
-				{
-					en->RemoveFlags(BackupStoreDirectory::Entry::Flags_Deleted | BackupStoreDirectory::Entry::Flags_RemoveASAP);
+
+				if(!Undelete && DeleteFromStore)
+				{	std::string dirFilename;
+
+					MakeObjectFilename(ObjectID, dirFilename);
+					if(!RaidFileRead::FileExists(mStoreDiscSet, dirFilename))
+					{
+						// doesn't exist, next!
+						break;
+					}
+
+					// load informations about the directory
+					std::auto_ptr<RaidFileRead> dirStream(
+						RaidFileRead::Open(mStoreDiscSet, dirFilename));
+					int64_t dirSizeInBlocks = dirStream->GetDiscUsageInBlocks();
+
+
+					// and update the parent
+					std::string parentDirFilename;
+					MakeObjectFilename(parentDir.GetObjectID(), parentDirFilename);
+
+					// we can do modifications here, because we'll exit the loop
+					parentDir.DeleteEntry(ObjectID);
+					RaidFileWrite writeParentDir(mStoreDiscSet, parentDirFilename,
+						mapRefCount->GetRefCount(parentDir.GetObjectID()));
+					writeParentDir.Open(true /* allow overwriting */);
+					parentDir.WriteToStream(writeParentDir);
+
+					int64_t dirSize = writeParentDir.GetDiscUsageInBlocks();
+					writeParentDir.Commit(BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY);
+
+					// Update the directory entry in the grandparent, to ensure
+					// std::string grandParentFilename;
+					// MakeObjectFilename(parentDir.GetContainerID(), grandParentFilename);
+					// std::auto_ptr<RaidFileRead> grandParentStream(
+					// 	RaidFileRead::Open(mStoreDiscSet, grandParentFilename));
+					// BackupStoreDirectory grandParent(*grandParentStream);
+					// grandParentStream.reset();
+
+					// BackupStoreDirectory::Entry* en = grandParent.FindEntryByID(parentDir.GetObjectID());
+					// if(en != NULL)
+					// {
+					// 	en->SetSizeInBlocks(dirSize);
+					// 	RaidFileWrite writeGrandParentDir(mStoreDiscSet, grandParentFilename, mapRefCount->GetRefCount(parentDir.GetContainerID()));
+					// 	writeGrandParentDir.Open(true /* allow overwriting */);
+					// 	grandParent.WriteToStream(writeGrandParentDir);
+					// 	writeGrandParentDir.Commit(BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY);
+					// }
+					mapStoreInfo->AdjustNumDirectories(-1);
+
+					mapStoreInfo->ChangeBlocksUsed(-dirSizeInBlocks);
+					mapStoreInfo->ChangeBlocksInDirectories(-dirSizeInBlocks);
+					mapRefCount->RemoveReference(ObjectID);
+
+
+					RaidFileWrite del(mStoreDiscSet, dirFilename);
+
+					// Delete the directory
+					del.Delete();
+
 				}
 				else
 				{
-					en->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
-					if ( RemoveASAP ) {
-						en->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
+					if(Undelete)
+					{
+						en->RemoveFlags(BackupStoreDirectory::Entry::Flags_Deleted | BackupStoreDirectory::Entry::Flags_RemoveASAP);
 					}
+					else
+					{
+						en->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+						if ( Flags & BackupStoreDirectory::Entry::Flags_RemoveASAP ) {
+							en->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
+						}
 
+					}
 				}
 
 				// Save it
@@ -1442,7 +1566,7 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 				// Done
 				break;
 			}
-		}
+		}	
 
 		// Update blocks deleted count
 		SaveStoreInfo(false);
@@ -1465,7 +1589,7 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, bool R
 //		Created: 2003/10/21
 //
 // --------------------------------------------------------------------------
-void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
+void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete, uint16_t Flags, bool DeleteFromStore)
 {
 	try
 	{
@@ -1503,7 +1627,7 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 			// Done with the directory for now. Recurse to sub directories
 			for(std::vector<int64_t>::const_iterator i = subDirs.begin(); i != subDirs.end(); ++i)
 			{
-				DeleteDirectoryRecurse(*i, Undelete);
+				DeleteDirectoryRecurse(*i, Undelete, Flags, DeleteFromStore);
 			}
 		}
 
@@ -1519,43 +1643,121 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete)
 			// Run through files
 			BackupStoreDirectory::Iterator i(dir);
 			BackupStoreDirectory::Entry *en = 0;
+			
+			// store all the entry in a list
+			std::list<BackupStoreDirectory::Entry*> to_delete_entries;
 
 			while((en = i.Next(Undelete?(BackupStoreDirectory::Entry::Flags_Deleted):(BackupStoreDirectory::Entry::Flags_INCLUDE_EVERYTHING),
 				Undelete?(0):(BackupStoreDirectory::Entry::Flags_Deleted))) != 0)	// Ignore deleted directories (or not deleted if Undelete)
 			{
-				// Keep count of the deleted blocks
-				if(en->IsFile())
-				{
-					int64_t size = en->GetSizeInBlocks();
-					ASSERT(en->IsDeleted() == Undelete); 
-					// Don't adjust counters for old files,
-					// because it can be both old and deleted.
-					if(!en->IsOld())
-					{
-						mapStoreInfo->ChangeBlocksInCurrentFiles(Undelete ? size : -size);
-						mapStoreInfo->AdjustNumCurrentFiles(Undelete ? 1 : -1);
-					}
-					mapStoreInfo->ChangeBlocksInDeletedFiles(Undelete ? -size : size);
-					mapStoreInfo->AdjustNumDeletedFiles(Undelete ? -1 : 1);
-				}
+				if(!Undelete && DeleteFromStore) {
+					// store the entry into the list for later deletion
+					to_delete_entries.push_back(en);
+				} else {
 
-				// Add/remove the deleted flags
-				if(Undelete)
+					// Keep count of the deleted blocks
+					if(en->IsFile())
+					{
+						int64_t size = en->GetSizeInBlocks();
+						ASSERT(en->IsDeleted() == Undelete); 
+						// Don't adjust counters for old files,
+						// because it can be both old and deleted.
+						if(!en->IsOld())
+						{
+							mapStoreInfo->ChangeBlocksInCurrentFiles(Undelete ? size : -size);
+							mapStoreInfo->AdjustNumCurrentFiles(Undelete ? 1 : -1);
+						}
+						mapStoreInfo->ChangeBlocksInDeletedFiles(Undelete ? -size : size);
+						mapStoreInfo->AdjustNumDeletedFiles(Undelete ? -1 : 1);
+					}
+
+					// Add/remove the deleted flags
+					if(Undelete)
+					{
+							en->RemoveFlags(BackupStoreDirectory::Entry::Flags_Deleted | BackupStoreDirectory::Entry::Flags_RemoveASAP);
+					}
+					else
+					{
+						en->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+						if ( Flags & BackupStoreDirectory::Entry::Flags_RemoveASAP ) {
+							en->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
+						}
+					}
+
+					// Did something
+					changesMade = true;
+				}
+			}
+			BackupStoreInfo::Adjustment adjustment = {};
+
+			// for each entry to delete, delete it
+			for(std::list<BackupStoreDirectory::Entry*>::const_iterator it = to_delete_entries.begin(); it != to_delete_entries.end(); ++it)
+			{
+				// Delete the file
+				int64_t objectID=(*it)->GetObjectID();
+				int64_t ObjectSize = (*it)->GetSizeInBlocks();
+                
+				adjustment.mBlocksUsed -= ObjectSize;
+
+				if((*it)->IsFile())
 				{
-					en->RemoveFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+					if(!(*it)->IsOld() && !(*it)->IsDeleted())
+					{
+						adjustment.mBlocksInCurrentFiles -= ObjectSize;
+						adjustment.mNumCurrentFiles--;	
+					}
+					else if((*it)->IsOld())
+					{
+						adjustment.mBlocksInOldFiles -= ObjectSize;
+						adjustment.mNumOldFiles--;
+					}
+					else if((*it)->IsDeleted())
+					{
+						adjustment.mBlocksInDeletedFiles -= ObjectSize;
+						adjustment.mNumDeletedFiles--;
+					}
 				}
 				else
 				{
-					en->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
+					adjustment.mBlocksInDirectories -= ObjectSize;
+					adjustment.mNumDirectories--;
 				}
 
-				// Did something
+				dir.DeleteEntry(objectID);
+ 				
+				std::string objFilename;
+				MakeObjectFilename(objectID, objFilename);
+				mapRefCount->RemoveReference(objectID);
+
+				BackupStoreRefCountDatabase::refcount_t refs=mapRefCount->GetRefCount(objectID);
+				if ( refs==0 )
+				{
+					RaidFileWrite del(mStoreDiscSet, objFilename, refs);
+					del.Delete();
+				}
+
 				changesMade = true;
 			}
 
 			// Save the directory
 			if(changesMade)
 			{
+				mapStoreInfo->AdjustNumCurrentFiles(adjustment.mNumCurrentFiles);
+				mapStoreInfo->AdjustNumOldFiles(adjustment.mNumOldFiles);
+				mapStoreInfo->AdjustNumDeletedFiles(adjustment.mNumDeletedFiles);
+				mapStoreInfo->AdjustNumDirectories(adjustment.mNumDirectories);
+				mapStoreInfo->ChangeBlocksUsed(adjustment.mBlocksUsed);
+				mapStoreInfo->ChangeBlocksInCurrentFiles(adjustment.mBlocksInCurrentFiles);
+				mapStoreInfo->ChangeBlocksInOldFiles(adjustment.mBlocksInOldFiles);
+				mapStoreInfo->ChangeBlocksInDeletedFiles(adjustment.mBlocksInDeletedFiles);
+				mapStoreInfo->ChangeBlocksInDirectories(adjustment.mBlocksInDirectories);
+
+
+				// Save the store info -- can cope if this exceptions because infomation
+				// will be rebuilt by housekeeping, and ID allocation can recover.
+				SaveStoreInfo(false);
+			
+
 				SaveDirectory(dir);
 			}
 		}
