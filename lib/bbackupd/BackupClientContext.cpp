@@ -349,7 +349,7 @@ BackupClientDeleteList &BackupClientContext::GetDeleteList()
 //		Created: 10/11/03
 //
 // --------------------------------------------------------------------------
-void BackupClientContext::PerformDeletions()
+void BackupClientContext::PerformDeletions(const Location& rBackupLocation)
 {
 	// Got a list?
 	if(mpDeleteList == 0)
@@ -359,7 +359,7 @@ void BackupClientContext::PerformDeletions()
 	}
 	
 	// Delegate to the delete list object
-	mpDeleteList->PerformDeletions(*this);
+	mpDeleteList->PerformDeletions(*this, rBackupLocation);
 	
 	// Delete the object
 	delete mpDeleteList;

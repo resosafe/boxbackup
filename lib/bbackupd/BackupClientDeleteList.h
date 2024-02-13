@@ -11,6 +11,7 @@
 #define BACKUPCLIENTDELETELIST__H
 
 #include "BackupStoreFilename.h"
+#include "BackupClientDirectoryRecord.h"
 
 class BackupClientContext;
 
@@ -62,7 +63,7 @@ public:
 	void StopFileDeletion(int64_t DirectoryID,
 		const BackupStoreFilename &rFilename);
 	
-	void PerformDeletions(BackupClientContext &rContext);
+	void PerformDeletions(BackupClientContext &rContext, const Location& rBackupLocation);
 	
 private:
 	std::vector<DirToDelete> mDirectoryList;

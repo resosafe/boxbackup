@@ -1213,12 +1213,13 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
 
 		// Unset exclude lists (just in case)
 		mapClientContext->SetExcludeLists(0, 0);
+		
+		// Perform any deletions required -- these are
+		// delayed until the end to allow renaming to 
+		// happen neatly.
+		// This is performed by Location since the behaviour can differ
+		mapClientContext->PerformDeletions(**i);
 	}
-
-	// Perform any deletions required -- these are
-	// delayed until the end to allow renaming to 
-	// happen neatly.
-	mapClientContext->PerformDeletions();
 
 #ifdef ENABLE_VSS
 	CleanupVssBackupComponents();
@@ -1844,7 +1845,6 @@ void BackupDaemon::OnBackupFinish(SysadminNotifier::EventCode status)
 {
 	try
 	{
-        setEndSync(status);
 
 		// Log
 		BOX_NOTICE("Finished scan of local files");
@@ -1871,6 +1871,7 @@ void BackupDaemon::OnBackupFinish(SysadminNotifier::EventCode status)
 			<< "encoded: " << BackupStoreFile::msStats.mTotalFileStreamSize << " B"
 		);
 
+        setEndSync(status);
 
 		// Reset statistics again
 		BackupStoreFile::ResetStats();
@@ -2818,7 +2819,10 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 		// Read the exclude lists from the Configuration
 		pLoc->mapExcludeFiles.reset(BackupClientMakeExcludeList_Files(rConfig));
 		pLoc->mapExcludeDirs.reset(BackupClientMakeExcludeList_Dirs(rConfig));
-
+		if(rConfig.KeyExists("DoNotKeepDeletedFiles") )
+		{
+			pLoc->mDoNotKeepDeletedFiles = rConfig.GetKeyValueBool("DoNotKeepDeletedFiles");
+		}
 		// Push it back on the vector of locations
 		mLocations.push_back(pLoc);
 
@@ -3360,7 +3364,7 @@ void BackupDaemon::DeleteUnusedRootDirEntries(BackupClientContext &rContext)
 		i(mUnusedRootDirEntries.begin());
 		i != mUnusedRootDirEntries.end(); ++i)
 	{
-		connection.QueryDeleteDirectory(i->first);
+		connection.QueryDeleteDirectory(i->first, 0, false);
 		rContext.GetProgressNotifier().NotifyFileDeleted(
 			i->first, i->second);
 	}

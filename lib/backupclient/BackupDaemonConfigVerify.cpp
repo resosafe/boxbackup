@@ -27,6 +27,7 @@ static const ConfigurationVerifyKey backuplocationkeys[] =
 	ConfigurationVerifyKey("AlwaysIncludeFilesRegex", ConfigTest_MultiValueAllowed),
 	ConfigurationVerifyKey("AlwaysIncludeDir", ConfigTest_MultiValueAllowed),
 	ConfigurationVerifyKey("AlwaysIncludeDirsRegex", ConfigTest_MultiValueAllowed),
+	ConfigurationVerifyKey("DoNotKeepDeletedFiles", ConfigTest_IsBool),
 	ConfigurationVerifyKey("Path", ConfigTest_Exists | ConfigTest_LastEntry)
 };
 
