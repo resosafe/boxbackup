@@ -424,20 +424,20 @@ bool BackupClientContext::FindFilename(int64_t ObjectID, int64_t ContainingDirec
 
 	// Request filenames from the server, in a "safe" manner to ignore errors properly
 	{
-		BackupProtocolGetObjectName send(ObjectID, ContainingDirectory);
+		BackupProtocolGetObjectName2 send(ObjectID, ContainingDirectory);
 		connection.Send(send);
 	}
 	std::auto_ptr<BackupProtocolMessage> preply(connection.Receive());
 
 	// Is it of the right type?
-	if(preply->GetType() != BackupProtocolObjectName::TypeID)
+	if(preply->GetType() != BackupProtocolObjectName2::TypeID)
 	{
 		// Was an error or something
 		return false;
 	}
 
 	// Cast to expected type.
-	BackupProtocolObjectName *names = (BackupProtocolObjectName *)(preply.get());
+	BackupProtocolObjectName2 *names = (BackupProtocolObjectName2 *)(preply.get());
 
 	// Anything found?
 	int32_t numElements = names->GetNumNameElements();

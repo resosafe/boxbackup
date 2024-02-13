@@ -1848,7 +1848,6 @@ void BackupDaemon::OnBackupFinish(SysadminNotifier::EventCode status)
 {
 	try
 	{
-        setEndSync(status);
 
 		// Log
 		BOX_NOTICE("Finished scan of local files");
@@ -1875,6 +1874,7 @@ void BackupDaemon::OnBackupFinish(SysadminNotifier::EventCode status)
 			<< "encoded: " << BackupStoreFile::msStats.mTotalFileStreamSize << " B"
 		);
 
+        setEndSync(status);
 
 		// Reset statistics again
 		BackupStoreFile::ResetStats();

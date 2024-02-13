@@ -111,8 +111,6 @@ ObjectName		13	Reply
 	int32		NumNameElements
 	int64		ModificationTime
 	int64		AttributesHash
-	int64       BackupTime
-	int64       DeleteTime
 	int16		Flags
 	# NumNameElements is zero if the object doesn't exist
 	CONSTANT	NumNameElements_ObjectDoesntExist	0
@@ -125,6 +123,26 @@ GetObjectInfos	14	Command(ObjectInfos)
 ObjectInfos		15	Reply
 	bool		IsDir
 	int64		ContainerID
+
+
+GetObjectName2	16	Command(ObjectName2)
+	int64		ObjectID
+	int64		ContainingDirectoryID
+	CONSTANT	ObjectID_DirectoryOnly	0
+
+	# set ObjectID to ObjectID_DirectoryOnly to only get info on the directory
+
+
+ObjectName2		17	Reply
+	int32		NumNameElements
+	int64		ModificationTime
+	int64		AttributesHash
+	int64       BackupTime
+	int64       DeleteTime
+	int16		Flags
+	# NumNameElements is zero if the object doesn't exist
+	CONSTANT	NumNameElements_ObjectDoesntExist	0
+	# a stream of Filename objects follows, if and only if NumNameElements > 0
 
 # -------------------------------------------------------------------------------------
 #  Directory commands

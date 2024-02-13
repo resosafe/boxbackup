@@ -943,12 +943,13 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectInfos::DoCommand(Bac
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupProtocolGetObjectName::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
+//		Name:    BackupProtocolGetObjectName2::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
 //		Purpose: Command to find the name of an object
-//		Created: 12/11/03
+//		Created: 24/01/26
 //
 // --------------------------------------------------------------------------
-std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+
+std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName2::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
 {
 	CHECK_PHASE(Phase_Commands)
 
@@ -973,7 +974,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 		// Check the directory really exists
 		if(!rContext.ObjectExists(dirID, BackupStoreContext::ObjectExists_Directory))
 		{
-			return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(BackupProtocolObjectName::NumNameElements_ObjectDoesntExist, 0, 0, 0, 0, 0));
+			return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName2(BackupProtocolObjectName2::NumNameElements_ObjectDoesntExist, 0, 0, 0, 0, 0));
 		}
 
 		// Load up the directory
@@ -990,8 +991,8 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 				// If this can't be found, then there is a problem...
 				// tell the caller it can't be found.
 				return std::auto_ptr<BackupProtocolMessage>(
-					new BackupProtocolObjectName(
-						BackupProtocolObjectName::NumNameElements_ObjectDoesntExist,
+					new BackupProtocolObjectName2(
+						BackupProtocolObjectName2::NumNameElements_ObjectDoesntExist,
 						0, 0, 0, 0, 0));
 			}
 
@@ -1009,7 +1010,7 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 			if(en == 0)
 			{
 				// Abort!
-				return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(BackupProtocolObjectName::NumNameElements_ObjectDoesntExist, 0, 0, 0, 0, 0));
+				return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName2(BackupProtocolObjectName2::NumNameElements_ObjectDoesntExist, 0, 0, 0, 0, 0));
 			}
 
 			// Store flags?
@@ -1050,8 +1051,127 @@ std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(Back
 		rProtocol.SendStreamAfterCommand(static_cast< std::auto_ptr<IOStream> >(stream));
 	}
 
+
 	// Make reply
-	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(numNameElements, modTime, attrModHash, backupTime, deleteTime, objectFlags));
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName2(numNameElements, modTime, attrModHash, backupTime, deleteTime, objectFlags));
+}
+
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupProtocolGetObjectName::DoCommand(BackupProtocolReplyable &, BackupStoreContext &)
+//		Purpose: Command to find the name of an object
+//		Created: 12/11/03
+//
+// --------------------------------------------------------------------------
+
+std::auto_ptr<BackupProtocolMessage> BackupProtocolGetObjectName::DoCommand(BackupProtocolReplyable &rProtocol, BackupStoreContext &rContext) const
+{
+	CHECK_PHASE(Phase_Commands)
+
+
+
+
+	// Create a stream for the list of filenames
+	std::auto_ptr<CollectInBufferStream> stream(new CollectInBufferStream);
+
+	// Object and directory IDs
+	int64_t objectID = mObjectID;
+	int64_t dirID = mContainingDirectoryID;
+
+	// Data to return in the reply
+	int32_t numNameElements = 0;
+	int16_t objectFlags = 0;
+	int64_t modTime = 0;
+	uint64_t attrModHash = 0;
+
+	bool haveModTimes = false;
+
+	do
+	{
+		// Check the directory really exists
+		if(!rContext.ObjectExists(dirID, BackupStoreContext::ObjectExists_Directory))
+		{
+			return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(BackupProtocolObjectName::NumNameElements_ObjectDoesntExist, 0, 0, 0));
+		}
+
+		// Load up the directory
+		const BackupStoreDirectory *pDir;
+
+		try
+		{
+			pDir = &rContext.GetDirectory(dirID);
+		}
+		catch(BackupStoreException &e)
+		{
+			if(e.GetSubType() == BackupStoreException::ObjectDoesNotExist)
+			{
+				// If this can't be found, then there is a problem...
+				// tell the caller it can't be found.
+				return std::auto_ptr<BackupProtocolMessage>(
+					new BackupProtocolObjectName(
+						BackupProtocolObjectName::NumNameElements_ObjectDoesntExist,
+						0, 0, 0));
+			}
+
+			throw;
+		}
+
+		const BackupStoreDirectory& rdir(*pDir);
+
+		// Find the element in this directory and store it's name
+		if(objectID != ObjectID_DirectoryOnly)
+		{
+			const BackupStoreDirectory::Entry *en = rdir.FindEntryByID(objectID);
+
+			// If this can't be found, then there is a problem... tell the caller it can't be found
+			if(en == 0)
+			{
+				// Abort!
+				return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(BackupProtocolObjectName::NumNameElements_ObjectDoesntExist, 0, 0, 0));
+			}
+
+			// Store flags?
+			if(objectFlags == 0)
+			{
+				objectFlags = en->GetFlags();
+			}
+
+			// Store modification times?
+			if(!haveModTimes)
+			{
+				modTime = en->GetModificationTime();
+				attrModHash = en->GetAttributesHash();
+				haveModTimes = true;
+			}
+
+			// Store the name in the stream
+			en->GetName().WriteToStream(*stream);
+
+			// Count of name elements
+			++numNameElements;
+		}
+
+		// Setup for next time round
+		objectID = dirID;
+		dirID = rdir.GetContainerID();
+
+	} while(objectID != 0 && objectID != BACKUPSTORE_ROOT_DIRECTORY_ID);
+
+	// Stream to send?
+	if(numNameElements > 0)
+	{
+		// Get the stream ready to go
+		stream->SetForReading();
+		// Tell the protocol to send the stream
+		rProtocol.SendStreamAfterCommand(static_cast< std::auto_ptr<IOStream> >(stream));
+	}
+
+
+	// Make reply
+	return std::auto_ptr<BackupProtocolMessage>(new BackupProtocolObjectName(numNameElements, modTime, attrModHash, objectFlags));
 }
 
 
