@@ -1830,7 +1830,6 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 			(rParams.mDiffingUploadMaxSizeThreshold == 0 || FileSize <= rParams.mDiffingUploadMaxSizeThreshold) &&
 			FileSize >= rParams.mDiffingUploadSizeThreshold)
 		{
-			std::cout << "***** DIFFING " << std::endl;
 			// YES -- try to do diff, if possible
 			// First, query the server to see if there's an old version available
 			std::auto_ptr<BackupProtocolSuccess> getBlockIndex(connection.QueryGetBlockIndexByName(mObjectID, rStoreFilename));
@@ -1868,8 +1867,6 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 
 				rContext.UnManageDiffProcess();
 			}
-		} else {
-			std::cout << "***** NO DIFFING " << std::endl;
 		}
 
 		if(apStreamToUpload.get())
