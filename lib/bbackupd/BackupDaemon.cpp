@@ -1114,9 +1114,11 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
 	// use potentially extended end time
 	params.mMaxUploadWait = maxUploadWait;
 	params.mFileTrackingSizeThreshold =
-		conf.GetKeyValueInt("FileTrackingSizeThreshold");
+		conf.GetKeyValueUint64("FileTrackingSizeThreshold");
 	params.mDiffingUploadSizeThreshold =
-		conf.GetKeyValueInt("DiffingUploadSizeThreshold");
+		conf.GetKeyValueUint64("DiffingUploadSizeThreshold");
+	params.mDiffingUploadMaxSizeThreshold =
+		conf.GetKeyValueUint64("DiffingUploadMaxSizeThreshold", 0);
 	params.mMaxFileTimeInFuture =
 		SecondsToBoxTime(conf.GetKeyValueInt("MaxFileTimeInFuture"));
 

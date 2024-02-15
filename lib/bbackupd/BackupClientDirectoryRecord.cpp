@@ -1420,6 +1420,7 @@ bool BackupClientDirectoryRecord::UpdateItems(
 				haveJustCreatedDirOnServer);
 		}
 	}
+	
 
 	// Delete everything which is on the store, but not on disc
 	for(unsigned int l = 0; l < rEntriesLeftOver.size(); ++l)
@@ -1824,8 +1825,10 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 		// Might an old version be on the server, and is the file
 		// size over the diffing threshold?
 		if(!NoPreviousVersionOnServer &&
+			(rParams.mDiffingUploadMaxSizeThreshold == 0 || FileSize <= rParams.mDiffingUploadMaxSizeThreshold) &&
 			FileSize >= rParams.mDiffingUploadSizeThreshold)
 		{
+			std::cout << "***** DIFFING " << std::endl;
 			// YES -- try to do diff, if possible
 			// First, query the server to see if there's an old version available
 			std::auto_ptr<BackupProtocolSuccess> getBlockIndex(connection.QueryGetBlockIndexByName(mObjectID, rStoreFilename));
@@ -1863,6 +1866,8 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 
 				rContext.UnManageDiffProcess();
 			}
+		} else {
+			std::cout << "***** NO DIFFING " << std::endl;
 		}
 
 		if(apStreamToUpload.get())

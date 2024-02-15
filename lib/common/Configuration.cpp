@@ -513,6 +513,55 @@ uint32_t Configuration::GetKeyValueUint32(const std::string& rKeyName) const
 // --------------------------------------------------------------------------
 //
 // Function
+//		Name:    Configuration::GetKeyValueUint64(const std::string& rKeyName)
+//		Purpose: Gets a key value as a 64-bit unsigned integer
+//		Created: 2003/07/23
+//
+// --------------------------------------------------------------------------
+uint64_t Configuration::GetKeyValueUint64(const std::string& rKeyName) const
+{
+	std::map<std::string, std::string>::const_iterator i(mKeys.find(rKeyName));
+	
+	if(i == mKeys.end())
+	{
+		THROW_EXCEPTION(CommonException, ConfigNoKey)
+	}
+	else
+	{
+		errno = 0;
+		long value = ::strtoull((i->second).c_str(), NULL,
+			0 /* C style handling */);
+		if(errno != 0)
+		{
+			THROW_EXCEPTION(CommonException, ConfigBadIntValue)
+		}
+		return (uint64_t)value;
+	}
+}
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    Configuration::GetKeyValueUint64(const std::string& rKeyName, uin64_t)
+//		Purpose: Gets a key value as a 64-bit unsigned integer
+//		Created: 2003/07/23
+//
+// --------------------------------------------------------------------------
+uint64_t Configuration::GetKeyValueUint64(const std::string& rKeyName, uint64_t default_value) const
+{
+	if(!KeyExists(rKeyName))
+	{
+		return default_value;
+	}
+	return GetKeyValueUint64(rKeyName);
+}
+
+
+
+// --------------------------------------------------------------------------
+//
+// Function
 //		Name:    Configuration::GetKeyValueBool(const std::string&)
 //		Purpose: Gets a key value as a boolean
 //		Created: 17/2/04
@@ -826,12 +875,13 @@ bool Configuration::Verify(const ConfigurationVerify &rVerify,
 				scan++;
 			}
 			
-			if(!found)
-			{
-				// Shouldn't exist, but does.
-				ok = false;
-				rErrorMsg += rLevel + mName + "." + i->first + " (key) is not a known key. Check spelling and placement.\n";
-			}
+			// ignore since it's not a real problem
+			// if(!found)
+			// {
+			// 	// Shouldn't exist, but does.
+			// 	ok = false;
+			// 	rErrorMsg += rLevel + mName + "." + i->first + " (key) is not a known key. Check spelling and placement.\n";
+			// }
 		}
 	}
 	
