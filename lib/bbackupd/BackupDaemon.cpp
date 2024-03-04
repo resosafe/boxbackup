@@ -2063,9 +2063,17 @@ bool BackupDaemon::RunBackgroundTask(State state, uint64_t progress,
 		", progress = " << progress << "/" << maximum);
 
 
-	if( state == State::Uploading_Full || state == Uploading_Patch ) {
+	if( state == State::Uploading_Full || state == Uploading_Patch ) 
+	{
 		// while uploading we'll have the blocks count
 		mpSyncResumeInfo->SetBlocksCount(progress);
+	}
+
+	if( state == State::Seeking_Blocks) 
+	{
+		// prevent the server to close the connection while seeking blocks (resuming)
+		BOX_TRACE("BackupDaemon::RunBackgroundTask: seeking blocks");
+		mapClientContext->DoKeepAlive();
 	}
 
 	if(!mapCommandSocketPollTimer.get())
