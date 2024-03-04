@@ -725,6 +725,17 @@ uint64_t BackupStoreFileEncodeStream::SeekToBlockOffset(pos_type BlockOffset) {
 
 	while(mCurrentBlock < BlockOffset && mStatus == Status_Blocks)
 	{
+
+		if(mpBackgroundTask)
+		{
+			if(!mpBackgroundTask->RunBackgroundTask( BackgroundTask::Seeking_Blocks, mCurrentBlock >= 0 ? mCurrentBlock : 0,
+				mNumBlocks))
+			{
+				THROW_EXCEPTION(BackupStoreException,
+					CancelledByBackgroundTask);
+			}
+		}
+
 		// Next block!
 		++mCurrentBlock;
 		++mAbsoluteBlockNumber;
