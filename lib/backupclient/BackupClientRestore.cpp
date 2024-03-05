@@ -618,7 +618,7 @@ static int BackupClientRestoreDir(BackupProtocolCallable &rConnection,
 				rLevel.mRestoredObjects.insert(en->GetObjectID());
 					
 				// Save restore info?
-				int64_t fileSize;
+				int64_t fileSize = 0;
 				bool exists = false;
 
 				try
