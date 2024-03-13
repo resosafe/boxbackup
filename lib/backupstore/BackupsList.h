@@ -47,7 +47,9 @@ public:
 	BackupsList(IOStream &stream);
 	BackupsList(const std::string &rRootDir);
 
-	void RemoveAt(box_time_t Time);
+	void Shift(int MaxCount);
+	SessionInfos* GetFirst();
+	SessionInfos* GetAtStartTime(box_time_t StartTime);
 	void ReadFromStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);
 	void WriteToStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);
 	void Save();

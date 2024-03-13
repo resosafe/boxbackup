@@ -94,39 +94,78 @@ void BackupsList::AddRecord(const std::string &rRootDir, SessionInfos &rInfos)
 }
 
 
+bool compareStartTimes(const SessionInfos &a, const SessionInfos &b) {
+    return a.GetStartTime() < b.GetStartTime();
+}
+
 void BackupsList::AddRecord(SessionInfos &rInfos) 
 {
     mList.push_back(rInfos);
 
-    if(mRootDir.empty()) {
-        THROW_EXCEPTION(BackupStoreException, Internal)
+    // ensure that the list is always sorted by start time
+    std::sort(mList.begin(), mList.end(), compareStartTimes);
+   
+}
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupsList::Shift
+//		Purpose: Keep the Nth latest records
+//		Created: 2024/03/12
+//
+// --------------------------------------------------------------------------
+void BackupsList::Shift(int MaxCount)
+{
+    if(mList.size() > MaxCount) {
+        mList.erase(mList.begin(), mList.end() - MaxCount);
     }
-    std::auto_ptr<IOStream> stream = OpenStream(mRootDir);
-    stream->Seek(0, IOStream::SeekType_End);
+}
     
-    // store the format version
-    uint32_t magic = htonl(BACKUPLIST_MAGIC_VALUE_V1);
-    stream->Write(&magic, sizeof(magic));
-    rInfos.WriteToStream(*stream);
-	
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupsList::GetAtStartTime
+//		Purpose: Get a session infos at the specified start time
+//		Created: 2024/03/12
+//
+// --------------------------------------------------------------------------
+SessionInfos* BackupsList::GetAtStartTime(box_time_t StartTime) 
+{
+
+    for(std::vector<SessionInfos>::iterator it = mList.begin(); it != mList.end(); ++it) {
+        if(it->GetStartTime() == StartTime) {
+            return &(*it);
+        }
+    }
+
+    SessionInfos infos;
+    infos.SetStart(StartTime);
+    AddRecord(infos);
+    return *infos;
+
 }
 
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupsList::RemoveAt
-//		Purpose: Remove all records at or before the given time
-//		Created: 2023/10/30
+//		Name:    BackupsList::GetFirst
+//		Purpose: Get the first (oldest) record
+//		Created: 2024/03/12
 //
 // --------------------------------------------------------------------------
-void BackupsList::RemoveAt(box_time_t Time)
+SessionInfos* BackupsList::GetFirst() 
 {
-    for(std::vector<SessionInfos>::iterator it = mList.begin(); it != mList.end(); ++it) {
-        if(it->GetStartTime() <= Time) {
-            mList.erase(it);
-        }
+    // get the first (oldest record)  
+    if(mList.size() > 0) {
+        return &mList[0];
     }
+    return NULL; 
 }
+
+
 
 // --------------------------------------------------------------------------
 //
@@ -189,7 +228,12 @@ void BackupsList::Save() {
 //
 // --------------------------------------------------------------------------
 void BackupsList::WriteToStream(IOStream &rStream, int Timeout)
-{
+{ 
+    rStream.Seek(0, IOStream::SeekType_Absolute);
+
+    uint32_t magic = htonl(BACKUPLIST_FILE_MAGIC_V1);
+    rStream.Write(&magic, sizeof(magic));
+
     for(std::vector<SessionInfos>::iterator it = mList.begin(); it != mList.end(); ++it) {
         uint32_t magic = htonl(BACKUPLIST_MAGIC_VALUE_V1);
         rStream.Write(&magic, sizeof(magic), Timeout);

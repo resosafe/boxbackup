@@ -51,9 +51,27 @@ class SessionInfos {
 		}
 
 		box_time_t ElapsedTime() { return GetCurrentBoxTime() - mStartTime; }
-		box_time_t GetStartTime() { return mStartTime; }
-		box_time_t GetEndTime() { return mEndTime; }
-		void SetEnd() { mEndTime = GetCurrentBoxTime(); }
+		const box_time_t GetStartTime() const { return mStartTime; }
+		const box_time_t GetEndTime() const { return mEndTime; }
+		void SetStart(box_time_t time = 0) { 
+			if( time==0 ) 
+			{
+				mStartTime = GetCurrentBoxTime();
+			} else 
+			{
+				mStartTime = time;
+			} 
+		}
+
+		void SetEnd(box_time_t time = 0) { 
+			if( time==0 ) 
+			{
+				mEndTime = GetCurrentBoxTime();
+			} else 
+			{
+				mEndTime = time;
+			} 
+		}
 
 		void RecordFileAdded(uint64_t blocks) 
 		{ 

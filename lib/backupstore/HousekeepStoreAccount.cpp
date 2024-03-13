@@ -107,7 +107,7 @@ HousekeepStoreAccount::~HousekeepStoreAccount()
 //		Created: 11/12/03
 //
 // --------------------------------------------------------------------------
-bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t SnapshotTime,  bool KeepTryingForever, bool lock)
+bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever, bool lock)
 {
     BOX_INFO("Starting housekeeping on account " <<
 		BOX_FORMAT_ACCOUNT(mAccountID));
@@ -124,6 +124,12 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t SnapshotTim
 	if ( (flags & HousekeepStoreAccount::FixForSnapshotMode) !=0 ) {
 		BOX_INFO("FixForSnapshotMode option activated.")
 	}
+
+
+	// TODO : cleanup snapshots => keep only the Nth last snapshots
+	// first read the backup list, get the backup time of the Nth+1 snapshot
+	// then delete all snapshots older than this time
+	// finally cleanup the backup list
 
 	NamedLock writeLock;
 	// Attempt to lock the account
@@ -170,12 +176,6 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t SnapshotTim
 		mTagWithClientID.Change(tag.str());
 	}
 
-	if( info->HasSnapshotOption() && SnapshotTime == 0 ) {
-		BOX_ERROR("SnapshotTime must be specified when using the snapshot option");
-		return false;
-	}
-
-
 	// Calculate how much should be deleted
 	mDeletionSizeTarget = info->GetBlocksUsed() - info->GetBlocksSoftLimit();
 	if(mDeletionSizeTarget < 0)
@@ -188,7 +188,26 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t SnapshotTim
 
 	// Scan the directory for potential things to delete
 	// This will also remove eligible items marked with RemoveASAP
-	bool continueHousekeeping = ScanDirectory(flags, SnapshotTime, BACKUPSTORE_ROOT_DIRECTORY_ID,
+	info->GetVersionCountLimit();
+
+	box_time_t snapshotTime = 0;
+	BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, mStoreRoot, 1));
+
+	if(info->HasSnapshotOption() ) {
+		BOX_INFO("Keeping "<<info->GetVersionCountLimit()<<" snapshots.")
+		// keep only the Nth last snapshots
+		list.Shift(info->GetVersionCountLimit());
+
+		// and get the time of the first snapshot.
+		// we'll cleanup everything before
+		SessionInfos* infos = list.GetFirst();
+		if( infos != NULL ) {
+			snapshotTime = infos->GetStartTime();
+			BOX_INFO("Cleaning at snapshotTime " << BoxTimeToISO8601String(snapshotTime, false) );
+		}
+	}
+
+	bool continueHousekeeping = ScanDirectory(flags, snapshotTime, BACKUPSTORE_ROOT_DIRECTORY_ID,
 		*info);
 
 	if(!continueHousekeeping)
@@ -206,7 +225,13 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, box_time_t SnapshotTim
 			mFilesDeleted << " files, " <<
 			mEmptyDirectoriesDeleted << " dirs) and the directory "
 			"scan was interrupted");
+	} else {
+		// everything is done, save the new snapshots list
+		list.Save();
 	}
+
+
+	
 
 	// If housekeeping made any changes, such as deleting RemoveASAP files,
 	// the differences in block counts will be recorded in the deltas.
@@ -491,10 +516,9 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime
 							
 
 					} else if( en->IsFile()
-						&& (
-							(en->GetBackupTime()!=0 && en->GetBackupTime() <= SnapshotTime) 
-							|| (enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0 && (en->IsDeleted() || en->IsOld())
-					)) 
+						&& ( (en->IsDeleted() && ((enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0 || en->GetDeleteTime() < SnapshotTime))
+							|| (en->IsOld() && en->GetBackupTime() < SnapshotTime))
+						)
 					{
 						// here we should delete only the files based on their backup date (if set)
 						// this file is too old, delete it
@@ -543,15 +567,6 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime
 				}
 			}
 		} while(deletedSomething);
-
-
-		// we are cleaning up a Timeline, just delete all backups records at and before this BackupTime
-		if( rBackupStoreInfo.HasSnapshotOption() && (flags & HousekeepStoreAccount::FixForSnapshotMode == 0)  ) 
-		{
-			BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, mStoreRoot, 1));
-			list.RemoveAt(SnapshotTime);
-			list.Save();
-		}
 
 
 		if( needSave ) 

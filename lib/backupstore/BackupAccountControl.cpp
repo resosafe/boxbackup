@@ -167,12 +167,9 @@ int BackupAccountControl::PrintAccountInfo(const BackupStoreInfo& info,
 	std::cout << FormatUsageLineStart("Options", mMachineReadableOutput) <<
 		ss.str() << std::endl;
 
-	if(!info.HasSnapshotOption())
-	{
-		std::cout << FormatUsageLineStart("Version Count limit", mMachineReadableOutput) <<
-			info.GetVersionCountLimit() << std::endl;
-	}	
 	
+	std::cout << FormatUsageLineStart("Version Count limit", mMachineReadableOutput) <<
+		info.GetVersionCountLimit() << std::endl;
 	std::cout << FormatUsageLineStart("Last object ID", mMachineReadableOutput) <<
 		BOX_FORMAT_OBJECTID(info.GetLastObjectIDUsed()) << std::endl;
 	std::cout << FormatUsageLineStart("Used", mMachineReadableOutput) <<

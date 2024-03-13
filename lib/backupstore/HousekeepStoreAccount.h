@@ -52,7 +52,7 @@ public:
 		int StoreDiscSet, HousekeepingCallback* pHousekeepingCallback);
 	~HousekeepStoreAccount();
 	
-	bool DoHousekeeping(int32_t flags=DefaultAction, box_time_t SnapshotTime=0, bool KeepTryingForever = false, bool lock = true);
+	bool DoHousekeeping(int32_t flags=DefaultAction, bool KeepTryingForever = false, bool lock = true);
 	int GetErrorCount() { return mErrorCount; }
 	SessionInfos& GetNewSessionsInfos() { return mNewSessionsInfos; }
 	

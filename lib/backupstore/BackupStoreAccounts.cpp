@@ -257,7 +257,7 @@ int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options, bool fix
 		// add a "now" backup time to all active objects that don't have a backup time
 		// remove all "old" and "deleted" objects without a deleted timestamp
 		HousekeepStoreAccount housekeeping(ID, rootDir, discSetNum, NULL);
-		housekeeping.DoHousekeeping(HousekeepStoreAccount::FixForSnapshotMode, GetCurrentBoxTime(), false, false);
+		housekeeping.DoHousekeeping(HousekeepStoreAccount::FixForSnapshotMode, false, false);
 		if( housekeeping.GetNewSessionsInfos().HasChanges() ) 
 		{
 			housekeeping.GetNewSessionsInfos().SetEnd();
@@ -608,7 +608,7 @@ int BackupStoreAccountsControl::CreateAccount(int32_t ID, int32_t Options, int32
 	return 0;
 }
 
-int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags, box_time_t SnapshotTime)
+int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags)
 {
 	std::string rootDir;
 	int discSetNum;
@@ -623,7 +623,7 @@ int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags, b
 	}
 
 	HousekeepStoreAccount housekeeping(ID, rootDir, discSetNum, NULL);
-	bool success = housekeeping.DoHousekeeping(flags, SnapshotTime);
+	bool success = housekeeping.DoHousekeeping(flags);
 
 	if(!success)
 	{
