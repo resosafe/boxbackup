@@ -17,6 +17,7 @@
 
 #include "NamedLock.h"
 #include "BackupStoreDirectory.h"
+#include "BackupsList.h"
 
 class IOStream;
 class BackupStoreFilename;
@@ -123,7 +124,8 @@ private:
 	void FixDirsWithWrongContainerID();
 	void FixDirsWithLostDirs();
 	void WriteNewStoreInfo();
-
+	void WriteNewBackupsList();
+	
 	// Checking functions
 	int64_t CheckObjectsScanDir(int64_t StartID, int Level, const std::string &rDirName);
 	void CheckObjectsDir(int64_t StartID);
@@ -177,6 +179,7 @@ private:
 	int32_t mOptions;
 	bool mFixErrors;
 	bool mQuiet;
+	BackupsList mBackupsList;
 	
 	int64_t mNumberErrorsFound;
 	

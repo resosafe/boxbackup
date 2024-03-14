@@ -251,7 +251,6 @@ int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options, bool fix
 	BOX_NOTICE("Options on account " << BOX_FORMAT_ACCOUNT(ID) <<
 		" changed to " << BOX_FORMAT_HEX32(Options));
 
-
 	if( fix )
 	{
 		// add a "now" backup time to all active objects that don't have a backup time
@@ -261,7 +260,9 @@ int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options, bool fix
 		if( housekeeping.GetNewSessionsInfos().HasChanges() ) 
 		{
 			housekeeping.GetNewSessionsInfos().SetEnd();
-			BackupsList::AddRecord(RaidFileController::DiscSetPathToFileSystemPath(discSetNum, rootDir, 1), housekeeping.GetNewSessionsInfos());
+			BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(discSetNum, rootDir, 1));
+			list.AddRecord(housekeeping.GetNewSessionsInfos());
+			list.Save();
 		}
 		return housekeeping.GetErrorCount();
 	}

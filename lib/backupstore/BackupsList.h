@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <set>
 
 #include "BackupStoreException.h"
 #include "CollectInBufferStream.h"
@@ -47,12 +48,16 @@ public:
 	BackupsList(IOStream &stream);
 	BackupsList(const std::string &rRootDir);
 
+	void SetRootDir(const std::string &rRootDir)
+	{
+		mRootDir = rRootDir;
+	}
 	void Shift(int MaxCount);
 	SessionInfos* GetFirst();
-	SessionInfos* GetAtStartTime(box_time_t StartTime);
+	SessionInfos* Get(box_time_t StartTime);
 	void ReadFromStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);
 	void WriteToStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);
-	void Save();
+	void Save(const std::string &rRootDir = "");
 
 	static std::auto_ptr<IOStream> OpenStream(const std::string &rRootDir);
 	
@@ -68,7 +73,7 @@ public:
 	}
 
 	void AddRecord(SessionInfos &rInfos);
-	static void AddRecord(const std::string &rRootDir, SessionInfos &rInfos);
+	// static void AddRecord(const std::string &rRootDir, SessionInfos &rInfos);
 	
 
 	// Get the number of backups
@@ -77,14 +82,14 @@ public:
 		return mList.size();
 	}
 
-	std::vector<SessionInfos> &GetList()
+	std::set<SessionInfos> &GetList()
 	{
 		return mList;
 	}
 
 
 private:
-	std::vector<SessionInfos> mList;
+	std::set<SessionInfos> mList;
 	std::string mRootDir;
 };
 

@@ -119,7 +119,9 @@ void BackupStoreContext::CleanUp()
 	mSessionInfos.SetEnd();
 	// If some changes were recorded, this is a backup that will be recorded
 	if(mSessionInfos.HasChanges()) {
-		BackupsList::AddRecord(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1), mSessionInfos);
+		BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
+		list.AddRecord(mSessionInfos);
+		list.Save();
 	}
 
 	

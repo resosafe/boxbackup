@@ -73,25 +73,25 @@ BackupsList::~BackupsList()
 }
 
 
-// --------------------------------------------------------------------------
-//
-// Function
-//		Name:    BackupsList::Add
-//		Purpose: Add a new backup to the list
-//		Created: 2023/10/30
-//
-// --------------------------------------------------------------------------
-void BackupsList::AddRecord(const std::string &rRootDir, SessionInfos &rInfos) 
-{
-    std::auto_ptr<IOStream> stream = OpenStream(rRootDir);
-    stream->Seek(0, IOStream::SeekType_End);
+// // --------------------------------------------------------------------------
+// //
+// // Function
+// //		Name:    BackupsList::Add
+// //		Purpose: Add a new backup to the list
+// //		Created: 2023/10/30
+// //
+// // --------------------------------------------------------------------------
+// void BackupsList::AddRecord(const std::string &rRootDir, SessionInfos &rInfos) 
+// {
+//     std::auto_ptr<IOStream> stream = OpenStream(rRootDir);
+//     stream->Seek(0, IOStream::SeekType_End);
     
-    // store the format version
-    uint32_t magic = htonl(BACKUPLIST_MAGIC_VALUE_V1);
-    stream->Write(&magic, sizeof(magic));
-    rInfos.WriteToStream(*stream);
+//     // store the format version
+//     uint32_t magic = htonl(BACKUPLIST_MAGIC_VALUE_V1);
+//     stream->Write(&magic, sizeof(magic));
+//     rInfos.WriteToStream(*stream);
 	
-}
+// }
 
 
 bool compareStartTimes(const SessionInfos &a, const SessionInfos &b) {
@@ -100,11 +100,7 @@ bool compareStartTimes(const SessionInfos &a, const SessionInfos &b) {
 
 void BackupsList::AddRecord(SessionInfos &rInfos) 
 {
-    mList.push_back(rInfos);
-
-    // ensure that the list is always sorted by start time
-    std::sort(mList.begin(), mList.end(), compareStartTimes);
-   
+    mList.insert(rInfos);
 }
 
 
@@ -118,34 +114,49 @@ void BackupsList::AddRecord(SessionInfos &rInfos)
 // --------------------------------------------------------------------------
 void BackupsList::Shift(int MaxCount)
 {
-    if(mList.size() > MaxCount) {
-        mList.erase(mList.begin(), mList.end() - MaxCount);
-    }
+    auto it = mList.begin();
+    std::advance(it, mList.size() - MaxCount);
+    mList.erase(mList.begin(), it);
 }
     
 
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupsList::GetAtStartTime
+//		Name:    BackupsList::Get
 //		Purpose: Get a session infos at the specified start time
 //		Created: 2024/03/12
 //
 // --------------------------------------------------------------------------
-SessionInfos* BackupsList::GetAtStartTime(box_time_t StartTime) 
+SessionInfos* BackupsList::Get(box_time_t StartTime) 
 {
-
-    for(std::vector<SessionInfos>::iterator it = mList.begin(); it != mList.end(); ++it) {
-        if(it->GetStartTime() == StartTime) {
-            return &(*it);
-        }
+    auto it = mList.find(StartTime);
+    if(it != mList.end()) {
+        return &(*it);
     }
+    return NULL;
 
-    SessionInfos infos;
-    infos.SetStart(StartTime);
-    AddRecord(infos);
-    return *infos;
 
+
+
+//     for(std::vector<SessionInfos>::iterator it = mList.begin(); it != mList.end(); ++it) {
+//         if(it->GetStartTime() == StartTime) {
+//             return &(*it);
+//         }
+//     }
+
+//     SessionInfos infos;
+//     infos.SetStart(StartTime);
+//     mList.push_back(infos);
+//     SessionInfos* pInfos = &mList.back();
+//     // ensure that the list is always sorted by start time
+//     std::sort(mList.begin(), mList.end(), compareStartTimes);
+//  for(std::vector<SessionInfos>::iterator it = mList.begin(); it != mList.end(); ++it) {
+//         if(it->GetStartTime() == StartTime) {
+//             return &(*it);
+//         }
+//     }
+//     return NULL;
 }
 
 // --------------------------------------------------------------------------
@@ -208,12 +219,18 @@ void BackupsList::ReadFromStream(IOStream &rStream, int Timeout)
 //		Created: 2023/10/30
 //
 // --------------------------------------------------------------------------
-void BackupsList::Save() {
+void BackupsList::Save(const std::string &rRootDir) {
 
-   if(mRootDir.empty()) {
+    std::string rootDir = rRootDir;
+    if(rootDir.empty()) {
+        rootDir = mRootDir;
+    }
+
+   if(rootDir.empty() ) {
         THROW_EXCEPTION(BackupStoreException, Internal)
     }
-    std::string fn = GetFilePath(mRootDir);
+
+    std::string fn = GetFilePath(rootDir);
     FileStream stream(fn.c_str(), O_BINARY | O_RDWR | O_CREAT);
     WriteToStream(stream);
 

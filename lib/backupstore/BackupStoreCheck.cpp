@@ -150,6 +150,9 @@ void BackupStoreCheck::Check()
 	}
 	CheckRoot();
 
+	// TODO : consider checking the backup lists
+	// confront with the memory one
+
 	// Phase 4, check unattached objects
 	if(!mQuiet)
 	{
@@ -171,6 +174,7 @@ void BackupStoreCheck::Check()
 		BOX_INFO("Phase 6, regenerate store info...");
 	}
 	WriteNewStoreInfo();
+	WriteNewBackupsList();
 
 	try
 	{
@@ -923,10 +927,16 @@ void BackupStoreCheck::CountDirectoryEntries(BackupStoreDirectory& dir)
 			// wouldn't be here.
 			ASSERT(!badEntry)
 
+			
 			// It can be both old and deleted.
 			// If neither, then it's current.
 			if(en->IsDeleted())
 			{
+				box_time_t deleteTime = en->GetDeleteTime();
+				SessionInfos *infos = mBackupsList.Get(deleteTime);
+				infos->RecordFileDeleted(en->GetSizeInBlocks());
+
+
 				mNumDeletedFiles++;
 				mBlocksInDeletedFiles += en->GetSizeInBlocks();
 			}
@@ -939,6 +949,13 @@ void BackupStoreCheck::CountDirectoryEntries(BackupStoreDirectory& dir)
 
 			if(!en->IsDeleted() && !en->IsOld())
 			{
+				box_time_t backupTime = en->GetBackupTime();
+				printf("File %lld has backup time %lld\n", en->GetObjectID(), backupTime);
+				SessionInfos *infos = mBackupsList.Get(backupTime);
+				infos->Dump();
+				infos->RecordFileAdded(en->GetSizeInBlocks());
+				infos->Dump();
+				printf("----------------\n");
 				mNumCurrentFiles++;
 				mBlocksInCurrentFiles += en->GetSizeInBlocks();
 			}

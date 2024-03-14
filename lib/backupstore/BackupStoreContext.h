@@ -13,6 +13,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <iostream>
 
 #include "autogen_BackupProtocol.h"
 #include "BackupStoreInfo.h"
@@ -50,6 +51,11 @@ class SessionInfos {
 			mEndTime = 0;
 		}
 
+
+		bool operator<(const SessionInfos& other) const {
+			return GetStartTime() < other.GetStartTime();
+		}
+		
 		box_time_t ElapsedTime() { return GetCurrentBoxTime() - mStartTime; }
 		const box_time_t GetStartTime() const { return mStartTime; }
 		const box_time_t GetEndTime() const { return mEndTime; }
@@ -90,11 +96,17 @@ class SessionInfos {
 
 		
 		uint64_t GetAddedFilesCount() { return mAddedFilesCount; }
+		void SetAddedFilesCount(uint64_t count) { mAddedFilesCount = count; }
 		uint64_t GetAddedFilesBlocksCount() { return mAddedFilesBlocksCount; }
+		void SetAddedFilesBlocksCount(uint64_t count) { mAddedFilesBlocksCount = count; }
 		uint64_t GetDeletedFilesCount() { return mDeletedFilesCount; }
+		void SetDeletedFilesCount(uint64_t count) { mDeletedFilesCount = count; }
 		uint64_t GetDeletedFilesBlocksCount() { return mDeletedFilesBlocksCount; }
+		void SetDeletedFilesBlocksCount(uint64_t count) { mDeletedFilesBlocksCount = count; }
 		uint64_t GetAddedDirectoriesCount() { return mAddedDirectoriesCount; }
+		void SetAddedDirectoriesCount(uint64_t count) { mAddedDirectoriesCount = count; }
 		uint64_t GetDeletedDirectoriesCount() { return mDeletedDirectoriesCount; }
+		void SetDeletedDirectoriesCount(uint64_t count) { mDeletedDirectoriesCount = count; }
 
 
 		void WriteToStream(IOStream &Stream, int Timeout = IOStream::TimeOutInfinite)
@@ -123,6 +135,18 @@ class SessionInfos {
 			ar.Read(mDeletedDirectoriesCount);
 		}
 
+		void Dump() 
+		{
+			std::cout << "SessionInfos: " << std::endl;
+			std::cout << "  StartTime: " << mStartTime << std::endl;
+			std::cout << "  EndTime: " << mEndTime << std::endl;
+			std::cout << "  AddedFilesCount: " << mAddedFilesCount << std::endl;
+			std::cout << "  AddedFilesBlocksCount: " << mAddedFilesBlocksCount << std::endl;
+			std::cout << "  DeletedFilesCount: " << mDeletedFilesCount << std::endl;
+			std::cout << "  DeletedFilesBlocksCount: " << mDeletedFilesBlocksCount << std::endl;
+			std::cout << "  AddedDirectoriesCount: " << mAddedDirectoriesCount << std::endl;
+			std::cout << "  DeletedDirectoriesCount: " << mDeletedDirectoriesCount << std::endl;
+		}
 
 		bool HasChanges() {
 			return (mAddedFilesCount > 0 || mAddedDirectoriesCount > 0 || mDeletedFilesCount > 0 || mDeletedDirectoriesCount > 0);

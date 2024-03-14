@@ -27,6 +27,7 @@
 #include "StoreStructure.h"
 
 #include "MemLeakFindOn.h"
+#include <RaidFileController.h>
 
 
 // --------------------------------------------------------------------------
@@ -576,6 +577,85 @@ void BackupStoreCheck::FixDirsWithLostDirs()
 		root.Commit(true /* convert to raid now */);
 	}
 }
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupStoreCheck::WriteNewBackupsList()
+//		Purpose: Regenerate or correct the backups list if needed
+//		Created: 2024/03/14
+//
+// --------------------------------------------------------------------------
+void BackupStoreCheck::WriteNewBackupsList()
+{
+	if(!mFixErrors)
+	{
+		// Don't do anything if we're not supposed to fix errors
+		return;
+	}
+
+	try {
+		BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mDiscSetNumber, mStoreRoot, 1));
+
+		std::vector<SessionInfos> &newList = mBackupsList.GetList();
+		bool changed = false;
+		for(std::vector<SessionInfos>::iterator i = newList.begin(); i != newList.end(); ++i)
+		{
+			SessionInfos *pOld = list.Get(i->GetStartTime());
+			if(pOld->GetAddedFilesCount() != i->GetAddedFilesCount() )
+			{
+				printf("Added files count changed from %d to %d %lld\n", pOld->GetAddedFilesCount(), i->GetAddedFilesCount(), i->GetStartTime());
+				changed = true;
+				pOld->SetAddedFilesCount(i->GetAddedFilesCount());
+			}
+
+			if(pOld->GetAddedFilesBlocksCount() != i->GetAddedFilesBlocksCount() )
+			{
+				changed = true;
+				pOld->SetAddedFilesBlocksCount(i->GetAddedFilesBlocksCount());
+			}
+
+			if(pOld->GetDeletedFilesCount() != i->GetDeletedFilesCount() )
+			{
+				changed = true;
+				pOld->SetDeletedFilesCount(i->GetDeletedFilesCount());
+			}
+			
+			if(pOld->GetDeletedFilesBlocksCount() != i->GetDeletedFilesBlocksCount() )
+			{
+				changed = true;
+				pOld->SetDeletedFilesBlocksCount(i->GetDeletedFilesBlocksCount());
+			}
+
+			if(pOld->GetAddedDirectoriesCount() != i->GetAddedDirectoriesCount() )
+			{
+				changed = true;
+				pOld->SetAddedDirectoriesCount(i->GetAddedDirectoriesCount());
+			}
+
+			if(pOld->GetDeletedDirectoriesCount() != i->GetDeletedDirectoriesCount() )
+			{
+				changed = true;
+				pOld->SetDeletedDirectoriesCount(i->GetDeletedDirectoriesCount());
+			}
+
+		}
+
+		if(changed)
+		{
+			list.Save();
+		}
+	} catch (...)
+	{
+		BOX_ERROR("Load of existing backups list failed, regenerating.");
+		mBackupsList.Save(RaidFileController::DiscSetPathToFileSystemPath(mDiscSetNumber, mStoreRoot, 1));
+	}
+
+
+
+}
+
 
 
 // --------------------------------------------------------------------------
