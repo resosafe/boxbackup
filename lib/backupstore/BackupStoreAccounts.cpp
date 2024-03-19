@@ -669,8 +669,8 @@ int BackupStoreAccountsControl::PrintBackups(int32_t ID, std::string tz)
 	std::setw(15) << std::left << "[del. dirs]" << 
 	std::endl;
 
-	std::vector<SessionInfos>& sessions = list.GetList();
-	for (std::vector<SessionInfos>::iterator it = sessions.begin(); it != sessions.end(); ++it)
+	std::set<SessionInfos>& sessions = list.GetList();
+	for(auto it = sessions.begin(); it != sessions.end(); ++it)
 	{
 
 		if(tz == "utc")

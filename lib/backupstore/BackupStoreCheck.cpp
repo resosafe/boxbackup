@@ -950,12 +950,8 @@ void BackupStoreCheck::CountDirectoryEntries(BackupStoreDirectory& dir)
 			if(!en->IsDeleted() && !en->IsOld())
 			{
 				box_time_t backupTime = en->GetBackupTime();
-				printf("File %lld has backup time %lld\n", en->GetObjectID(), backupTime);
 				SessionInfos *infos = mBackupsList.Get(backupTime);
-				infos->Dump();
 				infos->RecordFileAdded(en->GetSizeInBlocks());
-				infos->Dump();
-				printf("----------------\n");
 				mNumCurrentFiles++;
 				mBlocksInCurrentFiles += en->GetSizeInBlocks();
 			}

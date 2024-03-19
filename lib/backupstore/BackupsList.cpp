@@ -73,31 +73,14 @@ BackupsList::~BackupsList()
 }
 
 
-// // --------------------------------------------------------------------------
-// //
-// // Function
-// //		Name:    BackupsList::Add
-// //		Purpose: Add a new backup to the list
-// //		Created: 2023/10/30
-// //
-// // --------------------------------------------------------------------------
-// void BackupsList::AddRecord(const std::string &rRootDir, SessionInfos &rInfos) 
-// {
-//     std::auto_ptr<IOStream> stream = OpenStream(rRootDir);
-//     stream->Seek(0, IOStream::SeekType_End);
-    
-//     // store the format version
-//     uint32_t magic = htonl(BACKUPLIST_MAGIC_VALUE_V1);
-//     stream->Write(&magic, sizeof(magic));
-//     rInfos.WriteToStream(*stream);
-	
-// }
-
-
-bool compareStartTimes(const SessionInfos &a, const SessionInfos &b) {
-    return a.GetStartTime() < b.GetStartTime();
-}
-
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupsList::AddRecord
+//		Purpose: Add a new backup to the list
+//		Created: 2023/10/30
+//
+// --------------------------------------------------------------------------
 void BackupsList::AddRecord(SessionInfos &rInfos) 
 {
     mList.insert(rInfos);
@@ -130,33 +113,20 @@ void BackupsList::Shift(int MaxCount)
 // --------------------------------------------------------------------------
 SessionInfos* BackupsList::Get(box_time_t StartTime) 
 {
-    auto it = mList.find(StartTime);
-    if(it != mList.end()) {
-        return &(*it);
+    SessionInfos tempInfo;
+    tempInfo.SetStart(StartTime);
+
+    // Try to find the SessionInfos object in the set
+    auto it = mList.find(tempInfo);
+
+    if (it != mList.end()) {
+        // If found, return a pointer to the existing object
+        return const_cast<SessionInfos*>(&(*it));
+    } else {
+        // If not found, insert a new SessionInfos object and return a pointer to it
+        std::pair<std::set<SessionInfos>::iterator, bool> insertResult = mList.insert(tempInfo);
+        return const_cast<SessionInfos*>(&(*insertResult.first));
     }
-    return NULL;
-
-
-
-
-//     for(std::vector<SessionInfos>::iterator it = mList.begin(); it != mList.end(); ++it) {
-//         if(it->GetStartTime() == StartTime) {
-//             return &(*it);
-//         }
-//     }
-
-//     SessionInfos infos;
-//     infos.SetStart(StartTime);
-//     mList.push_back(infos);
-//     SessionInfos* pInfos = &mList.back();
-//     // ensure that the list is always sorted by start time
-//     std::sort(mList.begin(), mList.end(), compareStartTimes);
-//  for(std::vector<SessionInfos>::iterator it = mList.begin(); it != mList.end(); ++it) {
-//         if(it->GetStartTime() == StartTime) {
-//             return &(*it);
-//         }
-//     }
-//     return NULL;
 }
 
 // --------------------------------------------------------------------------
@@ -171,7 +141,7 @@ SessionInfos* BackupsList::GetFirst()
 {
     // get the first (oldest record)  
     if(mList.size() > 0) {
-        return &mList[0];
+        return const_cast<SessionInfos*>(&(*mList.begin()));
     }
     return NULL; 
 }
@@ -204,7 +174,7 @@ void BackupsList::ReadFromStream(IOStream &rStream, int Timeout)
 
         SessionInfos infos;
         infos.ReadFromStream(rStream, Timeout);
-        mList.push_back(infos);
+        mList.insert(infos);
     }
 }
 
@@ -251,11 +221,13 @@ void BackupsList::WriteToStream(IOStream &rStream, int Timeout)
     uint32_t magic = htonl(BACKUPLIST_FILE_MAGIC_V1);
     rStream.Write(&magic, sizeof(magic));
 
-    for(std::vector<SessionInfos>::iterator it = mList.begin(); it != mList.end(); ++it) {
+    for(auto it = mList.begin(); it != mList.end(); ++it) {
         uint32_t magic = htonl(BACKUPLIST_MAGIC_VALUE_V1);
         rStream.Write(&magic, sizeof(magic), Timeout);
-        it->WriteToStream(rStream, Timeout);
+        (const_cast<SessionInfos*>(&(*it)))->WriteToStream(rStream, Timeout);
     }
+
+
 }
 
 

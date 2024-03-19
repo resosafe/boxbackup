@@ -595,60 +595,80 @@ void BackupStoreCheck::WriteNewBackupsList()
 		return;
 	}
 
+	std::set<SessionInfos> &newList = mBackupsList.GetList();
+
 	try {
 		BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mDiscSetNumber, mStoreRoot, 1));
-
-		std::vector<SessionInfos> &newList = mBackupsList.GetList();
+	
 		bool changed = false;
-		for(std::vector<SessionInfos>::iterator i = newList.begin(); i != newList.end(); ++i)
+
+		for(auto it = newList.begin(); it != newList.end(); ++it) 
 		{
-			SessionInfos *pOld = list.Get(i->GetStartTime());
-			if(pOld->GetAddedFilesCount() != i->GetAddedFilesCount() )
+			SessionInfos *pOld = list.Get(it->GetStartTime());
+
+			if(pOld->GetAddedFilesCount() != it->GetAddedFilesCount() )
 			{
-				printf("Added files count changed from %d to %d %lld\n", pOld->GetAddedFilesCount(), i->GetAddedFilesCount(), i->GetStartTime());
 				changed = true;
-				pOld->SetAddedFilesCount(i->GetAddedFilesCount());
+				pOld->SetAddedFilesCount(it->GetAddedFilesCount());
 			}
 
-			if(pOld->GetAddedFilesBlocksCount() != i->GetAddedFilesBlocksCount() )
+			if(pOld->GetAddedFilesBlocksCount() != it->GetAddedFilesBlocksCount() )
 			{
 				changed = true;
-				pOld->SetAddedFilesBlocksCount(i->GetAddedFilesBlocksCount());
+				pOld->SetAddedFilesBlocksCount(it->GetAddedFilesBlocksCount());
 			}
 
-			if(pOld->GetDeletedFilesCount() != i->GetDeletedFilesCount() )
+			if(pOld->GetDeletedFilesCount() != it->GetDeletedFilesCount() )
 			{
 				changed = true;
-				pOld->SetDeletedFilesCount(i->GetDeletedFilesCount());
+				pOld->SetDeletedFilesCount(it->GetDeletedFilesCount());
 			}
 			
-			if(pOld->GetDeletedFilesBlocksCount() != i->GetDeletedFilesBlocksCount() )
+			if(pOld->GetDeletedFilesBlocksCount() != it->GetDeletedFilesBlocksCount() )
 			{
 				changed = true;
-				pOld->SetDeletedFilesBlocksCount(i->GetDeletedFilesBlocksCount());
+				pOld->SetDeletedFilesBlocksCount(it->GetDeletedFilesBlocksCount());
 			}
 
-			if(pOld->GetAddedDirectoriesCount() != i->GetAddedDirectoriesCount() )
+			if(pOld->GetAddedDirectoriesCount() != it->GetAddedDirectoriesCount() )
 			{
 				changed = true;
-				pOld->SetAddedDirectoriesCount(i->GetAddedDirectoriesCount());
+				pOld->SetAddedDirectoriesCount(it->GetAddedDirectoriesCount());
 			}
 
-			if(pOld->GetDeletedDirectoriesCount() != i->GetDeletedDirectoriesCount() )
+			if(pOld->GetDeletedDirectoriesCount() != it->GetDeletedDirectoriesCount() )
 			{
 				changed = true;
-				pOld->SetDeletedDirectoriesCount(i->GetDeletedDirectoriesCount());
+				pOld->SetDeletedDirectoriesCount(it->GetDeletedDirectoriesCount());
+			}
+
+			if(pOld->GetEndTime()<= pOld->GetStartTime())
+			{
+				changed = true;
+				pOld->SetEnd(pOld->GetStartTime()+1000);
 			}
 
 		}
 
 		if(changed)
 		{
+			BOX_INFO("Changes were made into the backups list. Saving...");
 			list.Save();
 		}
 	} catch (...)
 	{
-		BOX_ERROR("Load of existing backups list failed, regenerating.");
+		BOX_INFO("Load of existing backups list failed, regenerating.");
+		std::set<SessionInfos> updatedList;
+
+		for (const auto& info : newList) {
+			SessionInfos updatedInfo = info;
+			updatedInfo.SetEnd(updatedInfo.GetStartTime() + 1000);
+			updatedList.insert(updatedInfo);
+		}
+
+		newList = std::move(updatedList);
+
+		
 		mBackupsList.Save(RaidFileController::DiscSetPathToFileSystemPath(mDiscSetNumber, mStoreRoot, 1));
 	}
 

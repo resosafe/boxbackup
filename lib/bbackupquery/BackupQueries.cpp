@@ -2800,8 +2800,9 @@ void BackupQueries::CommandListBackups(const bool *opts)
 	std::auto_ptr<IOStream> stream(mrConnection.ReceiveStream());
 	list.ReadFromStream(*stream, mrConnection.GetTimeout());
 
-	std::vector<SessionInfos>& sessions = list.GetList();
-	for (std::vector<SessionInfos>::iterator it = sessions.begin(); it != sessions.end(); ++it)
+	std::set<SessionInfos>& sessions = list.GetList();
+	
+	for(auto it = sessions.begin(); it != sessions.end(); ++it) 
 	{
 		if(opts[LIST_OPTION_TIMES_UTC])
 		{

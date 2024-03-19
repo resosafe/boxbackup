@@ -56,6 +56,10 @@ class SessionInfos {
 			return GetStartTime() < other.GetStartTime();
 		}
 		
+		bool operator<(const box_time_t other) const {
+			return GetStartTime() < other;
+		}
+
 		box_time_t ElapsedTime() { return GetCurrentBoxTime() - mStartTime; }
 		const box_time_t GetStartTime() const { return mStartTime; }
 		const box_time_t GetEndTime() const { return mEndTime; }
@@ -95,17 +99,17 @@ class SessionInfos {
 		void RecordDirectoryDeleted() { mDeletedDirectoriesCount++; }
 
 		
-		uint64_t GetAddedFilesCount() { return mAddedFilesCount; }
+		const uint64_t GetAddedFilesCount() const { return mAddedFilesCount; }
 		void SetAddedFilesCount(uint64_t count) { mAddedFilesCount = count; }
-		uint64_t GetAddedFilesBlocksCount() { return mAddedFilesBlocksCount; }
+		const uint64_t GetAddedFilesBlocksCount() const { return mAddedFilesBlocksCount; }
 		void SetAddedFilesBlocksCount(uint64_t count) { mAddedFilesBlocksCount = count; }
-		uint64_t GetDeletedFilesCount() { return mDeletedFilesCount; }
+		const uint64_t GetDeletedFilesCount() const { return mDeletedFilesCount; }
 		void SetDeletedFilesCount(uint64_t count) { mDeletedFilesCount = count; }
-		uint64_t GetDeletedFilesBlocksCount() { return mDeletedFilesBlocksCount; }
+		const uint64_t GetDeletedFilesBlocksCount() const { return mDeletedFilesBlocksCount; }
 		void SetDeletedFilesBlocksCount(uint64_t count) { mDeletedFilesBlocksCount = count; }
-		uint64_t GetAddedDirectoriesCount() { return mAddedDirectoriesCount; }
+		const uint64_t GetAddedDirectoriesCount() const { return mAddedDirectoriesCount; }
 		void SetAddedDirectoriesCount(uint64_t count) { mAddedDirectoriesCount = count; }
-		uint64_t GetDeletedDirectoriesCount() { return mDeletedDirectoriesCount; }
+		const uint64_t GetDeletedDirectoriesCount() const { return mDeletedDirectoriesCount; }
 		void SetDeletedDirectoriesCount(uint64_t count) { mDeletedDirectoriesCount = count; }
 
 
