@@ -1980,7 +1980,10 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 							rParams.mrContext.SetStorageLimitExceeded();
 							rParams.mrSysadminNotifier.NotifySysadmin(
 								SysadminNotifier::StoreFull);
-							break;
+							// return an error code instead of
+							// throwing an exception that we
+							// can't debug.
+							return 0;
 
 						case BackupProtocolError::Err_CannotResumeUpload:
 							BOX_ERROR("Failed to resume backup. Starting from the beginning");
