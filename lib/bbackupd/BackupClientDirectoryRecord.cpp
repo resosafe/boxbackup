@@ -235,8 +235,8 @@ void BackupClientDirectoryRecord::SyncDirectory(
 	
 	// Read directory entries, building arrays of names
 	// First, need to read the contents of the directory.
-	std::vector<std::string> dirs;
-	std::vector<std::string> files;
+	std::set<std::string> dirs;
+	std::set<std::string> files;
 	bool downloadDirectoryRecordBecauseOfFutureFiles = false;
 
 	// BLOCK
@@ -445,8 +445,8 @@ bool BackupClientDirectoryRecord::SyncDirectoryEntry(
 	MD5Digest& currentStateChecksum,
 	struct dirent *en,
 	EMU_STRUCT_STAT dir_st,
-	std::vector<std::string>& rDirs,
-	std::vector<std::string>& rFiles,
+	std::set<std::string>& rDirs,
+	std::set<std::string>& rFiles,
 	bool& rDownloadDirectoryRecordBecauseOfFutureFiles)
 {
 	std::string entry_name = en->d_name;
@@ -480,6 +480,8 @@ bool BackupClientDirectoryRecord::SyncDirectoryEntry(
 		type = S_IFREG;
 	}
 #else // !WIN32
+
+	
 	if(EMU_LSTAT(filename.c_str(), &file_st) != 0)
 	{
 		// We don't know whether it's a file or a directory, so check
@@ -501,14 +503,11 @@ bool BackupClientDirectoryRecord::SyncDirectoryEntry(
 		return false;
 	}
 
-	BOX_TRACE("Stat entry '" << filename << "' found device/inode " <<
-		file_st.st_dev << "/" << file_st.st_ino);
+	int type = file_st.st_mode & S_IFMT;
 
 	// Workaround for apparent btrfs bug, where symlinks appear to be on
 	// a different filesystem than their containing directory, thanks to
 	// Toke Hoiland-Jorgensen.
-
-	int type = file_st.st_mode & S_IFMT;
 	if(type == S_IFDIR && file_st.st_dev != dir_st.st_dev)
 	{
 		if(!(rParams.mrContext.ExcludeDir(filename)))
@@ -517,6 +516,50 @@ bool BackupClientDirectoryRecord::SyncDirectoryEntry(
 		}
 		return false;
 	}
+
+
+	// if it's a link, stat the link target
+	if(type == S_IFLNK && rBackupLocation.mDereferenceLinks )
+	{
+		char path[PATH_MAX+4];
+		int readlink_ret = ::readlink(filename.c_str(), path, sizeof(path));
+		if(readlink_ret == -1)
+		{
+			// Report the error (logs and eventual email to administrator)
+			rNotifier.NotifyFileStatFailed(this, filename,
+				strerror(errno));
+
+			// FIXME move to NotifyFileStatFailed()
+			SetErrorWhenReadingFilesystemObject(rParams, filename);
+
+			// Ignore this entry for now.
+			return false;
+		}
+
+		// Null-terminate the link target
+		path[readlink_ret] = '\0';
+
+		// Stat the link target
+		if(EMU_STAT(path, &file_st) != 0)
+		{
+
+			// Report the error (logs and eventual email to administrator)
+			rNotifier.NotifyFileStatFailed(this, filename,
+				strerror(errno));
+
+			// FIXME move to NotifyFileStatFailed()
+			SetErrorWhenReadingFilesystemObject(rParams, filename);
+
+			// Ignore this entry for now.
+			return false;
+		}
+	}
+
+	BOX_TRACE("Stat entry '" << filename << "' found device/inode " <<
+		file_st.st_dev << "/" << file_st.st_ino);
+
+	type = file_st.st_mode & S_IFMT;
+	
 #endif
 
 	if(type == S_IFREG || type == S_IFLNK)
@@ -534,7 +577,6 @@ bool BackupClientDirectoryRecord::SyncDirectoryEntry(
 	else if(type == S_IFDIR)
 	{
 		// Directory
-
 		// Exclude it?
 		if(rParams.mrContext.ExcludeDir(realFileName))
 		{
@@ -642,11 +684,11 @@ bool BackupClientDirectoryRecord::SyncDirectoryEntry(
 	// We've decided to back it up, so add to file or directory list.
 	if(type == S_IFREG || type == S_IFLNK)
 	{
-		rFiles.push_back(entry_name);
+		rFiles.insert(entry_name);
 	}
 	else if(type == S_IFDIR)
 	{
-		rDirs.push_back(entry_name);
+		rDirs.insert(entry_name);
 	}
 
 	return true;
@@ -787,8 +829,8 @@ bool BackupClientDirectoryRecord::UpdateItems(
 	const Location& rBackupLocation,
 	BackupStoreDirectory *pDirOnStore,
 	std::vector<BackupStoreDirectory::Entry *> &rEntriesLeftOver,
-	std::vector<std::string> &rFiles,
-	const std::vector<std::string> &rDirs)
+	std::set<std::string> &rFiles,
+	const std::set<std::string> &rDirs)
 {
 	BackupClientContext& rContext(rParams.mrContext);
 	ProgressNotifier& rNotifier(rContext.GetProgressNotifier());
@@ -826,7 +868,7 @@ bool BackupClientDirectoryRecord::UpdateItems(
 	}
 
 	// Do files
-	for(std::vector<std::string>::const_iterator f = rFiles.begin();
+	for(std::set<std::string>::const_iterator f = rFiles.begin();
 		f != rFiles.end(); ++f)
 	{
 		// Send keep-alive message if needed
@@ -844,19 +886,42 @@ bool BackupClientDirectoryRecord::UpdateItems(
 		InodeRefType inodeNum = 0;
 		// BLOCK
 		{
-			// Stat the file
+			
+			// if we need to resolve the link...
 			EMU_STRUCT_STAT st;
 			if(EMU_LSTAT(filename.c_str(), &st) != 0)
-			{
-				rNotifier.NotifyFileStatFailed(this, nonVssFilePath,
+			{	
+				// Report the error (logs and eventual email to administrator)
+				rNotifier.NotifyFileStatFailed(this, filename,
 					strerror(errno));
 
-				// Report the error (logs and
-				// eventual email to administrator)
-				SetErrorWhenReadingFilesystemObject(rParams, nonVssFilePath);
+				SetErrorWhenReadingFilesystemObject(rParams, filename);
 
 				// Ignore this entry for now.
 				continue;
+			}
+
+			// if it's a link, stat the link target
+			if((st.st_mode & S_IFMT) == S_IFLNK && rBackupLocation.mDereferenceLinks )
+			{
+				char path[PATH_MAX+4];
+				int readlink_ret = ::readlink(filename.c_str(), path, sizeof(path));
+				if(readlink_ret == -1 || EMU_STAT(filename.c_str(), &st) != 0 )
+				{	
+					// Report the error (logs and eventual email to administrator)
+					rNotifier.NotifyFileStatFailed(this, filename,
+						strerror(errno));
+
+					SetErrorWhenReadingFilesystemObject(rParams, filename);
+
+					// Ignore this entry for now.
+					continue;
+				}
+
+				// Null-terminate the link target
+				path[readlink_ret] = '\0';
+				filename = path;
+				nonVssFilePath = ConvertVssPathToRealPath(filename, rBackupLocation);
 			}
 			
 			// Extract required data
@@ -868,6 +933,8 @@ bool BackupClientDirectoryRecord::UpdateItems(
 
 		// See if it's in the listing (if we have one)
 		BackupStoreFilenameClear storeFilename(*f);
+
+
 		BackupStoreDirectory::Entry *en = NULL;
 		int64_t latestObjectID = 0;
 		if(pDirOnStore != NULL)
@@ -1277,7 +1344,7 @@ bool BackupClientDirectoryRecord::UpdateItems(
 	}
 	
 	// Do directories
-	for(std::vector<std::string>::const_iterator d = rDirs.begin();
+	for(std::set<std::string>::const_iterator d = rDirs.begin();
 		d != rDirs.end(); ++d)
 	{
 		// Send keep-alive message if needed
@@ -1287,6 +1354,46 @@ bool BackupClientDirectoryRecord::UpdateItems(
 		std::string dirname(MakeFullPath(rLocalPath, *d));
 		std::string nonVssDirPath = ConvertVssPathToRealPath(dirname,
 			rBackupLocation);
+
+		// if we need to resolve the link...
+		EMU_STRUCT_STAT st;
+		if(EMU_LSTAT(dirname.c_str(), &st) != 0)
+		{	
+			// Report the error (logs and eventual email to administrator)
+			rNotifier.NotifyFileStatFailed(this, dirname,
+				strerror(errno));
+
+			SetErrorWhenReadingFilesystemObject(rParams, dirname);
+
+			// Ignore this entry for now.
+			continue;
+		}
+		
+		// if it's a link, stat the link target
+		if((st.st_mode & S_IFMT) == S_IFLNK && rBackupLocation.mDereferenceLinks )
+		{
+			char path[PATH_MAX+4];
+			int readlink_ret = ::readlink(dirname.c_str(), path, sizeof(path));
+			if(readlink_ret == -1)
+			{
+				// Report the error (logs and eventual email to administrator)
+				rNotifier.NotifyFileStatFailed(this, dirname,
+					strerror(errno));
+
+				// FIXME move to NotifyFileStatFailed()
+				SetErrorWhenReadingFilesystemObject(rParams, dirname);
+
+				// Ignore this entry for now.
+				continue;
+			}
+
+			// Null-terminate the link target
+			path[readlink_ret] = '\0';
+			dirname = path;
+			std::string nonVssDirPath = ConvertVssPathToRealPath(dirname,
+				rBackupLocation);
+		}
+
 	
 		// See if it's in the listing (if we have one)
 		BackupStoreFilenameClear storeFilename(*d);
@@ -1877,7 +1984,18 @@ int64_t BackupClientDirectoryRecord::UploadFile(
 		else // No patch upload, so do a normal upload
 		{
 			// below threshold or nothing to diff from, so upload whole
-			rNotifier.NotifyFileUploading(this, rNonVssFilePath);
+
+			// if rNonVssFilePath does not contains rRemotePath
+			// this may be a link
+			if(rNonVssFilePath.find(rRemotePath) == std::string::npos) 
+			{
+				rNotifier.NotifyFileUploading(this, rNonVssFilePath + " as " + rRemotePath);
+			} 
+			else
+			{
+				rNotifier.NotifyFileUploading(this, rNonVssFilePath);
+			}
+
 			
 			// Prepare to upload, getting a stream which will encode the file as we go along
 			apStreamToUpload = BackupStoreFile::EncodeFile(

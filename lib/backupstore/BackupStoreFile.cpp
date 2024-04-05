@@ -1669,6 +1669,7 @@ bool BackupStoreFile::CompareFileContentsAgainstBlockIndex(const char *Filename,
 	bool sourceIsSymlink = false;
 	{
 		EMU_STRUCT_STAT st;
+		
 		if(EMU_LSTAT(Filename, &st) == -1)
 		{
 			THROW_EXCEPTION(CommonException, OSFileError)

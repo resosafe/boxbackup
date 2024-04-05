@@ -2846,6 +2846,12 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 		{
 			pLoc->mDoNotKeepDeletedFiles = rConfig.GetKeyValueBool("DoNotKeepDeletedFiles");
 		}
+
+		if(rConfig.KeyExists("DereferenceLinks"))
+		{
+			pLoc->mDereferenceLinks = rConfig.GetKeyValueBool("DereferenceLinks");
+		}
+
 		// Push it back on the vector of locations
 		mLocations.push_back(pLoc);
 

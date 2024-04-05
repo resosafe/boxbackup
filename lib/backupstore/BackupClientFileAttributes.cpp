@@ -348,8 +348,6 @@ bool BackupClientFileAttributes::Compare(const BackupClientFileAttributes &rAttr
 }
 
 
-
-
 // --------------------------------------------------------------------------
 //
 // Function
@@ -369,6 +367,7 @@ void BackupClientFileAttributes::ReadAttributes(const std::string& Filename,
 	box_time_t *pAttrModTime, int64_t *pFileSize,
 	InodeRefType *pInodeNumber, bool *pHasMultipleLinks)
 {
+
 	StreamableMemBlock *pnewAttr = 0;
 	try
 	{
