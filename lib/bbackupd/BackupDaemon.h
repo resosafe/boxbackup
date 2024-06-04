@@ -301,6 +301,7 @@ public:
 private:
 	int mState;		// what the daemon is currently doing
 	Locations mLocations;
+	std::vector<std::string> mLocationsAllowed;
 	std::vector<std::string> mIDMapMounts;
 	std::vector<BackupClientInodeToIDMap *> mCurrentIDMaps;
 	std::vector<BackupClientInodeToIDMap *> mNewIDMaps;

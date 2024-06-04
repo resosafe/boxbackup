@@ -350,7 +350,7 @@ void Protocol::EnsureBufferAllocated(int Size)
 #define READ_CHECK_BYTES_AVAILABLE(bytesRequired)								\
 	if((mReadOffset + (int)(bytesRequired)) > mValidDataSize)					\
 	{																			\
-		THROW_EXCEPTION(ConnectionException, Protocol_BadCommandRecieved)	\
+		THROW_EXCEPTION_MESSAGE(ConnectionException, Protocol_BadCommandRecieved, "(old protocol version?)")	\
 	}
 
 // --------------------------------------------------------------------------
@@ -660,7 +660,6 @@ std::auto_ptr<IOStream> Protocol::ReceiveStream()
 			new PartialReadStream(*mapConn, streamSize));
 	}
 }
-#include <iostream>
 
 // --------------------------------------------------------------------------
 //

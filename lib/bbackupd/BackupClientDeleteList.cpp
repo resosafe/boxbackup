@@ -113,7 +113,6 @@ void BackupClientDeleteList::AddFileDelete(int64_t DirectoryID,
 }
 
 
-	
 // --------------------------------------------------------------------------
 //
 // Function
@@ -139,6 +138,7 @@ void BackupClientDeleteList::PerformDeletions(BackupClientContext &rContext, con
 		i != mDirectoryList.end(); ++i)
 	{
 		connection.QueryDeleteDirectory(i->mObjectID, 0, rBackupLocation.mDoNotKeepDeletedFiles);
+		
 		rContext.GetProgressNotifier().NotifyDirectoryDeleted(
 			i->mObjectID, i->mLocalPath);
 	}

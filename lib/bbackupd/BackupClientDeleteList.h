@@ -12,7 +12,6 @@
 
 #include "BackupStoreFilename.h"
 #include "BackupClientDirectoryRecord.h"
-
 class BackupClientContext;
 
 #include <vector>

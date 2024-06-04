@@ -17,6 +17,7 @@
 #include "BackupStoreException.h"
 #include "BackupStoreFile.h"
 #include "BackupStoreInfo.h"
+#include "BackupsList.h"
 #include "BackupStoreObjectMagic.h"
 #include "BackupStoreFileResumeInfo.h"
 #include "BufferedStream.h"
@@ -65,6 +66,7 @@ BackupStoreContext::BackupStoreContext(int32_t ClientID,
   mStoreDiscSet(-1),
   mReadOnly(true),
   mSaveStoreInfoDelay(STORE_INFO_SAVE_DELAY),
+  mProtocolVersion(PROTOCOL_CURRENT_VERSION),
   mpTestHook(NULL)// If you change the initialisers, be sure to update
 // BackupStoreContext::ReceivedFinishCommand as well!
 {
@@ -113,6 +115,16 @@ void BackupStoreContext::CleanUp()
 	{
 		mapStoreInfo->Save();
 	}
+
+	mSessionInfos.SetEnd();
+	// If some changes were recorded, this is a backup that will be recorded
+	if(mSessionInfos.HasChanges()) {
+		BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, this->GetAccountRoot(), 1));
+		list.AddRecord(mSessionInfos);
+		list.Save();
+	}
+
+	
 }
 
 
@@ -549,8 +561,6 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		THROW_EXCEPTION(BackupStoreException, CannotResumeUpload);
 	}
 
-	
-
 	// Stream the file to disc
 	std::string fn;
 	MakeObjectFilename(id, fn, true /* make sure the directory it's in exists */);
@@ -559,11 +569,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 	bool reversedDiffIsCompletelyDifferent = false;
 	int64_t oldVersionNewBlocksUsed = 0;
 	BackupStoreInfo::Adjustment adjustment = {};
-	bool isVersionned = mapStoreInfo->GetVersionCountLimit()!=1;
 	IOStream::pos_type offset = 0;
-
-
-
 
 	try
 	{
@@ -664,7 +670,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 				BackupStoreFile::CombineFile(diff, diff2, *from, storeFile);
 				BOX_NOTICE("Diff CombineFile done");
 
-				if (isVersionned == false) {
+				if ( mapStoreInfo->GetVersionCountLimit()==1 ) {
 					// we'll keep only one version, dismiss the patch
 					adjustment.mBlocksUsed -= from->GetDiscUsageInBlocks();
 					adjustment.mBlocksInCurrentFiles -= from->GetDiscUsageInBlocks();
@@ -704,7 +710,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			}
 			catch(...)
 			{
-				// Be very paranoid about deleting this temp file -- we could only leave a zero byte file anyway
+				// Don't delete the tempFn here anymore, resume may be possible
 				// ::unlink(tempFn.c_str());
 				throw;
 			}
@@ -716,8 +722,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		adjustment.mBlocksInCurrentFiles += newObjectBlocksUsed;
 		adjustment.mNumCurrentFiles++;
 
-		mStatistics.mAddedFilesSize += newObjectBlocksUsed;
-		mStatistics.mAddedFilesCount++;
+		mSessionInfos.RecordFileAdded(newObjectBlocksUsed);
 
 		// Exceeds the hard limit?
 		int64_t newTotalBlocksUsed = mapStoreInfo->GetBlocksUsed() +
@@ -825,6 +830,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 
             int versionsCount=0;
             if ( mapStoreInfo->GetVersionCountLimit()>0 ) {
+				// automatic deletion of old versions may be needed
                 BackupStoreDirectory::Entry *oldestVersionToKeep=0;
                 for (std::list<BackupStoreDirectory::Entry*>::reverse_iterator it=oldEntries.rbegin(); it != oldEntries.rend(); ++it) {
 
@@ -837,6 +843,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
                         dir.DeleteEntry(objectID);
 
                         adjustment.mBlocksUsed -= oldSize;
+
                         adjustment.mBlocksInOldFiles -= oldSize;
                         adjustment.mNumOldFiles--;
 
@@ -866,7 +873,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 
 		// Then the new entry
 		BackupStoreDirectory::Entry *pnewEntry = dir.AddEntry(rFilename,
-			ModificationTime, id, newObjectBlocksUsed,
+			ModificationTime, GetSessionStartTime(), 0, id, newObjectBlocksUsed,
 			BackupStoreDirectory::Entry::Flags_File,
 			AttributesHash);
 
@@ -973,7 +980,8 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 		// Iterate through directory, only looking at files which haven't been deleted
 		BackupStoreDirectory::Iterator i(dir);
 		BackupStoreDirectory::Entry *e = 0;
-	// store a list of entry
+	
+		// store a list of entry
 		std::list<BackupStoreDirectory::Entry*> to_delete;
 
 		while((e = i.Next(BackupStoreDirectory::Entry::Flags_File)) != 0)
@@ -984,7 +992,8 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 
 				if(DeleteFromStore) 
 				{
-					to_delete.push_back(e);	
+					to_delete.push_back(e);
+					
 				}
 				else
 				{
@@ -1006,7 +1015,8 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 					if ( (Flags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0 ) {
 						e->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
 					} 
-
+					e->SetDeleteTime(GetSessionStartTime());
+					
 					// Mark as made a change
 					madeChanges = true;
 
@@ -1014,8 +1024,7 @@ bool BackupStoreContext::DeleteFile(const BackupStoreFilename &rFilename, int64_
 					mapStoreInfo->AdjustNumDeletedFiles(1);
 					mapStoreInfo->ChangeBlocksInDeletedFiles(blocks);
 
-					mStatistics.mDeletedFilesCount++;
-					mStatistics.mDeletedFilesSize += blocks;
+					mSessionInfos.RecordFileDeleted(blocks);
 
 					// We're marking all old versions as deleted.
 					// This is how a file can be old and deleted
@@ -1402,7 +1411,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 	// Then add it into the parent directory
 	try
 	{
-		dir.AddEntry(rFilename, ModificationTime, id, dirSize,
+		dir.AddEntry(rFilename, ModificationTime, GetSessionStartTime(), 0, id, dirSize,
 			BackupStoreDirectory::Entry::Flags_Dir,
 			0 /* attributes hash */);
 		SaveDirectory(dir);
@@ -1425,7 +1434,7 @@ int64_t BackupStoreContext::AddDirectory(int64_t InDirectory,
 
 	// Save the store info (may not be postponed)
 	mapStoreInfo->AdjustNumDirectories(1);
-	mStatistics.mAddedDirectoriesCount ++;
+	mSessionInfos.RecordDirectoryAdded();
 	SaveStoreInfo(false);
 
 	// tell caller what the ID was
@@ -1566,11 +1575,12 @@ void BackupStoreContext::DeleteDirectory(int64_t ObjectID, bool Undelete, uint16
 				// Done
 				break;
 			}
-		}	
+		}			
 
+		
 		// Update blocks deleted count
 		SaveStoreInfo(false);
-			mStatistics.mDeletedDirectoriesCount ++;
+		mSessionInfos.RecordDirectoryAdded();
 
 	}
 	catch(...)
@@ -1674,10 +1684,11 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete,
 					// Add/remove the deleted flags
 					if(Undelete)
 					{
-							en->RemoveFlags(BackupStoreDirectory::Entry::Flags_Deleted | BackupStoreDirectory::Entry::Flags_RemoveASAP);
+						en->RemoveFlags(BackupStoreDirectory::Entry::Flags_Deleted | BackupStoreDirectory::Entry::Flags_RemoveASAP);
 					}
 					else
 					{
+					
 						en->AddFlags(BackupStoreDirectory::Entry::Flags_Deleted);
 						if ( Flags & BackupStoreDirectory::Entry::Flags_RemoveASAP ) {
 							en->AddFlags(BackupStoreDirectory::Entry::Flags_RemoveASAP);
@@ -1687,7 +1698,11 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete,
 					// Did something
 					changesMade = true;
 				}
+
+				
 			}
+
+
 			BackupStoreInfo::Adjustment adjustment = {};
 
 			// for each entry to delete, delete it
@@ -1737,6 +1752,7 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete,
 				}
 
 				changesMade = true;
+
 			}
 
 			// Save the directory
@@ -1756,10 +1772,10 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete,
 				// Save the store info -- can cope if this exceptions because infomation
 				// will be rebuilt by housekeeping, and ID allocation can recover.
 				SaveStoreInfo(false);
-			
-
+				
 				SaveDirectory(dir);
 			}
+			
 		}
 	}
 	catch(...)
@@ -1778,7 +1794,7 @@ void BackupStoreContext::DeleteDirectoryRecurse(int64_t ObjectID, bool Undelete,
 //		Created: 2003/09/06
 //
 // --------------------------------------------------------------------------
-void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime)
+void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime, int64_t ModificationTime)
 {
 	if(mapStoreInfo.get() == 0)
 	{
@@ -1796,6 +1812,18 @@ void BackupStoreContext::ChangeDirAttributes(int64_t Directory, const Streamable
 
 		// Set attributes
 		dir.SetAttributes(Attributes, AttributesModTime);
+		
+		if (ModificationTime != 0) {
+				int64_t ContainerID = dir.GetContainerID();
+				BackupStoreDirectory& parent(
+					GetDirectoryInternal(ContainerID));
+			
+				BackupStoreDirectory::Entry* en =
+					parent.FindEntryByID(Directory);
+
+				en->SetModificationTime(ModificationTime);
+				SaveDirectory(parent);
+		}
 
 		// Save back
 		SaveDirectory(dir);
@@ -1872,6 +1900,49 @@ bool BackupStoreContext::ChangeFileAttributes(const BackupStoreFilename &rFilena
 	return true;
 }
 
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupStoreContext::GetObjectInfos(int64_t, bool&, int64_t&)
+//		Purpose: Gather some information about an object
+//		Created: 2024/01/26
+//
+// --------------------------------------------------------------------------
+void BackupStoreContext::GetObjectInfos(int64_t ObjectID, bool &rIsDirectory, int64_t &rContainerID)
+{
+	std::auto_ptr<IOStream> stream = OpenObject(ObjectID);
+	int32_t magic;
+	// read the magic number
+	if(!stream->ReadFullBuffer(&magic, sizeof(magic), 0))
+	{		
+		THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
+	}
+
+	// rewind
+	uint32_t magicValue = ntohl(magic);
+	stream->Seek(0, IOStream::SeekType_Absolute);
+
+	if( magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V0 || magicValue == OBJECTMAGIC_DIR_MAGIC_VALUE_V1)
+	{
+		// this is a directory
+		std::auto_ptr<BackupStoreDirectory> dir(new BackupStoreDirectory(stream));
+		rIsDirectory = true;
+		rContainerID = dir->GetContainerID();
+		
+	}
+	else if( magicValue == OBJECTMAGIC_FILE_MAGIC_VALUE_V0 || magicValue == OBJECTMAGIC_FILE_MAGIC_VALUE_V1)
+	{	
+		// a file
+		file_StreamFormat hdr=BackupStoreFile::GetHeader(*stream);
+		rIsDirectory = false;
+		rContainerID = box_ntoh64(hdr.mContainerID);
+
+	} else {
+		// unknown
+		THROW_EXCEPTION(BackupStoreException, BadBackupStoreFile)
+	}
+
+}
 
 // --------------------------------------------------------------------------
 //
@@ -1921,7 +1992,9 @@ bool BackupStoreContext::ObjectExists(int64_t ObjectID, int MustBe)
 		}
 
 #ifndef BOX_DISABLE_BACKWARDS_COMPATIBILITY_BACKUPSTOREFILE
-		if(MustBe == ObjectExists_File && ntohl(magic) == OBJECTMAGIC_FILE_MAGIC_VALUE_V0)
+		uint32_t requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V0:OBJECTMAGIC_DIR_MAGIC_VALUE_V0;
+
+		if(ntohl(magic) == requiredMagic)
 		{
 			// Old version detected
 			return true;
@@ -1929,7 +2002,7 @@ bool BackupStoreContext::ObjectExists(int64_t ObjectID, int MustBe)
 #endif
 
 		// Right one?
-		uint32_t requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V1:OBJECTMAGIC_DIR_MAGIC_VALUE;
+		requiredMagic = (MustBe == ObjectExists_File)?OBJECTMAGIC_FILE_MAGIC_VALUE_V1:OBJECTMAGIC_DIR_MAGIC_VALUE_V1;
 
 		// Check
 		if(ntohl(magic) != requiredMagic)

@@ -17,6 +17,7 @@
 	#include <sys/time.h>
 #endif
 
+#include "BackupConstants.h"
 #include "BoxPortsAndFiles.h"
 #include "BoxTime.h"
 #include "BackupClientContext.h"
@@ -191,7 +192,7 @@ BackupProtocolCallable &BackupClientContext::GetConnection()
 
 		// Login -- if this fails, the Protocol will exception
 		std::auto_ptr<BackupProtocolLoginConfirmed> loginConf(
-			mapConnection->QueryLogin(mAccountNumber, 0 /* read/write */));
+			mapConnection->QueryLogin(mAccountNumber, 0 /* read/write */, PROTOCOL_CURRENT_VERSION));
 
 		// Check that the client store marker is the one we expect
 		if(mClientStoreMarker != ClientStoreMarker_NotKnown)
@@ -416,27 +417,27 @@ BackupClientInodeToIDMap &BackupClientContext::GetNewIDMap() const
 //
 // --------------------------------------------------------------------------
 bool BackupClientContext::FindFilename(int64_t ObjectID, int64_t ContainingDirectory, std::string &rPathOut, bool &rIsDirectoryOut,
-	bool &rIsCurrentVersionOut, box_time_t *pModTimeOnServer, box_time_t *pAttributesHashOnServer, BackupStoreFilenameClear *pLeafname)
+	bool &rIsCurrentVersionOut, box_time_t *pModTimeOnServer, box_time_t *pBackupTime, box_time_t *pDeleteTime, box_time_t *pAttributesHashOnServer, BackupStoreFilenameClear *pLeafname)
 {
 	// Make a connection to the server
 	BackupProtocolCallable &connection(GetConnection());
 
 	// Request filenames from the server, in a "safe" manner to ignore errors properly
 	{
-		BackupProtocolGetObjectName send(ObjectID, ContainingDirectory);
+		BackupProtocolGetObjectName2 send(ObjectID, ContainingDirectory);
 		connection.Send(send);
 	}
 	std::auto_ptr<BackupProtocolMessage> preply(connection.Receive());
 
 	// Is it of the right type?
-	if(preply->GetType() != BackupProtocolObjectName::TypeID)
+	if(preply->GetType() != BackupProtocolObjectName2::TypeID)
 	{
 		// Was an error or something
 		return false;
 	}
 
 	// Cast to expected type.
-	BackupProtocolObjectName *names = (BackupProtocolObjectName *)(preply.get());
+	BackupProtocolObjectName2 *names = (BackupProtocolObjectName2 *)(preply.get());
 
 	// Anything found?
 	int32_t numElements = names->GetNumNameElements();
@@ -493,6 +494,9 @@ bool BackupClientContext::FindFilename(int64_t ObjectID, int64_t ContainingDirec
 
 	// And other information which may be required
 	if(pModTimeOnServer) *pModTimeOnServer = names->GetModificationTime();
+	if(pBackupTime) *pBackupTime = names->GetBackupTime();
+	if(pDeleteTime) *pDeleteTime = names->GetDeleteTime();
+
 	if(pAttributesHashOnServer) *pAttributesHashOnServer = names->GetAttributesHash();
 
 	// Tell caller about the pathname

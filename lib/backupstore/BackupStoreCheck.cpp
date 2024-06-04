@@ -150,6 +150,9 @@ void BackupStoreCheck::Check()
 	}
 	CheckRoot();
 
+	// TODO : consider checking the backup lists
+	// confront with the memory one
+
 	// Phase 4, check unattached objects
 	if(!mQuiet)
 	{
@@ -171,6 +174,7 @@ void BackupStoreCheck::Check()
 		BOX_INFO("Phase 6, regenerate store info...");
 	}
 	WriteNewStoreInfo();
+	WriteNewBackupsList();
 
 	try
 	{
@@ -564,7 +568,10 @@ bool BackupStoreCheck::CheckAndAddObject(int64_t ObjectID,
 			containerID = CheckFile(ObjectID, *file);
 			break;
 
-		case OBJECTMAGIC_DIR_MAGIC_VALUE:
+		case OBJECTMAGIC_DIR_MAGIC_VALUE_V1:
+#ifndef BOX_DISABLE_BACKWARDS_COMPATIBILITY_BACKUPSTOREFILE
+		case OBJECTMAGIC_DIR_MAGIC_VALUE_V0:
+#endif			
 			isFile = false;
 			containerID = CheckDirInitial(ObjectID, *file);
 			break;
@@ -920,10 +927,16 @@ void BackupStoreCheck::CountDirectoryEntries(BackupStoreDirectory& dir)
 			// wouldn't be here.
 			ASSERT(!badEntry)
 
+			
 			// It can be both old and deleted.
 			// If neither, then it's current.
 			if(en->IsDeleted())
 			{
+				box_time_t deleteTime = en->GetDeleteTime();
+				SessionInfos *infos = mBackupsList.Get(deleteTime);
+				infos->RecordFileDeleted(en->GetSizeInBlocks());
+
+
 				mNumDeletedFiles++;
 				mBlocksInDeletedFiles += en->GetSizeInBlocks();
 			}
@@ -936,6 +949,9 @@ void BackupStoreCheck::CountDirectoryEntries(BackupStoreDirectory& dir)
 
 			if(!en->IsDeleted() && !en->IsOld())
 			{
+				box_time_t backupTime = en->GetBackupTime();
+				SessionInfos *infos = mBackupsList.Get(backupTime);
+				infos->RecordFileAdded(en->GetSizeInBlocks());
 				mNumCurrentFiles++;
 				mBlocksInCurrentFiles += en->GetSizeInBlocks();
 			}

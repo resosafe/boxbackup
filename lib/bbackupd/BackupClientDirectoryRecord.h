@@ -13,6 +13,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <set>
 
 #include "BackgroundTask.h"
 #include "BackupClientFileAttributes.h"
@@ -149,8 +150,8 @@ public:
 		MD5Digest& currentStateChecksum,
 		struct dirent *en,
 		EMU_STRUCT_STAT dir_st,
-		std::vector<std::string>& rDirs,
-		std::vector<std::string>& rFiles,
+		std::set<std::string>& rDirs,
+		std::set<std::string>& rFiles,
 		bool& rDownloadDirectoryRecordBecauseOfFutureFiles);
 
 	std::string ConvertVssPathToRealPath(const std::string &rVssPath,
@@ -172,8 +173,8 @@ protected: // to allow tests to hook in before UpdateItems() runs
 		const Location& rBackupLocation,
 		BackupStoreDirectory *pDirOnStore,
 		std::vector<BackupStoreDirectory::Entry *> &rEntriesLeftOver,
-		std::vector<std::string> &rFiles,
-		const std::vector<std::string> &rDirs);
+		std::set<std::string> &rFiles,
+		const std::set<std::string> &rDirs);
 
 private:
 	BackupStoreDirectory::Entry* CheckForRename(BackupClientContext& context,
@@ -237,6 +238,7 @@ public:
 	std::auto_ptr<ExcludeList> mapExcludeFiles;
 	std::auto_ptr<ExcludeList> mapExcludeDirs;
 	bool mDoNotKeepDeletedFiles;
+	bool mDereferenceLinks;
 	int mIDMapIndex;
 
 #ifdef ENABLE_VSS

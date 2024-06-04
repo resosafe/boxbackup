@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <vector>
 
+#include "BackupConstants.h"
 #include "autogen_BackupProtocol.h"
 #include "BoxPortsAndFiles.h"
 #include "BackupStoreAccounts.h"
@@ -36,7 +37,7 @@ bool create_account(int soft, int hard)
 	BackupStoreAccountsControl control(*config);
 	
 	Logger::LevelGuard guard(Logging::GetConsole(), Log::WARNING);
-    int result = control.CreateAccount(0x01234567, 0, soft, hard, 0);
+    int result = control.CreateAccount(0x01234567, 0, soft, hard, 0, 0);
 	TEST_EQUAL(0, result);
 	return (result == 0);
 }
@@ -116,7 +117,7 @@ std::auto_ptr<BackupProtocolCallable> connect_and_login(TLSContext& rContext,
 		connect_to_bbstored(rContext);
 
 	// Login
-	protocol->QueryLogin(0x01234567, flags);
+	protocol->QueryLogin(0x01234567, flags, PROTOCOL_CURRENT_VERSION);
 
 	return protocol;
 }

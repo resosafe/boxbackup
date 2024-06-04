@@ -34,7 +34,7 @@ private:
 	BackupStoreAccounts(const BackupStoreAccounts &rToCopy);
 
 public:
-	void Create(int32_t ID, int DiscSet, int64_t SizeSoftLimit,
+	void Create(int32_t ID, int32_t Options, int DiscSet, int64_t SizeSoftLimit,
         int64_t SizeHardLimit, int32_t VersionsLimit, const std::string &rAsUsername);
 
 	bool AccountExists(int32_t ID);
@@ -69,15 +69,18 @@ public:
 		int &rDiscSetOut, std::auto_ptr<UnixUser> apUser, NamedLock* pLock);
 	int SetLimit(int32_t ID, const char *SoftLimitStr,
         const char *HardLimitStr, const char *VersionsLimitStr="0");
+	int SetOptions(int32_t ID, int32_t Options, bool fix);
 	int SetAccountName(int32_t ID, const std::string& rNewAccountName);
 	int PrintAccountInfo(int32_t ID);
 	int SetAccountEnabled(int32_t ID, bool enabled);
 	int DeleteAccount(int32_t ID, bool AskForConfirmation);
 	int CheckAccount(int32_t ID, bool FixErrors, bool Quiet,
 		bool ReturnNumErrorsFound = false);
-    int CreateAccount(int32_t ID, int32_t DiscNumber, int64_t SoftLimit,
+    int CreateAccount(int32_t ID, int32_t Options, int32_t DiscNumber, int64_t SoftLimit,
         int64_t HardLimit, int32_t VersionsLimit);
 	int HousekeepAccountNow(int32_t ID,  int32_t flags);
+	int PrintBackups(int32_t ID, std::string tz);
+
 };
 
 // max size of soft limit as percent of hard limit

@@ -29,10 +29,12 @@ All directory names relative to a "current" directory, or from root if they
 start with '/'. The initial directory is always the root directory.
 
 
-> ls [options] [directory-name]
+> ls [options] [timestamp] [directory-name]
 
 	List contents of current directory, or specified directory.
-	
+		
+	-P -- snapshot time (timestamp must be specified)
+	-i -- directory name is actually an ID
 	-R -- recursively list all files
 	-d -- list deleted files/directories
 	-o -- list old versions of files/directories
@@ -41,12 +43,14 @@ start with '/'. The initial directory is always the root directory.
 	-t -- show file modification time in local time
 	      (and attr mod time if has the object has attributes, ~ separated)
 	-T -- show file modification time in GMT
+	-B -- show backup time (based on the file modification format or GMT by default)
+	-X -- show delete time (based on the file modification format or GMT by default)
 	-a -- show updated attribute instead of file modification time
 	-s -- show file size in blocks used on server
 	      (only very approximate indication of size locally)
 	-h -- show file attributes hash
 	-D -- sort directories together with files (not dirs first)
-	-i -- sort by object ID (the old default)
+	-O -- sort by object ID (the old default)
 	-S -- sort by object size in blocks
 	-U -- don't sort the results (new default is to sort by name)
 
@@ -56,6 +60,30 @@ list can be used as an alias.
 > list
 
 	Alias for 'ls'. Type 'help ls' for options.
+<
+
+> search [options] [timestamp] [directory-name] <pattern>
+
+	Search for objects in current directory, or specified directory.
+		
+	-P -- snapshot time (timestamp must be specified)
+	-i -- directory name is actually an ID
+	-R -- recursive search
+	-d -- search deleted files/directories
+	-o -- search old versions of files/directories
+	-I -- don't display object ID
+	-F -- don't display flags
+	-t -- show file modification time in local time
+	      (and attr mod time if has the object has attributes, ~ separated)
+	-T -- show file modification time in GMT
+	-B -- show backup time (based on the file modification format or GMT by default)
+	-X -- show delete time (based on the file modification format or GMT by default)
+	-a -- show updated attribute instead of file modification time
+	-s -- show file size in blocks used on server
+	      (only very approximate indication of size locally)
+	-C -- case sensitive
+	-r -- treat the pattern as a regex
+
 <
 
 > cd [options] <directory-name>
@@ -123,11 +151,11 @@ compare <store-dir-name> <local-dir-name>
 	This can be used for automated tests.
 <
 
-> restore [-darif] <directory-name> [<local-directory-name>]
+> restore [-darifcF] [timestamp] <object-name> [<local-path>]
 
-	Restores a directory to the local disc. The local directory specified
+	Restores an object (file or directory) to the local disc. The local path specified
 	must not exist (unless a previous restore is being restarted). If the
-	local directory is omitted, the default is to restore to the same
+	local path is omitted, the default is to restore to the same
 	directory name and path, relative to the current local directory,
 	as set with the "lcd" command.
 
@@ -136,8 +164,12 @@ compare <store-dir-name> <local-dir-name>
 	-d -- restore a deleted directory or deleted files inside
 	-a -- restore both deleted and not-deleted files or directory
 	-r -- resume an interrupted restoration
-	-i -- directory name is actually an ID
+	-i -- object-name is actually an ID
+	-P -- snapshot time (timestamp must be specified)
 	-f -- force restore to continue if errors are encountered
+	-c -- create parent directories if needed
+	-o -- restore to the original object path
+	-p -- recreate the original full path in the destination (not with -o option)
 
 	If a restore operation is interrupted for any reason, it can be restarted
 	using the -r switch. Restore progress information is saved in a file at
@@ -170,6 +202,19 @@ compare <store-dir-name> <local-dir-name>
 	After a while, you would expect to see the usage stay at just below the
 	soft limit. You only need more space if the space used by old and deleted
 	files is near zero.
+<
+
+> lsbackups [options]
+
+	List the backups 
+
+	-t -- show times in local time
+	-T -- show times in GMT
+<
+
+> listbackups
+
+	Alias for 'lsbackups'. Type 'help lsbackups' for options.
 <
 
 > undelete <directory-name>

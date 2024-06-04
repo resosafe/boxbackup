@@ -15,7 +15,7 @@
 #include <vector>
 
 #include "BackupStoreInfo.h"
-
+#include "BackupStoreContext.h"
 #include "BackupStoreRefCountDatabase.h"
 
 class BackupStoreDirectory;
@@ -44,29 +44,33 @@ public:
 		RemoveDeleted=0x1,
 		RemoveOldVersions=0x2,
 		DisableAutoClean=0x4,
+		FixForSnapshotMode=0x8,
+		ForceDeleteEmptyDirectories=0x10,
 	}ActionFlags;
 
 	HousekeepStoreAccount(int AccountID, const std::string &rStoreRoot,
 		int StoreDiscSet, HousekeepingCallback* pHousekeepingCallback);
 	~HousekeepStoreAccount();
 	
-	bool DoHousekeeping(int32_t flags=DefaultAction, bool KeepTryingForever = false);
+	bool DoHousekeeping(int32_t flags=DefaultAction, bool KeepTryingForever = false, bool lock = true);
 	int GetErrorCount() { return mErrorCount; }
+	SessionInfos& GetNewSessionsInfos() { return mNewSessionsInfos; }
 	
 private:
 	// utility functions
 	void MakeObjectFilename(int64_t ObjectID, std::string &rFilenameOut);
 
-	bool ScanDirectory(int32_t flags, int64_t ObjectID, BackupStoreInfo& rBackupStoreInfo);
+	bool ScanDirectory(int32_t flags, box_time_t SnapshotTime, int64_t ObjectID, BackupStoreInfo& rBackupStoreInfo);
 	bool DeleteFiles(BackupStoreInfo& rBackupStoreInfo);
-	bool DeleteEmptyDirectories(BackupStoreInfo& rBackupStoreInfo);
+	bool DeleteEmptyDirectories(BackupStoreInfo& rBackupStoreInfo, bool ForceDelete = false);
 	void DeleteEmptyDirectory(int64_t dirId, std::vector<int64_t>& rToExamine,
-		BackupStoreInfo& rBackupStoreInfo);
+		BackupStoreInfo& rBackupStoreInfo, bool ForceDelete = false);
 	BackupStoreRefCountDatabase::refcount_t DeleteFile(int64_t InDirectory,
 		int64_t ObjectID,
 		BackupStoreDirectory &rDirectory,
 		const std::string &rDirectoryFilename,
-		BackupStoreInfo& rBackupStoreInfo);
+		BackupStoreInfo& rBackupStoreInfo,
+		bool ForceDelete = false);
 	void UpdateDirectorySize(BackupStoreDirectory &rDirectory,
 		IOStream::pos_type new_size_in_blocks);
 
@@ -117,6 +121,10 @@ private:
 	// Deletion count
 	int64_t mFilesDeleted;
 	int64_t mEmptyDirectoriesDeleted;
+
+	// Store informations about the changes made from FixForSnapshotMode
+	SessionInfos mNewSessionsInfos; 
+
 
 	// New reference count list
 	std::auto_ptr<BackupStoreRefCountDatabase> mapNewRefs;

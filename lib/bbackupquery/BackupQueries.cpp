@@ -39,6 +39,7 @@
 #include "BackupStoreDirectory.h"
 #include "BackupStoreException.h"
 #include "BackupStoreFile.h"
+#include "BackupsList.h"
 #include "BackupStoreFilenameClear.h"
 #include "BoxTimeToText.h"
 #include "CommonException.h"
@@ -192,6 +193,10 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 		CommandList(args, opts);
 		break;
 		
+	case Command_Search:
+		CommandSearch(args, opts);
+		break;
+
 	case Command_pwd:
 		{
 			// Simple implementation, so do it here
@@ -244,6 +249,10 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 	case Command_Delete:
 		CommandDelete(args, opts);
 		break;
+
+	case Command_ListBackups:
+		CommandListBackups(opts);
+		break;
 		
 	default:
 		BOX_ERROR("Unknown command: " << rCommand.mCmdElements[0]);
@@ -251,19 +260,27 @@ void BackupQueries::DoCommand(ParsedCommand& rCommand)
 	}
 }
 
-#define LIST_OPTION_TIMES_ATTRIBS	'a'
+#define LIST_OPTION_SNAPSHOT_TIME       'P'
+#define LIST_OPTION_BY_OBJECT_ID        'i'
+#define LIST_OPTION_TIMES_ATTRIBS	    'a'
 #define LIST_OPTION_SORT_NO_DIRS_FIRST	'D'
-#define LIST_OPTION_NOFLAGS		'F'
-#define LIST_OPTION_DISPLAY_HASH	'h'
-#define LIST_OPTION_SORT_ID		'i'
-#define LIST_OPTION_NOOBJECTID		'I'
-#define LIST_OPTION_SORT_REVERSE	'r'
-#define LIST_OPTION_RECURSIVE		'R'
-#define LIST_OPTION_SIZEINBLOCKS	's'
-#define LIST_OPTION_SORT_SIZE		'S'
-#define LIST_OPTION_TIMES_LOCAL		't'
-#define LIST_OPTION_TIMES_UTC		'T'
-#define LIST_OPTION_SORT_NONE		'U'
+#define LIST_OPTION_NOFLAGS		        'F'
+#define LIST_OPTION_DISPLAY_HASH	    'h'
+#define LIST_OPTION_SORT_ID	    	    'O'
+#define LIST_OPTION_NOOBJECTID		    'I'
+#define LIST_OPTION_SORT_REVERSE	    'r'
+#define LIST_OPTION_RECURSIVE		    'R'
+#define LIST_OPTION_SIZEINBLOCKS	    's'
+#define LIST_OPTION_SORT_SIZE		    'S'
+#define LIST_OPTION_TIMES_LOCAL		    't'
+#define LIST_OPTION_TIMES_UTC		    'T'
+#define LIST_OPTION_BCK_TIMES			'B'
+#define LIST_OPTION_DEL_TIMES			'X'
+#define LIST_OPTION_SORT_NONE		    'U'
+#define LIST_OPTION_EPOCH_TIME		    'E'
+#define SEARCH_OPTION_REGEX				'r'
+#define SEARCH_OPTION_CASE_SENSITIVE	'C'
+
 
 // --------------------------------------------------------------------------
 //
@@ -277,37 +294,55 @@ void BackupQueries::CommandList(const std::vector<std::string> &args, const bool
 {
 	// default to using the current directory
 	int64_t rootDir = GetCurrentDirectoryID();
+	size_t directoryArgIndex = 0;
 
 	// name of base directory
 	std::string listRoot;	// blank
-
+	box_time_t snapshotTime = 0;
 	// Got a directory in the arguments?
-	if(args.size() > 0)
+	if( opts[LIST_OPTION_SNAPSHOT_TIME] && args.size() > 0 )
 	{
-#ifdef WIN32
-		std::string storeDirEncoded;
-		if(!ConvertConsoleToUtf8(args[0].c_str(), storeDirEncoded))
-			return;
-#else
-		const std::string& storeDirEncoded(args[0]);
-#endif
-	
-		// Attempt to find the directory
-		rootDir = FindDirectoryObjectID(storeDirEncoded,
-			opts[LIST_OPTION_ALLOWOLD],
-			opts[LIST_OPTION_ALLOWDELETED]);
 
-		if(rootDir == 0)
-		{
-			BOX_ERROR("Directory '" << args[0] << "' not found "
-				"on store.");
-			SetReturnCode(ReturnCode::Command_Error);
-			return;
+		snapshotTime = ::strtoull(args[0].c_str(), 0, 10);
+		directoryArgIndex = 1;
+	} 
+
+	if( args.size() > directoryArgIndex )
+	{	
+		if( opts[LIST_OPTION_BY_OBJECT_ID] ) {
+			rootDir = ::strtoll(args[directoryArgIndex].c_str(), 0, 16);
+			if(rootDir == std::numeric_limits<long long>::min() || rootDir == std::numeric_limits<long long>::max() || rootDir == 0)
+			{
+				BOX_ERROR("Not a valid object ID (specified in hex): "
+					<< args[directoryArgIndex]);
+				return;
+			}
+		} else {
+
+#ifdef WIN32
+			std::string storeDirEncoded;
+			if(!ConvertConsoleToUtf8(args[directoryArgIndex].c_str(), storeDirEncoded))
+				return;
+#else
+			const std::string& storeDirEncoded(args[directoryArgIndex]);
+#endif
+			// Attempt to find the directory
+			rootDir = FindDirectoryObjectID(storeDirEncoded,
+				opts[LIST_OPTION_ALLOWOLD],
+				opts[LIST_OPTION_ALLOWDELETED]);
+
+			if(rootDir == 0)
+			{
+				BOX_ERROR("Directory '" << args[directoryArgIndex] << "' not found "
+					"on store.");
+				SetReturnCode(ReturnCode::Command_Error);
+				return;
+			}
 		}
 	}
-	
+
 	// List it
-	List(rootDir, listRoot, opts, true /* first level to list */);
+	List(rootDir, listRoot, opts, snapshotTime, true /* first level to list */);
 }
 
 static std::string GetTimeString(BackupStoreDirectory::Entry& en,
@@ -435,7 +470,7 @@ bool SortByName(BackupStoreDirectory::Entry* a,
 //
 // --------------------------------------------------------------------------
 void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
-	const bool *opts, bool FirstLevel, std::ostream* pOut)
+	const bool *opts, box_time_t snapshotTime, bool FirstLevel, std::ostream* pOut)
 {
 #ifdef WIN32
 	DWORD n_chars;
@@ -455,7 +490,8 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 			BackupProtocolListDirectory::Flags_INCLUDE_EVERYTHING,
 			// both files and directories
 			excludeFlags,
-			true /* want attributes */);
+			true /* want attributes */,
+			snapshotTime);
 	}
 	catch (std::exception &e)
 	{
@@ -566,6 +602,31 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 			}
 		}
 		
+	
+		if(opts[LIST_OPTION_BCK_TIMES])
+		{
+			if(opts[LIST_OPTION_EPOCH_TIME])
+			{
+				buf << en->GetBackupTime() << " ";			
+			}
+			else
+			{
+				buf << BoxTimeToISO8601String(en->GetBackupTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			}
+		}
+
+		if(opts[LIST_OPTION_DEL_TIMES])
+		{
+			if(opts[LIST_OPTION_EPOCH_TIME])
+			{
+				buf << en->GetDeleteTime() << " ";			
+			}
+			else
+			{
+				buf << BoxTimeToISO8601String(en->GetDeleteTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			}
+		}
+
 		if(opts[LIST_OPTION_TIMES_UTC])
 		{
 			// Show UTC times...
@@ -649,10 +710,10 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 				&n_chars, NULL))
 			{
 				// WriteConsole failed, try standard method
-				std::cout << buf.str();
+				std::cout << buf.str() << std::flush;
 			}
 #else
-			std::cout << buf.str();
+			std::cout << buf.str() << std::flush;
 #endif
 		}
 		
@@ -665,13 +726,287 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 				std::string subroot(rListRoot);
 				if(!FirstLevel) subroot += '/';
 				subroot += clear.GetClearFilename();
-				List(en->GetObjectID(), subroot, opts,
+				List(en->GetObjectID(), subroot, opts, snapshotTime,
 					false /* not the first level to list */,
 					pOut);
 			}
 		}
 	}
 }
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::CommandSearch(const std::vector<std::string> &, const bool *)
+//		Purpose: Search for an object
+//		Created: 2023/12/05
+//
+// --------------------------------------------------------------------------
+void BackupQueries::CommandSearch(const std::vector<std::string> &args, const bool *opts)
+{
+
+	if( args.size() < 1 )
+	{
+		BOX_ERROR("Search requires at least one argument");
+		return;
+	}
+
+	// default to using the current directory
+	int64_t rootDir = GetCurrentDirectoryID();
+	size_t directoryArgIndex = 0;
+
+	// name of base directory
+	std::string searchRoot;	// blank
+	box_time_t snapshotTime = 0;
+	// Got a directory in the arguments?
+	if( opts[LIST_OPTION_SNAPSHOT_TIME] && args.size() > 0 )
+	{
+
+		snapshotTime = ::strtoull(args[0].c_str(), 0, 10);
+		directoryArgIndex = 1;
+	} 
+
+	if( args.size() > directoryArgIndex + 1 )
+	{	
+		if( opts[LIST_OPTION_BY_OBJECT_ID] ) {
+			rootDir = ::strtoll(args[directoryArgIndex].c_str(), 0, 16);
+			if(rootDir == std::numeric_limits<long long>::min() || rootDir == std::numeric_limits<long long>::max() || rootDir == 0)
+			{
+				BOX_ERROR("Not a valid object ID (specified in hex): "
+					<< args[directoryArgIndex]);
+				return;
+			}
+		} else {
+
+#ifdef WIN32
+			std::string storeDirEncoded;
+			if(!ConvertConsoleToUtf8(args[directoryArgIndex].c_str(), storeDirEncoded))
+				return;
+#else
+			const std::string& storeDirEncoded(args[directoryArgIndex]);
+#endif
+			// Attempt to find the directory
+			rootDir = FindDirectoryObjectID(storeDirEncoded,
+				opts[LIST_OPTION_ALLOWOLD],
+				opts[LIST_OPTION_ALLOWDELETED]);
+
+			if(rootDir == 0)
+			{
+				BOX_ERROR("Directory '" << args[directoryArgIndex] << "' not found "
+					"on store.");
+				SetReturnCode(ReturnCode::Command_Error);
+				return;
+			}
+		}
+	}
+
+	// get the last argument
+	std::string searchPattern = args[args.size() - 1];
+
+	// Search
+	Search(rootDir, searchRoot, searchPattern, opts, snapshotTime, true /* first level to list */);
+
+}
+
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::Search(int64_t, const std::string &, const bool *, bool)
+//		Purpose: Do the actual search
+//		Created: 2023/12/05
+//
+// --------------------------------------------------------------------------
+void BackupQueries::Search(int64_t DirID, const std::string &rListRoot, const std::string &rSearchPattern,
+	const bool *opts, box_time_t snapshotTime, bool FirstLevel, std::ostream* pOut)
+{
+#ifdef WIN32
+	DWORD n_chars;
+	HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+#endif
+	
+	// Generate exclude flags
+	int16_t excludeFlags = BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING;
+	if(!opts[LIST_OPTION_ALLOWOLD]) excludeFlags |= BackupProtocolListDirectory::Flags_OldVersion;
+	if(!opts[LIST_OPTION_ALLOWDELETED]) excludeFlags |= BackupProtocolListDirectory::Flags_Deleted;
+
+	// Do communication
+	try
+	{
+		mrConnection.QueryListDirectory(
+			DirID,
+			BackupProtocolListDirectory::Flags_INCLUDE_EVERYTHING,
+			// both files and directories
+			excludeFlags,
+			true /* want attributes */,
+			snapshotTime);
+	}
+	catch (std::exception &e)
+	{
+		BOX_ERROR("Failed to list directory: " << e.what());
+		SetReturnCode(ReturnCode::Command_Error);
+		return;
+	}
+	catch (...)
+	{
+		BOX_ERROR("Failed to list directory: unknown error");
+		SetReturnCode(ReturnCode::Command_Error);
+		return;
+	}
+
+	// Retrieve the directory from the stream following
+	BackupStoreDirectory dir;
+	std::auto_ptr<IOStream> dirstream(mrConnection.ReceiveStream());
+	dir.ReadFromStream(*dirstream, mrConnection.GetTimeout());
+
+	// Store entry pointers in a std::vector for sorting
+	BackupStoreDirectory::Iterator i(dir);
+
+	
+		
+	std::regex re(rSearchPattern.c_str(),  opts[SEARCH_OPTION_CASE_SENSITIVE] ? std::regex_constants::ECMAScript : std::regex_constants::icase );
+	
+
+	BackupStoreDirectory::Entry *en = 0;
+	std::vector<BackupStoreDirectory::Entry*> sorted_entries;
+	while((en = i.Next()) != 0)
+	{
+		BackupStoreFilenameClear clear(en->GetName());
+
+		if( (opts[SEARCH_OPTION_REGEX] && std::regex_search(clear.GetClearFilename().c_str(), re))
+			||(!opts[SEARCH_OPTION_REGEX] && 
+				(
+					(opts[SEARCH_OPTION_CASE_SENSITIVE] && clear.GetClearFilename() == rSearchPattern) ||
+					(!opts[SEARCH_OPTION_CASE_SENSITIVE] && strcasecmp(clear.GetClearFilename().c_str(), rSearchPattern.c_str())==0 ))
+				)
+		) 
+		{
+			
+			std::ostringstream buf;
+			if(!opts[LIST_OPTION_NOOBJECTID])
+			{
+				// add object ID to line
+				buf << std::hex << std::internal << std::setw(8) <<
+					std::setfill('0') << en->GetObjectID() <<
+					std::dec << " ";
+			}
+			
+			// Flags?
+			if(!opts[LIST_OPTION_NOFLAGS])
+			{
+				static const char *flags = BACKUPSTOREDIRECTORY_ENTRY_FLAGS_DISPLAY_NAMES;
+				char displayflags[16];
+				// make sure f is big enough
+				ASSERT(sizeof(displayflags) >= sizeof(BACKUPSTOREDIRECTORY_ENTRY_FLAGS_DISPLAY_NAMES) + 3);
+				// Insert flags
+				char *f = displayflags;
+				const char *t = flags;
+				int16_t en_flags = en->GetFlags();
+				while(*t != 0)
+				{
+					*f = ((en_flags&1) == 0)?'-':*t;
+					en_flags >>= 1;
+					f++;
+					t++;
+				}
+				// attributes flags
+				*(f++) = (en->HasAttributes())?'a':'-';
+
+				// terminate
+				*(f++) = ' ';
+				*(f++) = '\0';
+				buf << displayflags;
+				
+				if(en_flags != 0)
+				{
+					buf << "[ERROR: Entry has additional flags set] ";
+				}
+			}
+			
+		
+			if(opts[LIST_OPTION_BCK_TIMES])
+			{
+				buf << BoxTimeToISO8601String(en->GetBackupTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			}
+
+			if(opts[LIST_OPTION_DEL_TIMES])
+			{
+				buf << BoxTimeToISO8601String(en->GetDeleteTime(), opts[LIST_OPTION_TIMES_LOCAL]) << " ";			
+			}
+
+			if(opts[LIST_OPTION_TIMES_UTC])
+			{
+				// Show UTC times...
+				buf << GetTimeString(*en, false,
+					opts[LIST_OPTION_TIMES_ATTRIBS]) << " ";
+			}
+
+			if(opts[LIST_OPTION_TIMES_LOCAL])
+			{
+				// Show local times...
+				buf << GetTimeString(*en, true,
+					opts[LIST_OPTION_TIMES_ATTRIBS]) << " ";
+			}
+			
+			if(opts[LIST_OPTION_DISPLAY_HASH])
+			{
+				buf << std::hex << std::internal << std::setw(16) <<
+					std::setfill('0') << en->GetAttributesHash() <<
+					std::dec;
+			}
+			
+			if(opts[LIST_OPTION_SIZEINBLOCKS])
+			{
+				buf << std::internal << std::setw(5) <<
+					std::setfill('0') << en->GetSizeInBlocks() <<
+					" ";
+			}
+
+			buf << rListRoot << "/" << clear.GetClearFilename();
+
+			buf << std::endl;
+		
+			if(pOut)
+			{
+				(*pOut) << buf.str();
+			}
+			else
+			{
+#ifdef WIN32
+				std::string line = buf.str();
+				if (!WriteConsole(hOut, line.c_str(), line.size(),
+					&n_chars, NULL))
+				{
+					// WriteConsole failed, try standard method
+					std::cout << buf.str() << std::flush;
+				}
+#else
+				std::cout << buf.str() << std::flush;
+#endif
+			}
+		}
+
+		// Directory?
+		if((en->GetFlags() & BackupStoreDirectory::Entry::Flags_Dir) != 0)
+		{
+			// Recurse?
+			if(opts[LIST_OPTION_RECURSIVE])
+			{
+				std::string subroot(rListRoot);
+				if(!FirstLevel) subroot += '/';
+				subroot += clear.GetClearFilename();
+				Search(en->GetObjectID(), subroot, rSearchPattern, opts, snapshotTime,
+					false /* not the first level to list */,
+					pOut);
+			}
+		}
+	}
+
+}
+
+
 
 
 // --------------------------------------------------------------------------
@@ -687,7 +1022,7 @@ void BackupQueries::List(int64_t DirID, const std::string &rListRoot,
 //
 // --------------------------------------------------------------------------
 int64_t BackupQueries::FindDirectoryObjectID(const std::string &rDirName,
-	bool AllowOldVersion, bool AllowDeletedDirs,
+	bool AllowOldVersion, bool AllowDeletedDirs, box_time_t SnapshotTime,
 	std::vector<std::pair<std::string, int64_t> > *pStack)
 {
 	// Split up string into elements
@@ -749,7 +1084,8 @@ int64_t BackupQueries::FindDirectoryObjectID(const std::string &rDirName,
 						dirID,
 						BackupProtocolListDirectory::Flags_Dir,	// just directories
 						excludeFlags,
-						true /* want attributes */));
+						true /* want attributes */,
+						SnapshotTime));
 
 				// Retrieve the directory from the stream following
 				BackupStoreDirectory dir;
@@ -865,7 +1201,7 @@ void BackupQueries::CommandChangeDir(const std::vector<std::string> &args, const
 #endif
 	
 	std::vector<std::pair<std::string, int64_t> > newStack;
-	int64_t id = FindDirectoryObjectID(dirName, opts['o'], opts['d'], 
+	int64_t id = FindDirectoryObjectID(dirName, opts['o'], opts['d'], 0,
 		&newStack);
 	
 	if(id == 0)
@@ -1037,7 +1373,7 @@ void BackupQueries::CommandGetObject(const std::vector<std::string> &args, const
 //
 // --------------------------------------------------------------------------
 int64_t BackupQueries::FindFileID(const std::string& rNameOrIdString,
-	const bool *opts, int64_t *pDirIdOut, std::string* pFileNameOut,
+	const bool *opts, box_time_t SnapshotTime, int64_t *pDirIdOut, std::string* pFileNameOut,
 	int16_t flagsInclude, int16_t flagsExclude, int16_t* pFlagsOut)
 {
 	// Find object ID somehow
@@ -1069,7 +1405,8 @@ int64_t BackupQueries::FindFileID(const std::string& rNameOrIdString,
 	// Need to look it up in the current directory
 	mrConnection.QueryListDirectory(
 		dirId, flagsInclude, flagsExclude,
-		true /* do want attributes */);
+		true /* do want attributes */,
+		SnapshotTime);
 
 	// Retrieve the directory from the stream following
 	BackupStoreDirectory dir;
@@ -1189,7 +1526,7 @@ void BackupQueries::CommandGet(std::vector<std::string> args, const bool *opts)
 	}
 
 
-	fileId = FindFileID(args[0], opts, &dirId, &localName,
+	fileId = FindFileID(args[0], opts, 0, &dirId, &localName,
 		BackupProtocolListDirectory::Flags_File, // just files
 		flagsExclude, NULL /* don't care about flags found */);
 
@@ -1688,7 +2025,8 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir,
 		BackupProtocolListDirectory::Flags_OldVersion |
 		BackupProtocolListDirectory::Flags_Deleted,
 		// except for old versions and deleted files
-		true /* want attributes */);
+		true /* want attributes */,
+		0);
 
 	// Retrieve the directory from the stream following
 	BackupStoreDirectory dir;
@@ -1997,8 +2335,90 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir,
 		}
 		throw;
 	}
+
+	
+	
 }
 
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::GetObjectFilename(int64_t, std::string &, bool, int64_t)
+//		Purpose: Retrieve some infos for an object from its ID
+//		Created: 24/01/25
+//
+// --------------------------------------------------------------------------
+std::string  BackupQueries::GetObjectFilename(int64_t ObjectId, bool IsDir, int64_t ContainerId)
+{
+	std::auto_ptr<BackupProtocolSuccess> dirreply2(mrConnection.QueryListDirectory(
+		ContainerId,
+		IsDir ? BackupProtocolListDirectory::Flags_Dir : BackupProtocolListDirectory::Flags_File,
+		0,
+		false,
+		0));
+
+	BackupStoreDirectory parent_dir;
+	std::auto_ptr<IOStream> parent_dir_stream(mrConnection.ReceiveStream());
+	parent_dir.ReadFromStream(*parent_dir_stream, mrConnection.GetTimeout());
+
+	BackupStoreDirectory::Iterator i(parent_dir);
+	BackupStoreDirectory::Entry *en = 0;
+	std::string clearName;
+	std::vector<BackupStoreDirectory::Entry*> sorted_entries;
+
+	// Find the directory name
+	while((en = i.Next()) != 0)
+	{
+		if( en->GetObjectID() == ObjectId ) {
+			BackupStoreFilenameClear clear(en->GetName());
+			return clear.GetClearFilename();
+		}
+	}
+
+	THROW_EXCEPTION(CommonException, CannotFindLocation)
+
+}
+
+
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::GetLocalFullPathFromObjectID(int64_t, bool, int64_t)
+//		Purpose: Retrieve the full path of an object from its ID
+//		Created: 24/01/25
+//
+// --------------------------------------------------------------------------
+std::string BackupQueries::GetLocalFullPathFromObjectID(int64_t ObjectId, bool IsDir, int64_t ContainerId, bool TranslateRoot)
+{
+	
+	std::string clearName = GetObjectFilename(ObjectId, IsDir, ContainerId);
+
+	if(ContainerId == BackupProtocolListDirectory::RootDirectory) {
+		if(!TranslateRoot)
+		{
+			return clearName;
+		}
+
+		// At first level we'll get the path from the location name
+		const Configuration &locations(mrConfiguration.GetSubConfiguration("BackupLocations"));
+		if(!locations.SubConfigurationExists(clearName.c_str()))
+		{
+			THROW_EXCEPTION(CommonException, CannotFindLocation)
+		}
+		const Configuration &loc(locations.GetSubConfiguration(clearName.c_str()));		
+
+		return loc.GetKeyValue("Path");
+		}
+	else {
+		// Query the object infos
+		std::auto_ptr<BackupProtocolObjectInfos> infosreply(mrConnection.QueryGetObjectInfos(ContainerId));
+		uint32_t parentContainerId = infosreply->GetContainerID();
+
+		return GetLocalFullPathFromObjectID(ContainerId, infosreply->GetIsDir(), parentContainerId, TranslateRoot) + "/" + clearName;		
+	}
+	
+}
 
 // --------------------------------------------------------------------------
 //
@@ -2010,58 +2430,83 @@ void BackupQueries::Compare(int64_t DirID, const std::string &rStoreDir,
 // --------------------------------------------------------------------------
 void BackupQueries::CommandRestore(const std::vector<std::string> &args, const bool *opts)
 {
-	// Check arguments
-	if(args.size() < 1 || args.size() > 2)
-	{
-		BOX_ERROR("Incorrect usage. restore [-darif] <remote-name> "
-			"[<local-name>]");
-		return;
-	}
 
 	// Restoring deleted things?
 	bool restoreDeleted = opts['d'];
 
-	std::string storeDirEncoded;
+	int directoryArgIndex = 0;
+	box_time_t snapshotTime = 0;
+	// Got a directory in the arguments?
+	if( opts[LIST_OPTION_SNAPSHOT_TIME] && args.size() > 0 )
+	{
+		snapshotTime = ::strtoull(args[0].c_str(), 0, 10);
+		directoryArgIndex = 1;
+	}
 
-	// Get directory ID
-	int64_t dirID = 0;
+	// Check arguments
+	if(args.size() < 1 + directoryArgIndex || args.size() > 2 + directoryArgIndex)
+	{
+		BOX_ERROR("Incorrect usage. restore [-darifp] [timestamp] <remote-name> "
+			"[<local-name>]");
+		return;
+	}
+
+	std::string storeObjectEncoded;
+
+	// Get object ID
+	int64_t objectID = 0;
 	if(opts['i'])
 	{
 		// Specified as ID. 
-		dirID = ::strtoll(args[0].c_str(), 0, 16);
-		if(dirID == std::numeric_limits<long long>::min() || dirID == std::numeric_limits<long long>::max() || dirID == 0)
+		objectID = ::strtoll(args[directoryArgIndex].c_str(), 0, 16);
+		if(objectID == std::numeric_limits<long long>::min() || objectID == std::numeric_limits<long long>::max() || objectID == 0)
 		{
 			BOX_ERROR("Not a valid object ID (specified in hex): "
-				<< args[0]);
+				<< args[directoryArgIndex]);
 			return;
 		}
+
 		std::ostringstream oss;
-		oss << BOX_FORMAT_OBJECTID(args[0]);
-		storeDirEncoded = oss.str();
+		oss << BOX_FORMAT_OBJECTID(args[directoryArgIndex]);
+		storeObjectEncoded = oss.str();
 	}
 	else
 	{
 #ifdef WIN32
-		if(!ConvertConsoleToUtf8(args[0].c_str(), storeDirEncoded))
+		if(!ConvertConsoleToUtf8(args[directoryArgIndex].c_str(), storeDirEncoded))
 			return;
 #else
-		storeDirEncoded = args[0];
+		storeObjectEncoded = args[directoryArgIndex];
 #endif
 	
-		// Look up directory ID
-		dirID = FindDirectoryObjectID(storeDirEncoded, 
-			false /* no old versions */, 
-			restoreDeleted /* find deleted dirs */);
+		// // Look up directory ID
+		// objectID = FindDirectoryObjectID(storeObjectEncoded, 
+		// 	false /* no old versions */, 
+		// 	/* The above code is not doing anything. It appears to be a comment or placeholder text. */
+		// 	restoreDeleted /* find deleted dirs */,
+		// 	snapshotTime);
+	
+		int64_t fileId, parentId;
+		std::string fileName;
+		int16_t flagsOut;
+	
+		int16_t excludeFlags = BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING;
+		if(!restoreDeleted) excludeFlags |= BackupProtocolListDirectory::Flags_Deleted;
+
+		objectID = FindFileID(storeObjectEncoded, opts, excludeFlags, &parentId, &fileName,
+			BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING,
+			excludeFlags,
+			&flagsOut);
 	}
 	
 	// Allowable?
-	if(dirID == 0)
+	if(objectID == 0)
 	{
-		BOX_ERROR("Directory '" << args[0] << "' not found on server");
+		BOX_ERROR("Directory '" << args[directoryArgIndex] << "' not found on server");
 		return;
 	}
 
-	if(dirID == BackupProtocolListDirectory::RootDirectory)
+	if(objectID == BackupProtocolListDirectory::RootDirectory)
 	{
 		BOX_ERROR("Cannot restore the root directory -- restore locations individually.");
 		return;
@@ -2069,38 +2514,89 @@ void BackupQueries::CommandRestore(const std::vector<std::string> &args, const b
 
 	std::string localName;
 
-	if(args.size() == 2)
+	std::auto_ptr<BackupProtocolObjectInfos> infosreply(mrConnection.QueryGetObjectInfos(objectID));
+
+	if(args.size() == 2 + directoryArgIndex)
 	{
 		#ifdef WIN32
-			if(!ConvertConsoleToUtf8(args[1].c_str(), localName))
+			if(!ConvertConsoleToUtf8(args[directoryArgIndex + 1].c_str(), localName))
 			{
 				return;
 			}
 		#else
-			localName = args[1];
+			localName = args[directoryArgIndex + 1];
 		#endif
+		if(opts['p'])
+		{		
+			localName += "/" + GetLocalFullPathFromObjectID(objectID, infosreply->GetIsDir(), infosreply->GetContainerID(), false);
+
+		}
+	}
+	else if (opts['o'])
+	{
+		// restore to the original location
+		localName = GetLocalFullPathFromObjectID(objectID, infosreply->GetIsDir(), infosreply->GetContainerID(), true);
 	}
 	else
 	{
+		// restore to the current directory
 		localName = args[0];
+	}
+	
+
+	if(opts['c'])
+	{
+		// create the parents directories if they don't exist
+		std::string::size_type pos = localName.find_last_of(DIRECTORY_SEPARATOR);
+		if(pos != std::string::npos)
+		{
+			std::string parentDir = localName.substr(0, pos);
+			CreatePath(parentDir);
+		}
+	}
+
+	if( infosreply->GetIsDir() ) {
+		BOX_INFO("Restoring dir "<< BOX_FORMAT_OBJECTID(objectID) << " into " << localName);
+	} else {
+		BOX_INFO("Restoring file "<< BOX_FORMAT_OBJECTID(objectID) << " into " << localName);
 	}
 
 	// Go and restore...
 	RestoreInfos infos;
-	int result;
+	int result = 0;
 	try
 	{
 		// At TRACE level, we print a line for each file and
 		// directory, so we don't need dots.
+		if( infosreply->GetIsDir() ) {
 
-		result = BackupClientRestore(mrConnection, dirID, 
-			storeDirEncoded.c_str(), localName.c_str(), 
-			true /* print progress dots */, restoreDeleted, 
-			opts['a'] /* restore any deleted or not-deleted */,
-			false /* don't undelete after restore! */, 
-			opts['r'] /* resume? */,
-			opts['f'] /* force continue after errors */,
-			infos /* gather some infos */);
+			result = BackupClientRestore(mrConnection, objectID, 
+				storeObjectEncoded.c_str(), localName.c_str(), 
+				snapshotTime,
+				true /* print progress dots */, restoreDeleted, 
+				opts['a'] /* restore any deleted or not-deleted */,
+				false /* don't undelete after restore! */, 
+				opts['r'] /* resume? */,
+				opts['f'] /* force continue after errors */,
+				infos /* gather some infos */);
+		} else {
+			mrConnection.QueryGetFile(infosreply->GetContainerID(), objectID);
+
+			// Stream containing encoded file
+			std::auto_ptr<IOStream> objectStream(mrConnection.ReceiveStream());
+
+			// Decode it
+			BackupStoreFile::DecodeFile(*objectStream, localName.c_str(), mrConnection.GetTimeout());
+
+			int64_t fileSize=0;
+			FileExists(localName.c_str(), &fileSize, true );
+			infos.totalFilesRestored++;
+			infos.totalBytesRestored += fileSize;
+			
+			// Done.
+			BOX_INFO("Object ID " << BOX_FORMAT_OBJECTID(objectID) <<
+				" fetched successfully. ("<<fileSize<<" B)");
+		}
 		infos.endTime = GetCurrentBoxTime();
 	}
 	catch(std::exception &e)
@@ -2284,6 +2780,68 @@ void BackupQueries::CommandUsage(const bool *opts)
 		MachineReadable);
 }
 
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupQueries::CommandUsage()
+//		Purpose: Display storage space used on server
+//		Created: 19/4/04
+//
+// --------------------------------------------------------------------------
+void BackupQueries::CommandListBackups(const bool *opts)
+{
+	bool MachineReadable = opts['m'];
+
+	// Request full details from the server
+	std::auto_ptr<BackupProtocolBackups> backup_list(mrConnection.QueryListBackups());
+	
+
+	BackupsList list;
+	std::auto_ptr<IOStream> stream(mrConnection.ReceiveStream());
+	list.ReadFromStream(*stream, mrConnection.GetTimeout());
+
+	std::set<SessionInfos>& sessions = list.GetList();
+	
+	for(auto it = sessions.begin(); it != sessions.end(); ++it) 
+	{
+		if(opts[LIST_OPTION_TIMES_UTC])
+		{
+			// Show UTC times...
+			std::cout << 
+			BoxTimeToISO8601String(it->GetStartTime(), false) << " " <<
+			BoxTimeToISO8601String(it->GetEndTime(), false) << " ";
+		} 
+		else if(opts[LIST_OPTION_TIMES_LOCAL])
+		{
+			// Show local times...
+			std::cout << 
+			BoxTimeToISO8601String(it->GetStartTime(), true) << " " <<
+			BoxTimeToISO8601String(it->GetEndTime(), true) << " ";
+		}
+		else
+		{
+			// as timestamps
+			std::cout << 
+			it->GetStartTime() << " " << 
+			it->GetEndTime() << " " ;
+		}
+
+
+		std::cout << 
+			it->GetAddedFilesCount() << " " << 
+			it->GetAddedFilesBlocksCount() << " " << 
+			it->GetDeletedFilesCount() << " " <<
+			it->GetDeletedFilesBlocksCount() << " " <<
+			it->GetAddedDirectoriesCount() << " " <<
+			it->GetDeletedDirectoriesCount() << 
+			std::endl;
+	}
+
+
+
+}
+
+
 
 // --------------------------------------------------------------------------
 //
@@ -2339,7 +2897,7 @@ void BackupQueries::CommandUndelete(const std::vector<std::string> &args, const 
 	std::string fileName;
 	int16_t flagsOut;
 
-	fileId = FindFileID(storeDirEncoded, opts, &parentId, &fileName,
+	fileId = FindFileID(storeDirEncoded, opts, 0, &parentId, &fileName,
 		/* include files and directories */
 		BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING,
 		/* include old and deleted files */
@@ -2440,7 +2998,7 @@ void BackupQueries::CommandDelete(const std::vector<std::string> &args,
 	std::string fileName;
 	int16_t flagsOut;
 
-	fileId = FindFileID(storeDirEncoded, opts, &parentId, &fileName,
+	fileId = FindFileID(storeDirEncoded, opts, 0, &parentId, &fileName,
 		/* include files and directories */
 		BackupProtocolListDirectory::Flags_EXCLUDE_NOTHING,
 		listFlags,
@@ -2466,7 +3024,7 @@ void BackupQueries::CommandDelete(const std::vector<std::string> &args,
 		{
 			mrConnection.QueryDeleteDirectory(fileId, removeFlags, removeFromStore);
 		}
-		
+	
 		
 	}
 	catch (BoxException &e)

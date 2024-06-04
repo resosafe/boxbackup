@@ -27,6 +27,7 @@
 #include "StoreStructure.h"
 
 #include "MemLeakFindOn.h"
+#include <RaidFileController.h>
 
 
 // --------------------------------------------------------------------------
@@ -375,6 +376,11 @@ void BackupStoreDirectoryFixer::InsertObject(int64_t ObjectID, bool IsDirectory,
 
 		// Read in header
 		file_StreamFormat hdr;
+		printf("%d\n", file->Read(&hdr, sizeof(hdr)));
+		printf("%d\n", sizeof(hdr));
+		printf("%d\n", ntohl(hdr.mMagicValue));
+		printf("%d\n", OBJECTMAGIC_FILE_MAGIC_VALUE_V1);
+		printf("%d\n", OBJECTMAGIC_FILE_MAGIC_VALUE_V0);
 		if(file->Read(&hdr, sizeof(hdr)) != sizeof(hdr) ||
 			(ntohl(hdr.mMagicValue) != OBJECTMAGIC_FILE_MAGIC_VALUE_V1
 #ifndef BOX_DISABLE_BACKWARDS_COMPATIBILITY_BACKUPSTOREFILE
@@ -393,7 +399,7 @@ void BackupStoreDirectoryFixer::InsertObject(int64_t ObjectID, bool IsDirectory,
 	}
 
 	// Add a new entry in an appropriate place
-	mDirectory.AddUnattachedObject(objectStoreFilename, modTime,
+	mDirectory.AddUnattachedObject(objectStoreFilename, modTime, 0, 0,
 		ObjectID, sizeInBlocks,
 		IsDirectory?(BackupStoreDirectory::Entry::Flags_Dir):(BackupStoreDirectory::Entry::Flags_File));
 }
@@ -464,7 +470,7 @@ int64_t BackupStoreCheck::GetLostAndFoundDirID()
 	CreateBlankDirectory(id, BACKUPSTORE_ROOT_DIRECTORY_ID);
 
 	// Add an entry for it
-	dir.AddEntry(lostAndFound, 0, id, 0, BackupStoreDirectory::Entry::Flags_Dir, 0);
+	dir.AddEntry(lostAndFound, 0, 0, 0,  id, 0, BackupStoreDirectory::Entry::Flags_Dir, 0);
 
 	// Write out root dir
 	RaidFileWrite root(mDiscSetNumber, filename);
@@ -576,6 +582,105 @@ void BackupStoreCheck::FixDirsWithLostDirs()
 // --------------------------------------------------------------------------
 //
 // Function
+//		Name:    BackupStoreCheck::WriteNewBackupsList()
+//		Purpose: Regenerate or correct the backups list if needed
+//		Created: 2024/03/14
+//
+// --------------------------------------------------------------------------
+void BackupStoreCheck::WriteNewBackupsList()
+{
+	if(!mFixErrors)
+	{
+		// Don't do anything if we're not supposed to fix errors
+		return;
+	}
+
+	std::set<SessionInfos> &newList = mBackupsList.GetList();
+
+	try {
+		BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mDiscSetNumber, mStoreRoot, 1));
+	
+		bool changed = false;
+
+		for(auto it = newList.begin(); it != newList.end(); ++it) 
+		{
+			SessionInfos *pOld = list.Get(it->GetStartTime());
+
+			if(pOld->GetAddedFilesCount() != it->GetAddedFilesCount() )
+			{
+				changed = true;
+				pOld->SetAddedFilesCount(it->GetAddedFilesCount());
+			}
+
+			if(pOld->GetAddedFilesBlocksCount() != it->GetAddedFilesBlocksCount() )
+			{
+				changed = true;
+				pOld->SetAddedFilesBlocksCount(it->GetAddedFilesBlocksCount());
+			}
+
+			if(pOld->GetDeletedFilesCount() != it->GetDeletedFilesCount() )
+			{
+				changed = true;
+				pOld->SetDeletedFilesCount(it->GetDeletedFilesCount());
+			}
+			
+			if(pOld->GetDeletedFilesBlocksCount() != it->GetDeletedFilesBlocksCount() )
+			{
+				changed = true;
+				pOld->SetDeletedFilesBlocksCount(it->GetDeletedFilesBlocksCount());
+			}
+
+			if(pOld->GetAddedDirectoriesCount() != it->GetAddedDirectoriesCount() )
+			{
+				changed = true;
+				pOld->SetAddedDirectoriesCount(it->GetAddedDirectoriesCount());
+			}
+
+			if(pOld->GetDeletedDirectoriesCount() != it->GetDeletedDirectoriesCount() )
+			{
+				changed = true;
+				pOld->SetDeletedDirectoriesCount(it->GetDeletedDirectoriesCount());
+			}
+
+			if(pOld->GetEndTime()<= pOld->GetStartTime())
+			{
+				changed = true;
+				pOld->SetEnd(pOld->GetStartTime()+1000);
+			}
+
+		}
+
+		if(changed)
+		{
+			BOX_INFO("Changes were made into the backups list. Saving...");
+			list.Save();
+		}
+	} catch (...)
+	{
+		BOX_INFO("Load of existing backups list failed, regenerating.");
+		std::set<SessionInfos> updatedList;
+
+		for (const auto& info : newList) {
+			SessionInfos updatedInfo = info;
+			updatedInfo.SetEnd(updatedInfo.GetStartTime() + 1000);
+			updatedList.insert(updatedInfo);
+		}
+
+		newList = std::move(updatedList);
+
+		
+		mBackupsList.Save(RaidFileController::DiscSetPathToFileSystemPath(mDiscSetNumber, mStoreRoot, 1));
+	}
+
+
+
+}
+
+
+
+// --------------------------------------------------------------------------
+//
+// Function
 //		Name:    BackupStoreCheck::WriteNewStoreInfo()
 //		Purpose: Regenerate store info
 //		Created: 23/4/04
@@ -652,6 +757,7 @@ void BackupStoreCheck::WriteNewStoreInfo()
 	std::auto_ptr<BackupStoreInfo> info(BackupStoreInfo::CreateForRegeneration(
 		mAccountID,
 		mAccountName,
+		mOptions,
 		mStoreRoot,
 		mDiscSetNumber,
 		lastObjID,
@@ -937,9 +1043,9 @@ bool BackupStoreDirectory::CheckAndFix()
 //
 // --------------------------------------------------------------------------
 void BackupStoreDirectory::AddUnattachedObject(const BackupStoreFilename &rName,
-	box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags)
+	box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeleteTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags)
 {
-	Entry *pnew = new Entry(rName, ModificationTime, ObjectID, SizeInBlocks, Flags,
+	Entry *pnew = new Entry(rName, ModificationTime, BackupTime, DeleteTime, ObjectID, SizeInBlocks, Flags,
 			ModificationTime /* use as attr mod time too */);
 	try
 	{

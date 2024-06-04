@@ -31,7 +31,7 @@
 #include "StoreStructure.h"
 #include "UnixUser.h"
 #include "Utils.h"
-
+#include "BoxTimeToText.h"
 #include "MemLeakFindOn.h"
 
 #include <cstring>
@@ -43,7 +43,7 @@ void PrintUsageAndExit()
 "Account ID is integer specified in hex\n"
 "\n"
 "Commands (and arguments):\n"
-"  create <account> <discnum> <softlimit> <hardlimit> <versionslimit>\n"
+"  create <account> <discnum> <softlimit> <hardlimit> [versionslimit] [options]\n"
 "        Creates the specified account number (in hex with no 0x) on the\n"
 "        specified raidfile disc set number (see raidfile.conf for valid\n"
 "        set numbers) with the specified soft and hard limits (in blocks\n"
@@ -56,6 +56,10 @@ void PrintUsageAndExit()
 "  setlimit <accounts> <softlimit> <hardlimit> <versionslimit>\n"
 "        Changes the limits of the account as specified. Numbers are\n"
 "        interpreted as for the 'create' command (suffixed with B, M or G)\n"
+"  setoptions <account> <options> [fix]\n"
+"        Changes the options of the account like 'snapshot'. specify 'none' to remove any options\n"
+"        If the 'fix' parameter is specified, and old account will be prepared for snapshot support:\n"
+"        remove old and deleted files, stamp other object with the current datetime\n"
 "  delete <account> [yes]\n"
 "        Deletes the specified account. Prompts for confirmation unless\n"
 "        the optional 'yes' parameter is provided.\n"
@@ -68,10 +72,12 @@ void PrintUsageAndExit()
 "        Changes the \"name\" of the account to the specified string.\n"
 "        The name is purely cosmetic and intended to make it easier to\n"
 "        identify your accounts.\n"
-"  housekeep <account> [remove-deleted] [remove-old] [disable-auto-clean]\n"
+"  housekeep <account> [remove-deleted] [remove-old] [purge-empty-dirs] [disable-auto-clean]\n"
 "        Runs housekeeping immediately on the account. If it cannot be locked,\n"
 "        bbstoreaccounts returns an error status code (1), otherwise success\n"
 "        (0) even if any errors were fixed by housekeeping.\n"
+"  backups <account> <epoch|utc|local>\n"
+"        Display the list of backups for the specified account.\n"
 	);
 	exit(2);
 }
@@ -170,6 +176,8 @@ int main(int argc, const char *argv[])
         int64_t softlimit;
         int64_t hardlimit;
         int32_t versionslimit;
+		int32_t options = BackupStoreInfo::OPTION_NONE;
+
 		if(argc < 5
 			|| ::sscanf(argv[2], "%d", &discnum) != 1)
 		{
@@ -182,11 +190,64 @@ int main(int argc, const char *argv[])
 		int blocksize = control.BlockSizeOfDiscSet(discnum);
 		softlimit = control.SizeStringToBlocks(argv[3], blocksize);
 		hardlimit = control.SizeStringToBlocks(argv[4], blocksize);
-        versionslimit= argc>5 ? atoi(argv[5]) : 0;
 		control.CheckSoftHardLimits(softlimit, hardlimit);
-	
+
+        versionslimit= argc>5 ? atoi(argv[5]) : 0;
+		if( argc>6 ) 
+		{
+			std::vector<std::string> options_list;
+			SplitString(argv[6], ',', options_list);
+			for( std::vector<std::string>::iterator it=options_list.begin(); it!=options_list.end(); ++it ) 
+			{
+				if( *it=="snapshot" ) 
+				{
+					options |= BackupStoreInfo::OPTION_SNAPSHOT;
+				}
+				else 
+				{
+					BOX_ERROR("Unknown option " << *it << ".");
+					return 2;
+				}
+			}
+		}
+
+
 		// Create the account...
-        return control.CreateAccount(id, discnum, softlimit, hardlimit, versionslimit);
+        return control.CreateAccount(id, discnum, options, softlimit, hardlimit, versionslimit);
+	}
+	if(command == "setoptions")
+	{
+		// Change the limits on this account
+		if(argc < 3)
+		{
+			BOX_ERROR("setoptions requires options");
+			return 1;
+		}
+		
+    
+		int32_t options = BackupStoreInfo::OPTION_NONE;
+
+		std::vector<std::string> options_list;
+		SplitString(argv[2], ',', options_list);
+		for( std::vector<std::string>::iterator it=options_list.begin(); it!=options_list.end(); ++it ) 
+		{
+			if( *it=="snapshot" ) 
+			{
+				options |= BackupStoreInfo::OPTION_SNAPSHOT;
+			}
+			else if( *it=="none" )
+			{
+				options = BackupStoreInfo::OPTION_NONE;
+			} 
+			else 
+			{
+				BOX_ERROR("Unknown option " << *it << ".");
+				return 2;
+			}
+		}
+
+
+        return control.SetOptions(id, options, (argc == 4 && ::strcmp(argv[3], "fix") == 0));
 	}
 	else if(command == "info")
 	{
@@ -279,6 +340,7 @@ int main(int argc, const char *argv[])
 	else if(command == "housekeep")
 	{
 		int32_t flags=HousekeepStoreAccount::DefaultAction;
+		box_time_t snapshotTime = 0;
 
 		// Look at other options
 		for(int o = 2; o < argc; ++o)
@@ -290,6 +352,10 @@ int main(int argc, const char *argv[])
 			else if(::strcmp(argv[o], "remove-old") == 0)
 			{
 				flags|=HousekeepStoreAccount::RemoveOldVersions;
+			}
+			else if(::strcmp(argv[o], "purge-empty-dirs") == 0)
+			{
+				flags|=HousekeepStoreAccount::ForceDeleteEmptyDirectories;
 			}
 			else if(::strcmp(argv[o], "disable-auto-clean") == 0)
 			{
@@ -306,6 +372,16 @@ int main(int argc, const char *argv[])
 
 
 		return control.HousekeepAccountNow(id, flags);
+	}
+	else if(command == "backups")
+	{
+		std::string tz("epoch");
+		if(argc > 2)
+		{
+			tz = argv[2];
+		}
+
+		return control.PrintBackups(id, tz);
 	}
 	else
 	{

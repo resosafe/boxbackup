@@ -13,6 +13,7 @@
 #include <string>
 #include <map>
 #include <memory>
+#include <iostream>
 
 #include "autogen_BackupProtocol.h"
 #include "BackupStoreInfo.h"
@@ -20,6 +21,8 @@
 #include "NamedLock.h"
 #include "Message.h"
 #include "Utils.h"
+#include "Archive.h"
+
 
 class BackupStoreDirectory;
 class BackupStoreFilename;
@@ -34,35 +37,134 @@ class HousekeepingInterface
 	virtual void SendMessageToHousekeepingProcess(const void *Msg, int MsgLen) = 0;
 };
 
-class Statistics {
+class SessionInfos {
 	public:
-		Statistics() {
+		SessionInfos() {
 			mAddedFilesCount = 0;
-			mAddedFilesSize = 0;
+			mAddedFilesBlocksCount = 0;
 			mDeletedFilesCount = 0;
-			mDeletedFilesSize = 0;
+			mDeletedFilesBlocksCount = 0;
 			mAddedDirectoriesCount = 0;
 			mDeletedDirectoriesCount = 0;
-			mDeletedDirectoriesSize = 0;
-			mCreationTime=time(NULL);
+
+			mStartTime = GetCurrentBoxTime();
+			mEndTime = 0;
 		}
 
-		time_t ElapsedTime() {
-			return time(NULL) - mCreationTime;
+
+		bool operator<(const SessionInfos& other) const {
+			return GetStartTime() < other.GetStartTime();
 		}
 		
-		int64_t mAddedFilesCount;
-		int64_t mAddedFilesSize;
-		int64_t mDeletedFilesCount;
-		int64_t mDeletedFilesSize;
-		int64_t mAddedDirectoriesCount;
-		int64_t mDeletedDirectoriesCount;
-		int64_t mDeletedDirectoriesSize;
+		bool operator<(const box_time_t other) const {
+			return GetStartTime() < other;
+		}
+
+		box_time_t ElapsedTime() { return GetCurrentBoxTime() - mStartTime; }
+		const box_time_t GetStartTime() const { return mStartTime; }
+		const box_time_t GetEndTime() const { return mEndTime; }
+		void SetStart(box_time_t time = 0) { 
+			if( time==0 ) 
+			{
+				mStartTime = GetCurrentBoxTime();
+			} else 
+			{
+				mStartTime = time;
+			} 
+		}
+
+		void SetEnd(box_time_t time = 0) { 
+			if( time==0 ) 
+			{
+				mEndTime = GetCurrentBoxTime();
+			} else 
+			{
+				mEndTime = time;
+			} 
+		}
+
+		void RecordFileAdded(uint64_t blocks) 
+		{ 
+			mAddedFilesBlocksCount += blocks; 
+			mAddedFilesCount++;
+		}
+		
+		void RecordFileDeleted(uint64_t blocks) 
+		{ 
+			mDeletedFilesBlocksCount += blocks; 
+			mDeletedFilesCount++;
+		}
+
+		void RecordDirectoryAdded() { mAddedDirectoriesCount++; }
+		void RecordDirectoryDeleted() { mDeletedDirectoriesCount++; }
+
+		
+		const uint64_t GetAddedFilesCount() const { return mAddedFilesCount; }
+		void SetAddedFilesCount(uint64_t count) { mAddedFilesCount = count; }
+		const uint64_t GetAddedFilesBlocksCount() const { return mAddedFilesBlocksCount; }
+		void SetAddedFilesBlocksCount(uint64_t count) { mAddedFilesBlocksCount = count; }
+		const uint64_t GetDeletedFilesCount() const { return mDeletedFilesCount; }
+		void SetDeletedFilesCount(uint64_t count) { mDeletedFilesCount = count; }
+		const uint64_t GetDeletedFilesBlocksCount() const { return mDeletedFilesBlocksCount; }
+		void SetDeletedFilesBlocksCount(uint64_t count) { mDeletedFilesBlocksCount = count; }
+		const uint64_t GetAddedDirectoriesCount() const { return mAddedDirectoriesCount; }
+		void SetAddedDirectoriesCount(uint64_t count) { mAddedDirectoriesCount = count; }
+		const uint64_t GetDeletedDirectoriesCount() const { return mDeletedDirectoriesCount; }
+		void SetDeletedDirectoriesCount(uint64_t count) { mDeletedDirectoriesCount = count; }
 
 
+		void WriteToStream(IOStream &Stream, int Timeout = IOStream::TimeOutInfinite)
+		{
+			Archive ar(Stream, Timeout);
+			ar.Write(mStartTime);
+			ar.Write(mEndTime);
+			ar.Write(mAddedFilesCount);
+			ar.Write(mAddedFilesBlocksCount);
+			ar.Write(mDeletedFilesCount);
+			ar.Write(mDeletedFilesBlocksCount);
+			ar.Write(mAddedDirectoriesCount);
+			ar.Write(mDeletedDirectoriesCount);
+		}
+
+		void ReadFromStream(IOStream &Stream, int Timeout = IOStream::TimeOutInfinite)
+		{
+			Archive ar(Stream, Timeout);
+			ar.Read(mStartTime);
+			ar.Read(mEndTime);
+			ar.Read(mAddedFilesCount);
+			ar.Read(mAddedFilesBlocksCount);
+			ar.Read(mDeletedFilesCount);
+			ar.Read(mDeletedFilesBlocksCount);
+			ar.Read(mAddedDirectoriesCount);
+			ar.Read(mDeletedDirectoriesCount);
+		}
+
+		void Dump() 
+		{
+			std::cout << "SessionInfos: " << std::endl;
+			std::cout << "  StartTime: " << mStartTime << std::endl;
+			std::cout << "  EndTime: " << mEndTime << std::endl;
+			std::cout << "  AddedFilesCount: " << mAddedFilesCount << std::endl;
+			std::cout << "  AddedFilesBlocksCount: " << mAddedFilesBlocksCount << std::endl;
+			std::cout << "  DeletedFilesCount: " << mDeletedFilesCount << std::endl;
+			std::cout << "  DeletedFilesBlocksCount: " << mDeletedFilesBlocksCount << std::endl;
+			std::cout << "  AddedDirectoriesCount: " << mAddedDirectoriesCount << std::endl;
+			std::cout << "  DeletedDirectoriesCount: " << mDeletedDirectoriesCount << std::endl;
+		}
+
+		bool HasChanges() {
+			return (mAddedFilesCount > 0 || mAddedDirectoriesCount > 0 || mDeletedFilesCount > 0 || mDeletedDirectoriesCount > 0);
+		}
 
 	private:
-		time_t mCreationTime;
+		box_time_t mStartTime;
+		box_time_t mEndTime;
+		uint64_t mAddedFilesCount;
+		uint64_t mAddedFilesBlocksCount;
+		uint64_t mDeletedFilesCount;
+		uint64_t mDeletedFilesBlocksCount;
+		uint64_t mAddedDirectoriesCount;
+		uint64_t mDeletedDirectoriesCount;
 
 };
 
@@ -88,8 +190,6 @@ public:
 
 	void ReceivedFinishCommand();
 	void CleanUp();
-
-	int32_t GetClientID() {return mClientID;}
 
 	enum
 	{
@@ -118,6 +218,7 @@ public:
 	// Read only locking
 	bool SessionIsReadOnly() {return mReadOnly;}
 	bool AttemptToGetWriteLock();
+
 
 	// Not really an API, but useful for BackupProtocolLocal2.
 	void ReleaseWriteLock()
@@ -187,7 +288,7 @@ public:
 		int64_t AttributesModTime,
 		int64_t ModificationTime,
 		bool &rAlreadyExists);
-	void ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime);
+	void ChangeDirAttributes(int64_t Directory, const StreamableMemBlock &Attributes, int64_t AttributesModTime, int64_t ModificationTime = 0);
 	bool ChangeFileAttributes(const BackupStoreFilename &rFilename, int64_t InDirectory, const StreamableMemBlock &Attributes, int64_t AttributesHash, int64_t &rObjectIDOut);
 	bool DeleteFile(const BackupStoreFilename &rFilename, int64_t InDirectory, int64_t &rObjectIDOut, uint16_t Flags = 0, bool DeleteFromStore = false);
 	bool UndeleteFile(int64_t ObjectID, int64_t InDirectory);
@@ -203,12 +304,17 @@ public:
 	};
 	bool ObjectExists(int64_t ObjectID, int MustBe = ObjectExists_Anything);
 	std::auto_ptr<IOStream> OpenObject(int64_t ObjectID);
+	void GetObjectInfos(int64_t ObjectID, bool &rIsDirectory, int64_t &rContainerID);
 	
 	// Info
 	int32_t GetClientID() const {return mClientID;}
 	const std::string& GetConnectionDetails() { return mConnectionDetails; }
 
-	Statistics &GetStatistics() { return mStatistics; }
+	void SetProtocolVersion(int32_t ProtocolVersion) {mProtocolVersion = ProtocolVersion;}
+	int32_t GetProtocolVersion() const {return mProtocolVersion;}
+
+	SessionInfos &GetSessionInfos() { return mSessionInfos; }
+	box_time_t GetSessionStartTime() { return mSessionInfos.GetStartTime(); }
 
 private:
 	void MakeObjectFilename(int64_t ObjectID, std::string &rOutput, bool EnsureDirectoryExists = false);
@@ -222,6 +328,7 @@ private:
 
 	std::string mConnectionDetails;
 	int32_t mClientID;
+	int32_t mProtocolVersion;
 	HousekeepingInterface *mpHousekeeping;
 	int mProtocolPhase;
 	bool mClientHasAccount;
@@ -231,7 +338,6 @@ private:
 	bool mReadOnly;
 	NamedLock mWriteLock;
 	int mSaveStoreInfoDelay; // how many times to delay saving the store info
-
 	
 	// Store info
 	std::auto_ptr<BackupStoreInfo> mapStoreInfo;
@@ -242,8 +348,8 @@ private:
 	// Directory cache
 	std::map<int64_t, BackupStoreDirectory*> mDirectoryCache;
 
-	// Statistics
-	Statistics mStatistics;
+	// SessionInfos
+	SessionInfos mSessionInfos;
 public:
 	class TestHook
 	{

@@ -45,6 +45,22 @@ inline uint64_t BoxTimeToMicroSeconds(box_time_t Time)
 	return Time;
 }
 
+inline box_time_t StringToBoxTime(const std::string& TimeString)
+{
+	std::tm tm = {};
+    if (!strptime(TimeString.c_str(), "%Y-%m-%dT%H:%M:%S%z", &tm)) {
+        throw std::runtime_error("Failed to parse time string");
+    }
+    time_t time = std::mktime(&tm);
+    if (time == -1) {
+        throw std::runtime_error("Failed to convert time to timestamp");
+    }
+    return SecondsToBoxTime(time);
+
+
+}
+
+
 std::string FormatTime(box_time_t time, bool includeDate,
 	bool showMicros = false);
 

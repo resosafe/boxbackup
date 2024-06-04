@@ -12,7 +12,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <vector>
+#include <sstream>
 #ifdef HAVE_UNISTD_H
 	#include <unistd.h>
 #endif
@@ -1213,13 +1214,14 @@ std::auto_ptr<BackupClientContext> BackupDaemon::RunSyncNow()
 
 		// Unset exclude lists (just in case)
 		mapClientContext->SetExcludeLists(0, 0);
-		
 		// Perform any deletions required -- these are
 		// delayed until the end to allow renaming to 
 		// happen neatly.
 		// This is performed by Location since the behaviour can differ
 		mapClientContext->PerformDeletions(**i);
 	}
+
+	
 
 #ifdef ENABLE_VSS
 	CleanupVssBackupComponents();
@@ -2252,18 +2254,23 @@ void BackupDaemon::WaitOnCommandSocket(box_time_t RequiredDelay, bool &DoSyncFla
 				CloseCommandConnection();
 				sendResponse = false;
 			}
-			else if(command == "sync")
+			else if( command.rfind("sync", 0)==0 || (SyncIsForcedOut = (command.rfind("force-sync", 0)==0)) )
 			{
+				mLocationsAllowed.clear();
+
+				// if command contains something after "sync", extract it and split ","
+				// to get the list of locations to sync
+				if(command.length() > (SyncIsForcedOut ? 10 : 4) ) {
+
+					std::string token;
+					std::istringstream tokenStream(command.substr((SyncIsForcedOut ? 11 : 5)));
+					while (std::getline(tokenStream, token, ',')) {
+						mLocationsAllowed.push_back(token);
+					}
+				}
+
 				// Sync now!
 				DoSyncFlagOut = true;
-				SyncIsForcedOut = false;
-				sendOK = true;
-			}
-			else if(command == "force-sync")
-			{
-				// Sync now (forced -- overrides any SyncAllowScript)
-				DoSyncFlagOut = true;
-				SyncIsForcedOut = true;
 				sendOK = true;
 			}
 			else if(command == "reload")
@@ -2528,7 +2535,8 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 			// exclude old/deleted stuff
 			BackupProtocolListDirectory::Flags_Deleted |
 			BackupProtocolListDirectory::Flags_OldVersion,
-			false /* no attributes */));
+			false /* no attributes */,
+			0));
 
 	// Retrieve the directory from the stream following
 	BackupStoreDirectory dir;
@@ -2637,6 +2645,12 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 		pLocName != locNames.end();
 		pLocName++)
 	{
+		if( mLocationsAllowed.size() > 0 &&
+		mLocationsAllowed.end() == std::find(mLocationsAllowed.begin(), mLocationsAllowed.end(), *pLocName) ) {
+			BOX_NOTICE("Skipping location " << *pLocName << " as it is not in the list of allowed locations");
+			continue;
+		}
+		
 		Location* pLoc = NULL;
 
 		// Try to find and reuse an existing Location object
@@ -2831,6 +2845,12 @@ void BackupDaemon::SetupLocations(BackupClientContext &rClientContext, const Con
 		{
 			pLoc->mDoNotKeepDeletedFiles = rConfig.GetKeyValueBool("DoNotKeepDeletedFiles");
 		}
+
+		if(rConfig.KeyExists("DereferenceLinks"))
+		{
+			pLoc->mDereferenceLinks = rConfig.GetKeyValueBool("DereferenceLinks");
+		}
+
 		// Push it back on the vector of locations
 		mLocations.push_back(pLoc);
 

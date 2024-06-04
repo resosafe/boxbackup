@@ -341,7 +341,7 @@ std::string FormatUsageBar(int64_t Blocks, int64_t Bytes, int64_t Max,
 
 	if (MachineReadable)
 	{
-		result << (Bytes >> 10) << " kB, " <<
+		result << (Bytes >> 10) << " kiB, " <<
 			std::setprecision(0) << ((Bytes*100)/Max) << "%";
 	}
 	else

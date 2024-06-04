@@ -95,7 +95,7 @@ public:
 	void Read(void *Buffer, int Size);
 	void Read(std::string &rOut, int Size);
 	void Read(int64_t &rOut);
-void ReadWithDefault(int64_t &rOut, int64_t Default = 0) 
+	void ReadWithDefault(int64_t &rOut, int64_t Default = 0) 
 	{
 		try 
 		{ 

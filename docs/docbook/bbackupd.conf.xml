@@ -142,6 +142,16 @@
       </varlistentry>
 
       <varlistentry>
+        <term><varname>DiffingUploadMaxSizeThreshold</varname></term>
+
+        <listitem>
+          <para>Above this limit patching is disabled.</para>
+          <para>Useful for very large files that could take ages to be patched on the server.</para>
+        </listitem>
+      </varlistentry>
+
+
+      <varlistentry>
         <term><varname>StoreHostname</varname></term>
 
         <listitem>
@@ -416,6 +426,23 @@
                   directory, based on a regular expression.</para>
                 </listitem>
               </varlistentry>
+
+              <varlistentry>
+                <term><varname>DoNotKeepDeleted</varname></term>
+
+                <listitem>
+                  <para>Deleted objects will be immediately removed from the store.</para>
+                </listitem>
+              </varlistentry>
+
+              <varlistentry>
+                <term><varname>DerefenceLinks</varname></term>
+
+                <listitem>
+                  <para>Save the content of the link targer instead of the symbolic link itself.</para>
+                </listitem>
+              </varlistentry>
+
             </variablelist></para>
         </listitem>
       </varlistentry>

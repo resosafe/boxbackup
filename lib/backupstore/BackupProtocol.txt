@@ -50,6 +50,9 @@ Version		1	Command(Version)	Reply
 Login		2	Command(LoginConfirmed)
 	int32		ClientID
 	int32		Flags
+	#default version is the old one for client compatibility
+	int32		Version 1
+
 	CONSTANT	Flags_ReadOnly	1
 
 
@@ -114,6 +117,33 @@ ObjectName		13	Reply
 	# a stream of Filename objects follows, if and only if NumNameElements > 0
 
 
+GetObjectInfos	14	Command(ObjectInfos)
+	int64		ObjectID
+
+ObjectInfos		15	Reply
+	bool		IsDir
+	int64		ContainerID
+
+
+GetObjectName2	16	Command(ObjectName2)
+	int64		ObjectID
+	int64		ContainingDirectoryID
+	CONSTANT	ObjectID_DirectoryOnly	0
+
+	# set ObjectID to ObjectID_DirectoryOnly to only get info on the directory
+
+
+ObjectName2		17	Reply
+	int32		NumNameElements
+	int64		ModificationTime
+	int64		AttributesHash
+	int64       BackupTime
+	int64       DeleteTime
+	int16		Flags
+	# NumNameElements is zero if the object doesn't exist
+	CONSTANT	NumNameElements_ObjectDoesntExist	0
+	# a stream of Filename objects follows, if and only if NumNameElements > 0
+
 # -------------------------------------------------------------------------------------
 #  Directory commands
 # -------------------------------------------------------------------------------------
@@ -124,7 +154,6 @@ CreateDirectory	20	Command(Success)	StreamWithCommand
 	Filename	DirectoryName
 	# stream following containing attributes
 
-
 CreateDirectory2	46	Command(Success)	StreamWithCommand
 	int64		ContainingDirectoryID
 	int64		AttributesModTime
@@ -132,21 +161,21 @@ CreateDirectory2	46	Command(Success)	StreamWithCommand
 	Filename	DirectoryName
 	# stream following containing attributes
 
-
 ListDirectory	21	Command(Success)
 	int64		ObjectID
 	int16		FlagsMustBeSet
 	int16		FlagsNotToBeSet
 	bool		SendAttributes
+	int64		SnapshotTime 0
 	# make sure these flags are synced with those in BackupStoreDirectory
 	CONSTANT	Flags_INCLUDE_EVERYTHING 	-1
 	CONSTANT	Flags_EXCLUDE_NOTHING 		0
 	CONSTANT	Flags_EXCLUDE_EVERYTHING	15
-	CONSTANT	Flags_File			1
-	CONSTANT	Flags_Dir			2
-	CONSTANT	Flags_Deleted			4
+	CONSTANT	Flags_File					1
+	CONSTANT	Flags_Dir					2
+	CONSTANT	Flags_Deleted				4
 	CONSTANT	Flags_RemoveASAP			16
-	CONSTANT	Flags_OldVersion		8
+	CONSTANT	Flags_OldVersion			8
 	# make sure this is the same as in BackupStoreConstants.h
 	CONSTANT	RootDirectory			1
 
@@ -158,11 +187,17 @@ ChangeDirAttributes	22	Command(Success)	StreamWithCommand
 	int64		AttributesModTime
 	# stream following containing attributes
 
-
-DeleteDirectory	23	Command(Success)
+ChangeDirAttributes2	26	Command(Success)	StreamWithCommand
 	int64		ObjectID
-	int16		Flags 	0
+	int64		AttributesModTime
+	int64       ModTime
+	# stream following containing attributes
+
+DeleteDirectory 23	Command(Success)
+	int64		ObjectID
+	int16		Flags 0
 	bool       DeleteFromStore 0
+
 
 UndeleteDirectory	24	Command(Success)
 	int64		ObjectID
@@ -171,6 +206,8 @@ UndeleteDirectory	24	Command(Success)
 
 DeleteDirectoryASAP	25	Command(Success)
 	int64		ObjectID
+
+# 26 is ChangeDirAttributes2
 
 
 # -------------------------------------------------------------------------------------
@@ -233,6 +270,7 @@ UndeleteFile	36	Command(Success)
 DeleteFileASAP	37	Command(Success)
 	int64		InDirectory
 	Filename	Filename
+	
 	# will return 0 if the object couldn't be found in the specified directory
 
 
@@ -290,4 +328,13 @@ AccountUsage2	45	Reply
 	int64	NumDeletedFiles
 	int64	NumDirectories
 
+
 # 46 is CreateDirectory2
+
+
+ListBackups 47 Command(Backups)
+    # no data members
+	# reply has stream following Success object
+
+Backups	48	Reply
+	# no data members

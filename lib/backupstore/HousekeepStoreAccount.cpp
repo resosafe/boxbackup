@@ -15,11 +15,14 @@
 
 #include "autogen_BackupStoreException.h"
 #include "BackupConstants.h"
+#include "BackupStoreContext.h"
+#include "BackupsList.h"
 #include "BackupStoreAccountDatabase.h"
 #include "BackupStoreConstants.h"
 #include "BackupStoreDirectory.h"
 #include "BackupStoreFile.h"
 #include "BackupStoreInfo.h"
+#include "RaidFileController.h"
 #include "BackupStoreRefCountDatabase.h"
 #include "BufferedStream.h"
 #include "HousekeepStoreAccount.h"
@@ -27,6 +30,7 @@
 #include "RaidFileRead.h"
 #include "RaidFileWrite.h"
 #include "StoreStructure.h"
+#include "BoxTimeToText.h"
 
 #include "MemLeakFindOn.h"
 
@@ -103,7 +107,7 @@ HousekeepStoreAccount::~HousekeepStoreAccount()
 //		Created: 11/12/03
 //
 // --------------------------------------------------------------------------
-bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever)
+bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever, bool lock)
 {
     BOX_INFO("Starting housekeeping on account " <<
 		BOX_FORMAT_ACCOUNT(mAccountID));
@@ -117,29 +121,42 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever
 	if ( (flags & HousekeepStoreAccount::DisableAutoClean) !=0 ) {
 		BOX_INFO("AutoClean option deactivated.")
 	}
+	if ( (flags & HousekeepStoreAccount::FixForSnapshotMode) !=0 ) {
+		BOX_INFO("FixForSnapshotMode option activated.")
+	}
 
-	// Attempt to lock the account
-	std::string writeLockFilename;
-	StoreStructure::MakeWriteLockFilename(mStoreRoot, mStoreDiscSet,
-		writeLockFilename);
+
+	// TODO : cleanup snapshots => keep only the Nth last snapshots
+	// first read the backup list, get the backup time of the Nth+1 snapshot
+	// then delete all snapshots older than this time
+	// finally cleanup the backup list
+
 	NamedLock writeLock;
-	if(!writeLock.TryAndGetLock(writeLockFilename.c_str(),
-		0600 /* restrictive file permissions */))
+	// Attempt to lock the account
+	if( lock )
 	{
-		if(KeepTryingForever)
+		std::string writeLockFilename;
+		StoreStructure::MakeWriteLockFilename(mStoreRoot, mStoreDiscSet,
+			writeLockFilename);
+	
+		if(!writeLock.TryAndGetLock(writeLockFilename.c_str(),
+			0600 /* restrictive file permissions */))
 		{
-			BOX_INFO("Failed to lock account for housekeeping, "
-				"still trying...");
-			while(!writeLock.TryAndGetLock(writeLockFilename,
-				0600 /* restrictive file permissions */))
+			if(KeepTryingForever)
 			{
-				sleep(1);
+				BOX_INFO("Failed to lock account for housekeeping, "
+					"still trying...");
+				while(!writeLock.TryAndGetLock(writeLockFilename,
+					0600 /* restrictive file permissions */))
+				{
+					sleep(1);
+				}
 			}
-		}
-		else
-		{
-			// Couldn't lock the account -- just stop now
-			return false;
+			else
+			{
+				// Couldn't lock the account -- just stop now
+				return false;
+			}
 		}
 	}
 
@@ -171,7 +188,26 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever
 
 	// Scan the directory for potential things to delete
 	// This will also remove eligible items marked with RemoveASAP
-	bool continueHousekeeping = ScanDirectory(flags, BACKUPSTORE_ROOT_DIRECTORY_ID,
+	info->GetVersionCountLimit();
+
+	box_time_t snapshotTime = 0;
+	BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(mStoreDiscSet, mStoreRoot, 1));
+
+	if(info->HasSnapshotOption() ) {
+		BOX_INFO("Keeping "<<info->GetVersionCountLimit()<<" snapshots.")
+		// keep only the Nth last snapshots
+		list.Shift(info->GetVersionCountLimit());
+
+		// and get the time of the first snapshot.
+		// we'll cleanup everything before
+		SessionInfos* infos = list.GetFirst();
+		if( infos != NULL ) {
+			snapshotTime = infos->GetStartTime();
+			BOX_INFO("Cleaning at snapshotTime " << BoxTimeToISO8601String(snapshotTime, false) );
+		}
+	}
+
+	bool continueHousekeeping = ScanDirectory(flags, snapshotTime, BACKUPSTORE_ROOT_DIRECTORY_ID,
 		*info);
 
 	if(!continueHousekeeping)
@@ -189,7 +225,13 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever
 			mFilesDeleted << " files, " <<
 			mEmptyDirectoriesDeleted << " dirs) and the directory "
 			"scan was interrupted");
+	} else {
+		// everything is done, save the new snapshots list
+		list.Save();
 	}
+
+
+	
 
 	// If housekeeping made any changes, such as deleting RemoveASAP files,
 	// the differences in block counts will be recorded in the deltas.
@@ -251,7 +293,7 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever
 	// are also marked as deleted in their containing directory
 	if(!deleteInterrupted)
 	{
-		deleteInterrupted = DeleteEmptyDirectories(*info);
+		deleteInterrupted = DeleteEmptyDirectories(*info, ((flags & HousekeepStoreAccount::ForceDeleteEmptyDirectories) !=0) );
 	}
 
 	// Log deletion if anything was deleted
@@ -301,7 +343,10 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever
 
 	// Explicity release the lock (would happen automatically on
 	// going out of scope, included for code clarity)
-	writeLock.ReleaseLock();
+	if ( lock )
+	{
+		writeLock.ReleaseLock();
+	}
 
 	BOX_TRACE("Finished housekeeping on account " <<
 		BOX_FORMAT_ACCOUNT(mAccountID));
@@ -335,7 +380,7 @@ void HousekeepStoreAccount::MakeObjectFilename(int64_t ObjectID, std::string &rF
 //		Created: 11/12/03
 //
 // --------------------------------------------------------------------------
-bool HousekeepStoreAccount::ScanDirectory(int32_t flags, int64_t ObjectID,
+bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime, int64_t ObjectID, 
 	BackupStoreInfo& rBackupStoreInfo)
 {
 #ifndef WIN32
@@ -377,6 +422,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, int64_t ObjectID,
 	// Is it empty?
 	if(dir.GetNumberOfEntries() == 0)
 	{
+		printf("Empty directory %s\n", objectFilename.c_str());
 		// Add it to the list of directories to potentially delete
 		mEmptyDirectories.push_back(dir.GetObjectID());
 	}
@@ -400,43 +446,139 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, int64_t ObjectID,
 		// Remove any files which are marked for removal as soon
 		// as they become old or deleted.
 		bool deletedSomething = false;
+		bool needSave = false;
 		do
 		{
 			// Iterate through the directory
 			deletedSomething = false;
 			BackupStoreDirectory::Iterator i(dir);
 			BackupStoreDirectory::Entry *en = 0;
-			while((en = i.Next(BackupStoreDirectory::Entry::Flags_File)) != 0)
+			while((en = i.Next()) != 0)
 			{
 				int16_t enFlags = en->GetFlags();
-				if( ( (enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0
-						&& (en->IsDeleted() || en->IsOld())
-					)
-					|| ( (flags & HousekeepStoreAccount::RemoveDeleted) != 0 && en->IsDeleted() )
-					|| ( (flags & HousekeepStoreAccount::RemoveOldVersions) != 0 && en->IsOld() )
-					)
-				{
 
-					BOX_INFO("Going to remove Object " << BOX_FORMAT_OBJECTID(en->GetObjectID())
-							 << (en->IsDeleted() ? " (Deleted)" : "")
-							 << (en->IsOld() ? " (Old)" :"")
-							 );
+				if( rBackupStoreInfo.HasSnapshotOption() ) {
+
+					if( (flags & HousekeepStoreAccount::FixForSnapshotMode) != 0  ) {
+
+						// delete any old or deleted files without a timestamp
+						int16_t enFlags = en->GetFlags();
+						if( en->IsFile() && en->IsDeleted() && en->GetDeleteTime() == 0) {
+
+							if ( en->GetBackupTime()==0 )
+							{
+								BOX_INFO("Going to remove Object " << BOX_FORMAT_OBJECTID(en->GetObjectID())
+										<< (en->IsDeleted() ? " (Deleted)" : "")
+										<< " without deleted timestamp"
+										);
+
+								
+								DeleteFile(ObjectID, en->GetObjectID(), dir,
+									objectFilename, rBackupStoreInfo, true);
+
+								deletedSomething = true;
+								needSave = false; // save has been done in DeleteFile
+								break;
+							} else {
+								// strange, but the delete timestamp is missing ??
+								en->SetDeleteTime(mNewSessionsInfos.GetStartTime());
+								mNewSessionsInfos.RecordFileDeleted(en->GetSizeInBlocks());
+								needSave = true;
+							}
+						} else if (en->IsOld() && en->GetBackupTime() == 0 ) {
+							BOX_INFO("Going to remove Object " << BOX_FORMAT_OBJECTID(en->GetObjectID())
+									<< (en->IsOld() ? " (Old)" :"")
+									<< " without backup timestamp"
+									);
+
+							DeleteFile(ObjectID, en->GetObjectID(), dir,
+								objectFilename, rBackupStoreInfo), true;
+
+							deletedSomething = true;
+							needSave = false; // save has been done in DeleteFile
+							break;
+						} else if ( en->GetBackupTime() == 0 ) {
+							// the backup timestamp is missing ??
+
+							if( en->IsDir() ) 
+							{
+								en->SetBackupTime(mNewSessionsInfos.GetStartTime());
+								mNewSessionsInfos.RecordDirectoryAdded();
+							} else 
+							{
+								en->SetBackupTime(mNewSessionsInfos.GetStartTime());
+								mNewSessionsInfos.RecordFileAdded(en->GetSizeInBlocks());
+							}
+							
+							needSave = true;
+						}
+							
+							
+
+					} else if( en->IsFile()
+						&& ( (en->IsDeleted() && ((enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0 || en->GetDeleteTime() < SnapshotTime))
+							|| (en->IsOld() && en->GetBackupTime() < SnapshotTime))
+						)
+					{
+						// here we should delete only the files based on their backup date (if set)
+						// this file is too old, delete it
+						BOX_INFO("Going to remove Object " << BOX_FORMAT_OBJECTID(en->GetObjectID())
+								<< " BackupTime: " << BoxTimeToISO8601String(en->GetBackupTime(), false) );
+
+						// Delete this immediately.
+						DeleteFile(ObjectID, en->GetObjectID(), dir,
+							objectFilename, rBackupStoreInfo, true);
+
+						// flag as having done something
+						deletedSomething = true;
+
+						// Must start the loop from the beginning again, as iterator is now
+						// probably invalid.
+						break;
+					}
+
+				} else if (en->IsFile()) {
+					// Only Treat Files at this point
+					if( ( (enFlags & BackupStoreDirectory::Entry::Flags_RemoveASAP) != 0
+							&& (en->IsDeleted() || en->IsOld())
+						)
+						|| ( (flags & HousekeepStoreAccount::RemoveDeleted) != 0 && en->IsDeleted() )
+						|| ( (flags & HousekeepStoreAccount::RemoveOldVersions) != 0 && en->IsOld() )
+						)
+					{
+
+						BOX_INFO("Going to remove Object " << BOX_FORMAT_OBJECTID(en->GetObjectID())
+								<< (en->IsDeleted() ? " (Deleted)" : "")
+								<< (en->IsOld() ? " (Old)" :"")
+								);
 
 
-					// Delete this immediately.
-					DeleteFile(ObjectID, en->GetObjectID(), dir,
-						objectFilename, rBackupStoreInfo);
+						// Delete this immediately.
+						DeleteFile(ObjectID, en->GetObjectID(), dir,
+							objectFilename, rBackupStoreInfo);
 
-					// flag as having done something
-					deletedSomething = true;
+						// flag as having done something
+						deletedSomething = true;
 
-					// Must start the loop from the beginning again, as iterator is now
-					// probably invalid.
-					break;
+						// Must start the loop from the beginning again, as iterator is now
+						// probably invalid.
+						break;
+					}
 				}
 			}
 		} while(deletedSomething);
+
+
+		if( needSave ) 
+		{
+			// Save the directory back to disc
+			RaidFileWrite writeDir(mStoreDiscSet, objectFilename);
+			writeDir.Open(true /* allow overwriting */);
+			dir.WriteToStream(writeDir);
+			writeDir.Commit(BACKUP_STORE_CONVERT_TO_RAID_IMMEDIATELY);
+		}
 	}
+
 
 	if ( flags == HousekeepStoreAccount::DefaultAction ){
 		// Add files to the list of potential deletions
@@ -561,7 +703,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, int64_t ObjectID,
 		{
 			ASSERT(en->IsDir());
 			
-			if(!ScanDirectory(flags, en->GetObjectID(), rBackupStoreInfo))
+			if(!ScanDirectory(flags, SnapshotTime, en->GetObjectID(), rBackupStoreInfo))
 			{
 				// Halting operation
 				return false;
@@ -713,7 +855,8 @@ bool HousekeepStoreAccount::DeleteFiles(BackupStoreInfo& rBackupStoreInfo)
 BackupStoreRefCountDatabase::refcount_t HousekeepStoreAccount::DeleteFile(
 	int64_t InDirectory, int64_t ObjectID, BackupStoreDirectory &rDirectory,
 	const std::string &rDirectoryFilename,
-	BackupStoreInfo& rBackupStoreInfo)
+	BackupStoreInfo& rBackupStoreInfo,
+	bool ForceDelete)
 {
 	// Find the entry inside the directory
 	bool wasDeleted = false;
@@ -745,7 +888,7 @@ BackupStoreRefCountDatabase::refcount_t HousekeepStoreAccount::DeleteFile(
 		wasDeleted = pentry->IsDeleted();
 		wasOldVersion = pentry->IsOld();
 		// Check this should be deleted
-		if(!wasDeleted && !wasOldVersion)
+		if(!ForceDelete && !wasDeleted && !wasOldVersion)
 		{
 			// Things changed since we were last around
 			return refs;
@@ -1018,7 +1161,7 @@ void HousekeepStoreAccount::UpdateDirectorySize(
 //		Created: 15/12/03
 //
 // --------------------------------------------------------------------------
-bool HousekeepStoreAccount::DeleteEmptyDirectories(BackupStoreInfo& rBackupStoreInfo)
+bool HousekeepStoreAccount::DeleteEmptyDirectories(BackupStoreInfo& rBackupStoreInfo, bool ForceDelete)
 {
 	while(mEmptyDirectories.size() > 0)
 	{
@@ -1046,7 +1189,7 @@ bool HousekeepStoreAccount::DeleteEmptyDirectories(BackupStoreInfo& rBackupStore
 				continue;
 			}
 
-			DeleteEmptyDirectory(*i, toExamine, rBackupStoreInfo);
+			DeleteEmptyDirectory(*i, toExamine, rBackupStoreInfo, ForceDelete);
 		}
 
 		// Remove contents of empty directories
@@ -1060,7 +1203,7 @@ bool HousekeepStoreAccount::DeleteEmptyDirectories(BackupStoreInfo& rBackupStore
 }
 
 void HousekeepStoreAccount::DeleteEmptyDirectory(int64_t dirId,
-	std::vector<int64_t>& rToExamine, BackupStoreInfo& rBackupStoreInfo)
+	std::vector<int64_t>& rToExamine, BackupStoreInfo& rBackupStoreInfo, bool ForceDelete)
 {
 	// Load up the directory to potentially delete
 	std::string dirFilename;
@@ -1111,7 +1254,7 @@ void HousekeepStoreAccount::DeleteEmptyDirectory(int64_t dirId,
 	BackupStoreDirectory::Entry *pdirentry =
 		containingDir.FindEntryByID(dir.GetObjectID());
 	// TODO FIXME invert test and reduce indentation
-	if((pdirentry != 0) && pdirentry->IsDeleted())
+	if( (pdirentry != 0) && (ForceDelete || pdirentry->IsDeleted()) )
 	{
 		// Should be deleted
 		containingDir.DeleteEntry(dir.GetObjectID());

@@ -10,6 +10,7 @@
 #ifndef BACKUPQUERIES__H
 #define BACKUPQUERIES__H
 
+#include <regex>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -39,6 +40,8 @@ typedef enum
 	Command_Usage,
 	Command_Undelete,
 	Command_Delete,
+	Command_ListBackups,
+	Command_Search,
 }
 CommandType;
 
@@ -88,23 +91,29 @@ public:
 	// Return code?
 	int GetReturnCode() {return mReturnCode;}
 
-	void List(int64_t DirID, const std::string &rListRoot, const bool *opts,
-		bool FirstLevel, std::ostream* pOut = NULL);
-	void CommandList(const std::vector<std::string> &args, const bool *opts);
-
+	
 	// Commands
+	void CommandList(const std::vector<std::string> &args, const bool *opts);
+	void List(int64_t DirID, const std::string &rListRoot, const bool *opts,
+		box_time_t snapshotTime, bool FirstLevel,  std::ostream* pOut = NULL);
+	void CommandSearch(const std::vector<std::string> &args, const bool *opts);
+	void Search(int64_t DirID, const std::string &rListRoot, const std::string &rSearchPattern, 
+		const bool *opts, box_time_t snapshotTime, bool FirstLevel,  std::ostream* pOut = NULL);
+
 	void CommandChangeDir(const std::vector<std::string> &args, const bool *opts);
 	void CommandChangeLocalDir(const std::vector<std::string> &args);
 	void CommandGetObject(const std::vector<std::string> &args, const bool *opts);
 	void CommandGet(std::vector<std::string> args, const bool *opts);
 	void CommandCompare(const std::vector<std::string> &args, const bool *opts);
 	void CommandRestore(const std::vector<std::string> &args, const bool *opts);
+	
 	void CommandUndelete(const std::vector<std::string> &args, const bool *opts);
 	void CommandDelete(const std::vector<std::string> &args,
 		const bool *opts);
 	void CommandUsage(const bool *opts);
 	void CommandUsageDisplayEntry(const char *Name, int64_t Size,
 		int64_t HardLimit, int32_t BlockSize, bool MachineReadable);
+	void CommandListBackups(const bool *opts);
 	void CommandHelp(const std::vector<std::string> &args);
 
 	class CompareParams : public BoxBackupCompareParams
@@ -382,17 +391,20 @@ public:
 	int64_t GetCurrentDirectoryID();
 	int64_t FindDirectoryObjectID(const std::string &rDirName,
 		bool AllowOldVersion = false, bool AllowDeletedDirs = false,
+		box_time_t SnapshotTime = 0,
 		std::vector<std::pair<std::string, int64_t> > *pStack = 0);
 
 private:
 
 	// Utility functions
 	int64_t FindFileID(const std::string& rNameOrIdString,
-		const bool *opts, int64_t *pDirIdOut,
+		const bool *opts, box_time_t SnapshotTime, int64_t *pDirIdOut,
 		std::string* pFileNameOut, int16_t flagsInclude,
 		int16_t flagsExclude, int16_t* pFlagsOut);
 	std::string GetCurrentDirectoryName();
 	void SetReturnCode(int code) {mReturnCode = code;}
+	std::string GetObjectFilename(int64_t ObjectId, bool IsDir, int64_t ContainerId);
+	std::string GetLocalFullPathFromObjectID(int64_t ObjectId, bool IsDir, int64_t ContainerId, bool TranslateRoot = false);
 
 private:
 	bool mReadWrite;

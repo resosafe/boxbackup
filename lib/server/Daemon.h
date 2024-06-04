@@ -110,6 +110,7 @@ private:
 	bool mSingleProcess;
 	bool mRunInForeground;
 	bool mKeepConsoleOpenAfterFork;
+	bool mStopWritingMessagesToConsole;
 	bool mHaveConfigFile;
 	Logging::OptionParser mLogLevel;
 	std::string mLogFile;

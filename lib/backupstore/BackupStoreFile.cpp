@@ -98,6 +98,51 @@ std::auto_ptr<BackupStoreFileEncodeStream> BackupStoreFile::EncodeFile(
 // --------------------------------------------------------------------------
 //
 // Function
+//		Name:    BackupStoreFile::GetHeader(IOStream &)
+//		Purpose: Retreive the file header
+//		Created: 2024/01/26
+//
+// --------------------------------------------------------------------------
+file_StreamFormat BackupStoreFile::GetHeader(IOStream &rFile)
+{
+	// Get the size of the file
+	int64_t fileSize = rFile.BytesLeftToRead();
+	if(fileSize == IOStream::SizeOfStreamUnknown)
+	{
+		THROW_EXCEPTION(BackupStoreException, StreamDoesntHaveRequiredFeatures)
+	}
+
+	// Get the header...
+	file_StreamFormat hdr;
+	if(!rFile.ReadFullBuffer(&hdr, sizeof(hdr), 0 /* not interested in bytes read if this fails */))
+	{
+		THROW_EXCEPTION_MESSAGE(BackupStoreException, BadBackupStoreFile,
+				"Cannot read header from stream");
+	}
+
+	// Check magic number
+	if(ntohl(hdr.mMagicValue) != OBJECTMAGIC_FILE_MAGIC_VALUE_V1
+#ifndef BOX_DISABLE_BACKWARDS_COMPATIBILITY_BACKUPSTOREFILE
+		&& ntohl(hdr.mMagicValue) != OBJECTMAGIC_FILE_MAGIC_VALUE_V0
+#endif
+		)
+	{
+		THROW_EXCEPTION_MESSAGE(BackupStoreException, BadBackupStoreFile,
+				"Invalid header magic in stream: expected " <<
+				BOX_FORMAT_HEX32(OBJECTMAGIC_FILE_MAGIC_VALUE_V1) <<
+				" or " <<
+				BOX_FORMAT_HEX32(OBJECTMAGIC_FILE_MAGIC_VALUE_V0) <<
+				" but found " <<
+				BOX_FORMAT_HEX32(ntohl(hdr.mMagicValue)));
+	}
+
+	return hdr;
+}
+
+
+// --------------------------------------------------------------------------
+//
+// Function
 //		Name:    BackupStoreFile::VerifyEncodedFileFormat(IOStream &)
 //		Purpose: Verify that an encoded file meets the format
 //			 requirements. Doesn't verify that the data is intact
@@ -1624,6 +1669,7 @@ bool BackupStoreFile::CompareFileContentsAgainstBlockIndex(const char *Filename,
 	bool sourceIsSymlink = false;
 	{
 		EMU_STRUCT_STAT st;
+		
 		if(EMU_LSTAT(Filename, &st) == -1)
 		{
 			THROW_EXCEPTION(CommonException, OSFileError)

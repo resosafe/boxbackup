@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include "BackupConstants.h"
+#include "BackupStoreObjectMagic.h"
 #include "BackupStoreFilenameClear.h"
 #include "StreamableMemBlock.h"
 #include "BoxTime.h"
@@ -95,10 +97,10 @@ public:
 		Entry();
 		~Entry();
 		Entry(const Entry &rToCopy);
-		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
+		Entry(const BackupStoreFilename &rName, box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeleteTime, int64_t ObjectID, int64_t SizeInBlocks, int16_t Flags, uint64_t AttributesHash);
 
-		void ReadFromStream(IOStream &rStream, int Timeout);
-		void WriteToStream(IOStream &rStream) const;
+		void ReadFromStream(IOStream &rStream, int Timeout, uint32_t magicValue = OBJECTMAGIC_DIR_MAGIC_VALUE_V1);
+		void WriteToStream(IOStream &rStream, bool IgnoreBackupTime = false) const;
 
 		const BackupStoreFilename &GetName() const
 		{
@@ -109,6 +111,31 @@ public:
 		{
 			ASSERT(!mInvalidated); // Compiled out of release builds
 			return mModificationTime;
+		}
+		void SetModificationTime(box_time_t NewModificationTime)
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			mModificationTime = NewModificationTime;
+		}
+		box_time_t GetBackupTime() const
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			return mBackupTime;
+		}
+		void SetBackupTime(box_time_t NewBackupTime)
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			mBackupTime = NewBackupTime;
+		}
+		box_time_t GetDeleteTime() const
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			return mDeleteTime;
+		}
+		void SetDeleteTime(box_time_t NewDeleteTime)
+		{
+			ASSERT(!mInvalidated); // Compiled out of release builds
+			mDeleteTime = NewDeleteTime;
 		}
 		int64_t GetObjectID() const
 		{
@@ -203,7 +230,7 @@ public:
 			Flags_Dir					= 2,
 			Flags_Deleted				= 4,
 			Flags_OldVersion			= 8,
-			Flags_RemoveASAP			= 16	// if this flag is set, housekeeping will remove it as it is marked Deleted or OldVersion
+			Flags_RemoveASAP			= 16,	// if this flag is set, housekeeping will remove it as it is marked Deleted or OldVersion
 		};
 		// characters for textual listing of files -- see bbackupquery/BackupQueries
 		#define BACKUPSTOREDIRECTORY_ENTRY_FLAGS_DISPLAY_NAMES "fdXoR"
@@ -277,6 +304,8 @@ public:
 	private:
 		BackupStoreFilename mName;
 		box_time_t mModificationTime;
+		box_time_t mBackupTime;
+		box_time_t mDeleteTime;
 		int64_t mObjectID;
 		int64_t mSizeInBlocks;
 		int16_t mFlags;
@@ -300,13 +329,15 @@ public:
 	void WriteToStream(IOStream &rStream,
 			int16_t FlagsMustBeSet = Entry::Flags_INCLUDE_EVERYTHING,
 			int16_t FlagsNotToBeSet = Entry::Flags_EXCLUDE_NOTHING,
-			bool StreamAttributes = true, bool StreamDependencyInfo = true) const;
+			box_time_t SnapshotTime = 0,
+			bool StreamAttributes = true, bool StreamDependencyInfo = true, 
+			uint32_t ProtocolVersion = PROTOCOL_CURRENT_VERSION) const;
 			
 	Entry *AddEntry(const Entry &rEntryToCopy);
 	Entry *AddEntry(const BackupStoreFilename &rName,
-		box_time_t ModificationTime, int64_t ObjectID,
-		int64_t SizeInBlocks, int16_t Flags,
-		uint64_t AttributesHash);
+		box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeleteTime,
+		int64_t ObjectID, int64_t SizeInBlocks, 
+		int16_t Flags, uint64_t AttributesHash);
 	void DeleteEntry(int64_t ObjectID);
 	Entry *FindEntryByID(int64_t ObjectID) const;
 
@@ -474,7 +505,7 @@ public:
 	// Implemented in BackupStoreCheck2.cpp
 	bool CheckAndFix();
 	void AddUnattachedObject(const BackupStoreFilename &rName,
-		box_time_t ModificationTime, int64_t ObjectID,
+		box_time_t ModificationTime, box_time_t BackupTime, box_time_t DeleteTime, int64_t ObjectID,
 		int64_t SizeInBlocks, int16_t Flags);
 	bool NameInUse(const BackupStoreFilename &rName);
 
