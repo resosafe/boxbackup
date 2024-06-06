@@ -126,6 +126,20 @@
 		throw type(type::subtype); \
 	}
 
+
+#define THROW_EXCEPTION_NO_LOG(type, subtype, message) \
+	{ \
+		std::ostringstream _box_throw_line; \
+		_box_throw_line << message; \
+		if((!HideExceptionMessageGuard::ExceptionsHidden() \
+			&& !HideSpecificExceptionGuard::IsHidden( \
+				type::ExceptionType, type::subtype))) \
+		{ \
+			OPTIONAL_DO_BACKTRACE \
+		} \
+		throw type(type::subtype, _box_throw_line.str()); \
+	}
+
 #define THROW_EXCEPTION_MESSAGE(type, subtype, message) \
 	{ \
 		std::ostringstream _box_throw_line; \

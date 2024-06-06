@@ -347,10 +347,12 @@ void Protocol::EnsureBufferAllocated(int Size)
 		THROW_EXCEPTION(ServerException, Protocol_BadUsage)						\
 	}
 
+
+//FIXME: hide this exception since it may not be an issue with different protocols versions
 #define READ_CHECK_BYTES_AVAILABLE(bytesRequired)								\
 	if((mReadOffset + (int)(bytesRequired)) > mValidDataSize)					\
-	{																			\
-		THROW_EXCEPTION_MESSAGE(ConnectionException, Protocol_BadCommandRecieved, "(old protocol version?)")	\
+	{ 																			\
+		THROW_EXCEPTION_NO_LOG(ConnectionException, Protocol_BadCommandRecieved, "(old protocol version?)")	\
 	}
 
 // --------------------------------------------------------------------------
