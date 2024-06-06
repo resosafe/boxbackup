@@ -97,6 +97,11 @@ void BackupsList::AddRecord(SessionInfos &rInfos)
 // --------------------------------------------------------------------------
 void BackupsList::Shift(int MaxCount)
 {
+
+    if (mList.size() <= MaxCount) {
+        return;
+    }
+
     auto it = mList.begin();
     std::advance(it, mList.size() - MaxCount);
     mList.erase(mList.begin(), it);
