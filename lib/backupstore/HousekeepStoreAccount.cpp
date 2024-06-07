@@ -124,6 +124,9 @@ bool HousekeepStoreAccount::DoHousekeeping(int32_t flags, bool KeepTryingForever
 	if ( (flags & HousekeepStoreAccount::FixForSnapshotMode) !=0 ) {
 		BOX_INFO("FixForSnapshotMode option activated.")
 	}
+	if ( (flags & HousekeepStoreAccount::Force) !=0 ) {
+		BOX_INFO("Force option activated.")
+	}
 
 
 	// TODO : cleanup snapshots => keep only the Nth last snapshots
@@ -497,7 +500,7 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime
 							deletedSomething = true;
 							needSave = false; // save has been done in DeleteFile
 							break;
-						} else if ( en->GetBackupTime() == 0 ) {
+						} else if ( en->GetBackupTime() == 0 || (flags & HousekeepStoreAccount::Force) != 0  ) {
 							// the backup timestamp is missing ??
 
 							if( en->IsDir() ) 

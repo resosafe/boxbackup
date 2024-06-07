@@ -69,7 +69,7 @@ public:
 		int &rDiscSetOut, std::auto_ptr<UnixUser> apUser, NamedLock* pLock);
 	int SetLimit(int32_t ID, const char *SoftLimitStr,
         const char *HardLimitStr, const char *VersionsLimitStr="0");
-	int SetOptions(int32_t ID, int32_t Options, bool fix);
+	int SetOptions(int32_t ID, int32_t Options, bool fix, bool force);
 	int SetAccountName(int32_t ID, const std::string& rNewAccountName);
 	int PrintAccountInfo(int32_t ID);
 	int SetAccountEnabled(int32_t ID, bool enabled);

@@ -247,7 +247,7 @@ int main(int argc, const char *argv[])
 		}
 
 
-        return control.SetOptions(id, options, (argc == 4 && ::strcmp(argv[3], "fix") == 0));
+        return control.SetOptions(id, options, (argc >= 4 && ::strcmp(argv[3], "fix") == 0), (argc == 5 && ::strcmp(argv[4], "force") == 0));
 	}
 	else if(command == "info")
 	{

@@ -46,6 +46,7 @@ public:
 		DisableAutoClean=0x4,
 		FixForSnapshotMode=0x8,
 		ForceDeleteEmptyDirectories=0x10,
+		Force=0x20,
 	}ActionFlags;
 
 	HousekeepStoreAccount(int AccountID, const std::string &rStoreRoot,
