@@ -376,11 +376,6 @@ void BackupStoreDirectoryFixer::InsertObject(int64_t ObjectID, bool IsDirectory,
 
 		// Read in header
 		file_StreamFormat hdr;
-		printf("%d\n", file->Read(&hdr, sizeof(hdr)));
-		printf("%d\n", sizeof(hdr));
-		printf("%d\n", ntohl(hdr.mMagicValue));
-		printf("%d\n", OBJECTMAGIC_FILE_MAGIC_VALUE_V1);
-		printf("%d\n", OBJECTMAGIC_FILE_MAGIC_VALUE_V0);
 		if(file->Read(&hdr, sizeof(hdr)) != sizeof(hdr) ||
 			(ntohl(hdr.mMagicValue) != OBJECTMAGIC_FILE_MAGIC_VALUE_V1
 #ifndef BOX_DISABLE_BACKWARDS_COMPATIBILITY_BACKUPSTOREFILE
