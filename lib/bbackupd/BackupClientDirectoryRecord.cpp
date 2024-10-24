@@ -212,6 +212,7 @@ void BackupClientDirectoryRecord::SyncDirectory(
 			idMap.AddToMap(dest_st.st_ino, mObjectID, ContainingDirectoryID,
 				local_path_non_vss);
 		}
+
 		// Add attributes to checksum
 		currentStateChecksum.Add(&dest_st.st_mode,
 			sizeof(dest_st.st_mode));
@@ -227,9 +228,33 @@ void BackupClientDirectoryRecord::SyncDirectory(
 			sizeof(dest_st.st_flags));
 #endif
 
-		StreamableMemBlock xattr;
-		BackupClientFileAttributes::FillExtendedAttr(xattr,
-			rLocalPath.c_str());
+		StreamableMemBlock xattr;	
+		int type = dest_st.st_mode & S_IFMT;
+		if(type == S_IFLNK && rBackupLocation.mDereferenceLinks )
+		{
+			char path[PATH_MAX+4];
+			int readlink_ret = ::readlink(rLocalPath.c_str(), path, sizeof(path));
+			if(readlink_ret == -1)
+			{
+				// Report the error (logs and eventual email to administrator)
+				rNotifier.NotifyFileStatFailed(this, rLocalPath,
+					strerror(errno));
+
+				SetErrorWhenReadingFilesystemObject(rParams, rLocalPath);
+
+				// Ignore this entry for now.
+				return;
+			}
+			path[readlink_ret] = '\0';
+
+			BackupClientFileAttributes::FillExtendedAttr(xattr,
+				path);
+		}
+		else
+		{
+				BackupClientFileAttributes::FillExtendedAttr(xattr,
+				rLocalPath.c_str());
+		}
 		currentStateChecksum.Add(xattr.GetBuffer(), xattr.GetSize());
 	}
 	
@@ -542,14 +567,6 @@ bool BackupClientDirectoryRecord::SyncDirectoryEntry(
 		// Stat the link target
 		if(EMU_STAT(path, &file_st) != 0)
 		{
-
-			// Report the error (logs and eventual email to administrator)
-			rNotifier.NotifyFileStatFailed(this, filename,
-				strerror(errno));
-
-			// FIXME move to NotifyFileStatFailed()
-			SetErrorWhenReadingFilesystemObject(rParams, filename);
-
 			// Ignore this entry for now.
 			return false;
 		}
