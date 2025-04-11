@@ -12,7 +12,7 @@
 #include <stdio.h>
 
 #include <map>
-
+#include "autogen_RaidFileException.h"
 #include "autogen_BackupStoreException.h"
 #include "BackupConstants.h"
 #include "BackupStoreContext.h"
@@ -407,8 +407,10 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime
 	MakeObjectFilename(ObjectID, objectFilename);
 
 	// Open it.
-	std::auto_ptr<RaidFileRead> dirStream(RaidFileRead::Open(mStoreDiscSet,
-		objectFilename));
+	try {
+		std::auto_ptr<RaidFileRead> dirStream(RaidFileRead::Open(mStoreDiscSet,
+			objectFilename));
+	
 
 	// Add the size of the directory on disc to the size being calculated
 	int64_t originalDirSizeInBlocks = dirStream->GetDiscUsageInBlocks();
@@ -713,7 +715,15 @@ bool HousekeepStoreAccount::ScanDirectory(int32_t flags, box_time_t SnapshotTime
 			}
 		}
 	}
-
+} catch (BoxException &e) {
+		if (e.GetSubType() == RaidFileException::RaidFileDoesntExist) {
+			BOX_ERROR("++1Failed to open directory " << objectFilename << ": " << e.GetSubType());
+		} else {
+			BOX_ERROR("++2Failed to open directory " << objectFilename << ": " << e.what());
+		}
+		BOX_ERROR("++3Failed to open directory " << objectFilename << ": " << e.GetSubType());
+		return false;
+	}
 	return true;
 }
 

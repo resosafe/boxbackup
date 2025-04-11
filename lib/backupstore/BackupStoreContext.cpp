@@ -741,8 +741,6 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		
 		// transfert is done, cleanup resume
 		resume.Delete();
-		
-		BOX_NOTICE("File committed");
 	}
 	catch(...)
 	{

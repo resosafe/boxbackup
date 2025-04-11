@@ -563,6 +563,15 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout,
 	BackupStoreFilename name;
 	name.ReadFromStream(rStream, Timeout);
 
+	// Store the rest of the bits
+	mModificationTime =		box_ntoh64(entry.mModificationTime);
+
+	mObjectID = 			box_ntoh64(entry.mObjectID);
+	mSizeInBlocks = 		box_ntoh64(entry.mSizeInBlocks);
+	mAttributesHash =		box_ntoh64(entry.mAttributesHash);
+	mFlags = 				ntohs(entry.mFlags);
+	mName =					name;
+
 	// Get the attributes
 	mAttributes.ReadFromStream(rStream, Timeout);
 
@@ -570,6 +579,8 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout,
 		mBackupTime = 0;
 		mDeleteTime = 0;
 	} else {
+		box_time_t current = GetCurrentBoxTime();
+
 		// Get the Backup and Deleted Time
 		uint64_t backupTime = 0;
 		if(!rStream.ReadFullBuffer(&backupTime, sizeof(backupTime), 0, Timeout))
@@ -583,18 +594,17 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout,
 		{
 			THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
 		}
-		mDeleteTime = box_ntoh64(deleteTime);
+
+		if (IsDeleted()) {
+			mDeleteTime = box_ntoh64(deleteTime);
+		} else {
+			// ensure we don't get garbage here
+			mDeleteTime = 0;
+		}
 
 	}
 
-	// Store the rest of the bits
-	mModificationTime =		box_ntoh64(entry.mModificationTime);
-
-	mObjectID = 			box_ntoh64(entry.mObjectID);
-	mSizeInBlocks = 		box_ntoh64(entry.mSizeInBlocks);
-	mAttributesHash =		box_ntoh64(entry.mAttributesHash);
-	mFlags = 				ntohs(entry.mFlags);
-	mName =					name;
+	
 }
 
 
