@@ -595,10 +595,10 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout,
 			THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
 		}
 
-		if (IsDeleted()) {
+		// ensure we don't get garbage here
+		if (IsDeleted() && mDeleteTime < current && mDeleteTime > 0) {
 			mDeleteTime = box_ntoh64(deleteTime);
 		} else {
-			// ensure we don't get garbage here
 			mDeleteTime = 0;
 		}
 
