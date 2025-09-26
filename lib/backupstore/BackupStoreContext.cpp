@@ -576,8 +576,8 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		RaidFileWrite storeFile(mStoreDiscSet, fn);
 
 		storeFile.Open(false /* no overwriting */, ResumeOffset > 0 /* no truncate if resuming*/);
-		// storeFile must be discardable, otherwise temporary files may pile up
-		// storeFile.SetDiscardable(false);
+		// we want to be able to restart the upload if it fails
+		storeFile.SetDiscardable(false);
 		int64_t spaceSavedByConversionToPatch = 0;
 
 		// Diff or full file?
@@ -733,8 +733,12 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			// ensure that we didn't leave anything
 			resume.Cleanup();
 
+			// force the deletion of the storeFile
+			storeFile.SetDiscardable(true);
+			
 			THROW_EXCEPTION(BackupStoreException, AddedFileExceedsStorageLimit)
-			// The store file will be deleted automatically by the RaidFile object
+
+			
 		}
 
 		// Commit the file
