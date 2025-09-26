@@ -543,6 +543,9 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 		}
 
 		BOX_INFO("Going to try resume transfert of " << resume.GetFilePath() << " at offset " << ResumeOffset);
+	} else {
+		// no resume asked, cleanup any previous resume file in case of a previous failed upload
+		resume.Cleanup();
 	}
 
 
@@ -733,12 +736,7 @@ int64_t BackupStoreContext::AddFile(IOStream &rFile, int64_t InDirectory,
 			// ensure that we didn't leave anything
 			resume.Cleanup();
 
-			// force the deletion of the storeFile
-			storeFile.SetDiscardable(true);
-			
 			THROW_EXCEPTION(BackupStoreException, AddedFileExceedsStorageLimit)
-
-			
 		}
 
 		// Commit the file
