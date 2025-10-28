@@ -248,7 +248,7 @@ void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeS
 			// if object was backed up before the SnapshotTime
 			// and it wasn't deleted before the SnapshotTime (in case we are hiding deleted objects)
 			if( pen->GetBackupTime() <= SnapshotTime &&
-				!(pen->IsDeleted() && pen->GetDeleteTime() <= SnapshotTime)
+				!(pen->IsDeleted() && pen->GetDeleteTime() > 0 && pen->GetDeleteTime() <= SnapshotTime)
 				)  {
 				if( auto res = entries.find(pen->mName.GetEncodedFilename()); res != entries.end() ) {
 					// Be sure to keep the newest version
@@ -458,6 +458,7 @@ BackupStoreDirectory::Entry::Entry()
 #endif
   mModificationTime(0),
   mBackupTime(0),
+  mDeleteTime(0),
   mObjectID(0),
   mSizeInBlocks(0),
   mFlags(0),
@@ -497,6 +498,7 @@ BackupStoreDirectory::Entry::Entry(const Entry &rToCopy)
   mName(rToCopy.mName),
   mModificationTime(rToCopy.mModificationTime),
   mBackupTime(rToCopy.mBackupTime),
+  mDeleteTime(rToCopy.mDeleteTime),
   mObjectID(rToCopy.mObjectID),
   mSizeInBlocks(rToCopy.mSizeInBlocks),
   mFlags(rToCopy.mFlags),
