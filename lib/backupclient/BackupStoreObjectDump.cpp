@@ -22,6 +22,7 @@
 #include "BackupStoreObjectMagic.h"
 
 #include "MemLeakFindOn.h"
+#include <BoxTimeToText.h>
 
 
 // --------------------------------------------------------------------------
@@ -118,13 +119,14 @@ void BackupStoreDirectory::Dump(void *clibFileHandle, bool ToTrace)
 			"%06I64x %4I64d %016I64x %4d %3d %4d%s%s%s%s%s%s\n",
 #else
 		OutputLine(file, ToTrace, 
-			"%06llx %4lld %016llx %4d %3d %4d%s%s%s%s%s%s\n",
+			"%06llx %4lld %016llx %4d %3d %s %4d%s%s%s%s%s%s\n",
 #endif
 			(*i)->GetObjectID(),
 			(*i)->GetSizeInBlocks(),
 			(*i)->GetAttributesHash(),
 			(*i)->GetAttributes().GetSize(),
 			(*i)->GetName().GetEncodedFilename().size(),
+			BoxTimeToISO8601String(box_ntoh64((*i)->GetDeleteTime()), true).c_str(),
 			ni,
 			((f & BackupStoreDirectory::Entry::Flags_File)?" file":""),
 			((f & BackupStoreDirectory::Entry::Flags_Dir)?" dir":""),
@@ -148,6 +150,7 @@ void BackupStoreFile::DumpFile(void *clibFileHandle, bool ToTrace, IOStream &rFi
 {
 	FILE *file = (FILE*)clibFileHandle;
 
+	
 	// Read header
 	file_StreamFormat hdr;
 	if(!rFile.ReadFullBuffer(&hdr, sizeof(hdr),
@@ -164,10 +167,11 @@ void BackupStoreFile::DumpFile(void *clibFileHandle, bool ToTrace, IOStream &rFi
 		OutputLine(file, ToTrace, "File header doesn't have the correct magic, aborting dump\n");
 		return;
 	}
+	
 
-	OutputLine(file, ToTrace, "File object.\nContainer ID: %llx\nModification time: %llx\n"\
+	OutputLine(file, ToTrace, "File object.\nContainer ID: %llx\nModification time: %s\n"\
 		"Max block clear size: %d\nOptions: %08x\nNum blocks: %d\n", box_ntoh64(hdr.mContainerID),
-			box_ntoh64(hdr.mModificationTime), ntohl(hdr.mMaxBlockClearSize), ntohl(hdr.mOptions),
+			BoxTimeToISO8601String(box_ntoh64(hdr.mModificationTime), true).c_str(), ntohl(hdr.mMaxBlockClearSize), ntohl(hdr.mOptions),
 			box_ntoh64(hdr.mNumBlocks));
 
 	// Read the next two objects
@@ -179,6 +183,7 @@ void BackupStoreFile::DumpFile(void *clibFileHandle, bool ToTrace, IOStream &rFi
 	BackupClientFileAttributes attr;
 	attr.ReadFromStream(rFile, IOStream::TimeOutInfinite);
 	OutputLine(file, ToTrace, "Attributes size: %d\n", attr.GetSize());
+
 	
 	// Dump the blocks
 	rFile.Seek(0, IOStream::SeekType_Absolute);

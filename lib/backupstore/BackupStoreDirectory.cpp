@@ -219,6 +219,8 @@ void BackupStoreDirectory::ReadFromStream(IOStream &rStream, int Timeout)
 //
 // --------------------------------------------------------------------------
 #include "autogen_BackupProtocol.h"
+#include <iostream>
+#include <BoxTimeToText.h>
 
 void BackupStoreDirectory::WriteToStream(IOStream &rStream, int16_t FlagsMustBeSet, int16_t FlagsNotToBeSet, box_time_t SnapshotTime, bool StreamAttributes, bool StreamDependencyInfo, uint32_t ProtocolVersion) const
 {
@@ -565,7 +567,6 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout,
 
 	// Store the rest of the bits
 	mModificationTime =		box_ntoh64(entry.mModificationTime);
-
 	mObjectID = 			box_ntoh64(entry.mObjectID);
 	mSizeInBlocks = 		box_ntoh64(entry.mSizeInBlocks);
 	mAttributesHash =		box_ntoh64(entry.mAttributesHash);
@@ -594,10 +595,13 @@ void BackupStoreDirectory::Entry::ReadFromStream(IOStream &rStream, int Timeout,
 		{
 			THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
 		}
-
+		
+		// Convert from network byte order first
+		deleteTime = box_ntoh64(deleteTime);
+		
 		// ensure we don't get garbage here
-		if (IsDeleted() && mDeleteTime < current && mDeleteTime > 0) {
-			mDeleteTime = box_ntoh64(deleteTime);
+		if (IsDeleted() && deleteTime < current && deleteTime > 0) {
+			mDeleteTime = deleteTime;
 		} else {
 			mDeleteTime = 0;
 		}
@@ -642,6 +646,8 @@ void BackupStoreDirectory::Entry::WriteToStream(IOStream &rStream, bool IgnoreBa
 		rStream.Write((void*)&backupTime, sizeof(mBackupTime));
 
 		box_time_t deleteTime = box_hton64(mDeleteTime);
+
+		
 		rStream.Write((void*)&deleteTime, sizeof(mDeleteTime));
 	}
 }
