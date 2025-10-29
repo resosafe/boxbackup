@@ -1098,7 +1098,7 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 					(file_st.st_mtim.tv_nsec / 1000); // nanoseconds to microseconds
 				std::cout<<" Entry file last modification time is "<<lastModificationTime<< " " << BoxTimeToISO8601String(lastModificationTime, true) <<std::endl;
 				std::cout<<"Entry is deleted, delete time is      "<< rEntry.GetDeleteTime() << " " << BoxTimeToISO8601String(rEntry.GetDeleteTime(), true) <<std::endl;
-
+				std::cout<<"Entry backup time is                  "<< rEntry.GetBackupTime() << " " << BoxTimeToISO8601String(rEntry.GetBackupTime(), true) <<std::endl;
 
 				rEntry.SetDeleteTime(lastModificationTime);
 				rIsModified = true;
