@@ -33,6 +33,7 @@
 #include "Utils.h"
 
 #include "MemLeakFindOn.h"
+#include <BoxTimeToText.h>
 
 
 // --------------------------------------------------------------------------
@@ -970,6 +971,9 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 
 	uint8_t iflags = GetFlags(piBlock, IndexInDirBlock);
 
+
+	
+
 	// Is the type the same?
 	if(((iflags & Flags_IsDir) == Flags_IsDir) != rEntry.IsDir())
 	{
@@ -1041,5 +1045,110 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 		++mNumberErrorsFound;
 	}
 
+
+	// check backup timestamp
+	if(rEntry.GetBackupTime() == 0)
+	{
+		BOX_ERROR("Directory ID " <<
+			BOX_FORMAT_OBJECTID(DirectoryID) <<
+			" references object " <<
+			BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
+			" which has no backup time.");
+
+		try {
+			EMU_STRUCT_STAT file_st = GetEntryStat(rEntry);
+
+			// get file last modification time (seconds + nanoseconds converted to microseconds)
+			box_time_t lastModificationTime = SecondsToBoxTime(file_st.st_mtim.tv_sec) + 
+				(file_st.st_mtim.tv_nsec / 1000); // nanoseconds to microseconds
+			std::cout<<" Entry file last modification time is "<<lastModificationTime<< " " << BoxTimeToISO8601String(lastModificationTime, true) <<std::endl;
+
+			rEntry.SetBackupTime(lastModificationTime);
+			rIsModified = true;
+			++mNumberErrorsFound;
+		} catch (BoxException &e) {
+			BOX_ERROR("Directory ID " <<
+				BOX_FORMAT_OBJECTID(DirectoryID) <<
+				" references object " <<
+				BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
+				" which has no backup time but the file cannot be stat'ed: ");
+			++mNumberErrorsFound;
+			return false; // remove this entry
+		}
+
+	}
+
+	// Check deleted timestamp
+	if(rEntry.IsDeleted() )
+	{
+		if (rEntry.GetDeleteTime() == 0)
+		{
+			BOX_ERROR("Directory ID " <<
+				BOX_FORMAT_OBJECTID(DirectoryID) <<
+				" references object " <<
+				BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
+				" which is marked as deleted but has no "
+				"delete time.");
+
+			try {
+				EMU_STRUCT_STAT file_st = GetEntryStat(rEntry);
+
+				// get file last modification time (seconds + nanoseconds converted to microseconds)
+				box_time_t lastModificationTime = SecondsToBoxTime(file_st.st_mtim.tv_sec) + 
+					(file_st.st_mtim.tv_nsec / 1000); // nanoseconds to microseconds
+				std::cout<<" Entry file last modification time is "<<lastModificationTime<< " " << BoxTimeToISO8601String(lastModificationTime, true) <<std::endl;
+				std::cout<<"Entry is deleted, delete time is      "<< rEntry.GetDeleteTime() << " " << BoxTimeToISO8601String(rEntry.GetDeleteTime(), true) <<std::endl;
+
+
+				rEntry.SetDeleteTime(lastModificationTime);
+				rIsModified = true;
+				++mNumberErrorsFound;
+			} catch (BoxException &e) {
+				BOX_ERROR("Directory ID " <<
+					BOX_FORMAT_OBJECTID(DirectoryID) <<
+					" references object " <<
+					BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
+					" which is marked as deleted but the file cannot be stat'ed: ");
+				++mNumberErrorsFound;
+				return false; // remove this entry
+			}
+		}
+
+	}
+	else if (rEntry.GetDeleteTime() != 0)
+	{
+		// Not deleted, must not have a delete time
+		BOX_ERROR("Directory ID " <<
+			BOX_FORMAT_OBJECTID(DirectoryID) <<
+			" references object " <<
+			BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
+			" which is not marked as deleted but has a "
+			"delete time.");
+
+		rEntry.SetDeleteTime(0);
+		rIsModified = true;
+		++mNumberErrorsFound;
+	}
+
 	return true; // don't delete this entry
+}
+
+
+EMU_STRUCT_STAT BackupStoreCheck::GetEntryStat(BackupStoreDirectory::Entry& rEntry)
+{
+	std::string dirName;
+	StoreStructure::MakeObjectFilename(rEntry.GetObjectID(), mStoreRoot, mDiscSetNumber, dirName, false /* don't make sure the dir exists */);
+
+	EMU_STRUCT_STAT file_st;
+	RaidFileController &rcontroller(RaidFileController::GetController());
+	RaidFileDiscSet rdiscSet(rcontroller.GetDiscSet(mDiscSetNumber));
+
+	std::string writeFilename(RaidFileUtil::MakeWriteFileName(rdiscSet, dirName));
+
+	if(EMU_LSTAT(writeFilename.c_str(), &file_st) != 0) {
+			THROW_SYS_FILE_ERROR("Failed to stat file", writeFilename,
+				RaidFileException, OSError);
+	}
+
+	return file_st;
 }

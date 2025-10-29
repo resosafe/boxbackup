@@ -81,6 +81,8 @@ private:
 	// no copying
 	BackupStoreCheck(const BackupStoreCheck &);
 	BackupStoreCheck &operator=(const BackupStoreCheck &);
+	EMU_STRUCT_STAT GetEntryStat(BackupStoreDirectory::Entry& rEntry);
+
 public:
 
 	// Do the exciting things
