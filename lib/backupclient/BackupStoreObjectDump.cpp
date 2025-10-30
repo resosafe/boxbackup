@@ -67,15 +67,15 @@ void BackupStoreDirectory::Dump(void *clibFileHandle, bool ToTrace)
 	FILE *file = (FILE*)clibFileHandle;
 
 	OutputLine(file, ToTrace, "Directory object.\nObject ID: %llx\nContainer ID: %llx\nNumber entries: %d\n"\
-		"Attributes mod time: %llx\nAttributes size: %d\n", mObjectID, mContainerID, mEntries.size(),
-		mAttributesModTime, mAttributes.GetSize());
+		"Attributes mod time: %s\nAttributes size: %d\n", mObjectID, mContainerID, mEntries.size(),
+		BoxTimeToISO8601String(mAttributesModTime, true).c_str(), mAttributes.GetSize());
 
 	// So repeated filenames can be illustrated, even though they can't be decoded
 	std::map<std::string, int> nameNum;
 	int nameNumI = 0;
 
 	// Dump items
-	OutputLine(file, ToTrace, "Items:\nID     Size AttrHash         AtSz NSz NIdx Flags\n");
+	OutputLine(file, ToTrace, "Items:\nID     Size AttrHash         AtSz NSz NIdx BackupTime          DeleteTime           Flags  \n");
 	for(std::vector<Entry*>::const_iterator i(mEntries.begin()); i != mEntries.end(); ++i)
 	{
 		// Choose file name index number for this file
@@ -116,23 +116,26 @@ void BackupStoreDirectory::Dump(void *clibFileHandle, bool ToTrace)
 		int16_t f = (*i)->GetFlags();
 #ifdef WIN32
 		OutputLine(file, ToTrace, 
-			"%06I64x %4I64d %016I64x %4d %3d %4d%s%s%s%s%s%s\n",
+			"%06I64x %4I64d %016I64x %4d %3d %4d%s%s%s%s%s     %s %s  %s \n",
 #else
 		OutputLine(file, ToTrace, 
-			"%06llx %4lld %016llx %4d %3d %s %4d%s%s%s%s%s%s\n",
+			"%06llx %4lld %016llx %4d %3d %4d %s %s %s%s%s%s%s\n",
 #endif
 			(*i)->GetObjectID(),
 			(*i)->GetSizeInBlocks(),
 			(*i)->GetAttributesHash(),
 			(*i)->GetAttributes().GetSize(),
 			(*i)->GetName().GetEncodedFilename().size(),
-			BoxTimeToISO8601String(box_ntoh64((*i)->GetDeleteTime()), true).c_str(),
 			ni,
+			BoxTimeToISO8601String((*i)->GetBackupTime(), true).c_str(),
+			BoxTimeToISO8601String((*i)->GetDeleteTime(), true).c_str(),
 			((f & BackupStoreDirectory::Entry::Flags_File)?" file":""),
 			((f & BackupStoreDirectory::Entry::Flags_Dir)?" dir":""),
 			((f & BackupStoreDirectory::Entry::Flags_Deleted)?" del":""),
 			((f & BackupStoreDirectory::Entry::Flags_OldVersion)?" old":""),
 			((f & BackupStoreDirectory::Entry::Flags_RemoveASAP)?" removeASAP":""),
+
+
 			depends);
 	}
 }

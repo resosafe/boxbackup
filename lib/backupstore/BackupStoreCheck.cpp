@@ -1093,15 +1093,14 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 			try {
 				EMU_STRUCT_STAT file_st = GetEntryStat(rEntry);
 
-				// get file last modification time (seconds + nanoseconds converted to microseconds)
-				box_time_t lastModificationTime = SecondsToBoxTime(file_st.st_mtim.tv_sec) + 
+				// get file last access time (seconds + nanoseconds converted to microseconds)
+				box_time_t lastAccessTime = SecondsToBoxTime(file_st.st_atim.tv_sec) + 
 					(file_st.st_mtim.tv_nsec / 1000); // nanoseconds to microseconds
-				std::cout<<" Entry file last modification time is "<<lastModificationTime<< " " << BoxTimeToISO8601String(lastModificationTime, true) <<std::endl;
-				std::cout<<" Entry file last access time is      "<<file_st.st_atim.tv_sec << "." << file_st.st_atim.tv_nsec/1000 << " " << BoxTimeToISO8601String(SecondsToBoxTime(file_st.st_atim.tv_sec) + (file_st.st_atim.tv_nsec/1000), true) <<std::endl;
-				std::cout<<"Entry is deleted, delete time is      "<< rEntry.GetDeleteTime() << " " << BoxTimeToISO8601String(rEntry.GetDeleteTime(), true) <<std::endl;
-				std::cout<<"Entry backup time is                  "<< rEntry.GetBackupTime() << " " << BoxTimeToISO8601String(rEntry.GetBackupTime(), true) <<std::endl;
+				std::cout<<" Entry file last acccess time is "<<lastAccessTime<< " " << BoxTimeToISO8601String(lastAccessTime, true) <<std::endl;
+				std::cout<<" Entry is deleted, delete time is      "<< rEntry.GetDeleteTime() << " " << BoxTimeToISO8601String(rEntry.GetDeleteTime(), true) <<std::endl;
+				std::cout<<" Entry backup time is                  "<< rEntry.GetBackupTime() << " " << BoxTimeToISO8601String(rEntry.GetBackupTime(), true) <<std::endl;
 
-				rEntry.SetDeleteTime(lastModificationTime);
+				rEntry.SetDeleteTime(lastAccessTime);
 				rIsModified = true;
 				++mNumberErrorsFound;
 			} catch (BoxException &e) {
