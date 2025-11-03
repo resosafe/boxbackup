@@ -384,6 +384,20 @@ int main(int argc, const char *argv[])
 
 		return control.PrintBackups(id, tz);
 	}
+	else if(command == "clean_backups")
+	{
+		if(argc != 4)
+		{
+			BOX_ERROR("clean_backups requires a minimum a maximum date.");
+			return 1;
+		}
+		// Clean backups before the specified time
+		std::string minTimeStr = argv[2];
+		std::string maxTimeStr = argv[3];
+		
+
+		return control.CleanBackups(id, minTimeStr, maxTimeStr);
+	}
 	else
 	{
 		BOX_ERROR("Unknown command '" << command << "'.");

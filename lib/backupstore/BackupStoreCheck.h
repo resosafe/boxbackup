@@ -81,7 +81,7 @@ private:
 	// no copying
 	BackupStoreCheck(const BackupStoreCheck &);
 	BackupStoreCheck &operator=(const BackupStoreCheck &);
-	EMU_STRUCT_STAT GetEntryStat(BackupStoreDirectory::Entry& rEntry);
+	EMU_STRUCT_STAT GetObjectStat(int64_t objectID );
 
 public:
 
@@ -182,6 +182,7 @@ private:
 	bool mFixErrors;
 	bool mQuiet;
 	BackupsList mBackupsList;
+	box_time_t mOperationStartTime;
 	
 	int64_t mNumberErrorsFound;
 	

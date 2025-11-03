@@ -64,7 +64,8 @@ BackupStoreCheck::BackupStoreCheck(const std::string &rStoreRoot, int DiscSetNum
 	  mNumCurrentFiles(0),
 	  mNumOldFiles(0),
 	  mNumDeletedFiles(0),
-	  mNumDirectories(0)
+	  mNumDirectories(0),
+	  mOperationStartTime(GetCurrentBoxTime())
 {
 }
 
@@ -113,6 +114,7 @@ BackupStoreCheck::~BackupStoreCheck()
 // --------------------------------------------------------------------------
 void BackupStoreCheck::Check()
 {
+	mOperationStartTime = GetCurrentBoxTime();
 	if(mFixErrors)
 	{
 		std::string writeLockFilename;
@@ -1045,6 +1047,9 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 		++mNumberErrorsFound;
 	}
 
+	EMU_STRUCT_STAT file_st = GetObjectStat(DirectoryID);
+
+
 
 	// check backup timestamp
 	if(rEntry.GetBackupTime() == 0)
@@ -1053,17 +1058,10 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 			BOX_FORMAT_OBJECTID(DirectoryID) <<
 			" references object " <<
 			BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
-			" which has no backup time.");
+			" which has no backup time. Setting it to current operation time.");
 
 		try {
-			EMU_STRUCT_STAT file_st = GetEntryStat(rEntry);
-
-			// get file last modification time (seconds + nanoseconds converted to microseconds)
-			box_time_t lastModificationTime = SecondsToBoxTime(file_st.st_mtim.tv_sec) + 
-				(file_st.st_mtim.tv_nsec / 1000); // nanoseconds to microseconds
-			std::cout<<" Entry file last modification time is "<<lastModificationTime<< " " << BoxTimeToISO8601String(lastModificationTime, true) <<std::endl;
-
-			rEntry.SetBackupTime(lastModificationTime);
+			rEntry.SetBackupTime(mOperationStartTime);
 			rIsModified = true;
 			++mNumberErrorsFound;
 		} catch (BoxException &e) {
@@ -1091,16 +1089,7 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 				"delete time.");
 
 			try {
-				EMU_STRUCT_STAT file_st = GetEntryStat(rEntry);
-
-				// get file last access time (seconds + nanoseconds converted to microseconds)
-				box_time_t lastAccessTime = SecondsToBoxTime(file_st.st_atim.tv_sec) + 
-					(file_st.st_mtim.tv_nsec / 1000); // nanoseconds to microseconds
-				std::cout<<" Entry file last acccess time is "<<lastAccessTime<< " " << BoxTimeToISO8601String(lastAccessTime, true) <<std::endl;
-				std::cout<<" Entry is deleted, delete time is      "<< rEntry.GetDeleteTime() << " " << BoxTimeToISO8601String(rEntry.GetDeleteTime(), true) <<std::endl;
-				std::cout<<" Entry backup time is                  "<< rEntry.GetBackupTime() << " " << BoxTimeToISO8601String(rEntry.GetBackupTime(), true) <<std::endl;
-
-				rEntry.SetDeleteTime(lastAccessTime);
+				rEntry.SetDeleteTime(mOperationStartTime);
 				rIsModified = true;
 				++mNumberErrorsFound;
 			} catch (BoxException &e) {
@@ -1134,10 +1123,10 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 }
 
 
-EMU_STRUCT_STAT BackupStoreCheck::GetEntryStat(BackupStoreDirectory::Entry& rEntry)
+EMU_STRUCT_STAT BackupStoreCheck::GetObjectStat(int64_t objectID)
 {
 	std::string dirName;
-	StoreStructure::MakeObjectFilename(rEntry.GetObjectID(), mStoreRoot, mDiscSetNumber, dirName, false /* don't make sure the dir exists */);
+	StoreStructure::MakeObjectFilename(objectID, mStoreRoot, mDiscSetNumber, dirName, false /* don't make sure the dir exists */);
 
 	EMU_STRUCT_STAT file_st;
 	RaidFileController &rcontroller(RaidFileController::GetController());

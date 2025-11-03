@@ -80,6 +80,8 @@ public:
         int64_t HardLimit, int32_t VersionsLimit);
 	int HousekeepAccountNow(int32_t ID,  int32_t flags);
 	int PrintBackups(int32_t ID, std::string tz);
+	int CleanBackups(int32_t ID, const std::string &minTimeStr, const std::string &maxTimeStr);
+
 
 };
 

@@ -651,6 +651,57 @@ int BackupStoreAccountsControl::HousekeepAccountNow(int32_t ID, int32_t flags)
 	}
 }
 
+int BackupStoreAccountsControl::CleanBackups(int32_t ID, const std::string &minTimeStr, const std::string &maxTimeStr) 
+{
+	std::string rootDir;
+	int discSetNum;	
+	std::auto_ptr<UnixUser> user; // used to reset uid when we return
+
+	if(!OpenAccount(ID, rootDir, discSetNum, user,
+		NULL /* housekeeping locks the account itself */))
+	{
+		BOX_ERROR("Failed to open account " << BOX_FORMAT_ACCOUNT(ID)
+			<< " for housekeeping.");
+		return 1;
+	}
+	std::cout << "Cleaning backups between " << minTimeStr << " and " << maxTimeStr << " on account " << BOX_FORMAT_ACCOUNT(ID) << std::endl;
+
+	box_time_t minCleanTime = StringToBoxTime(minTimeStr.c_str());
+	box_time_t maxCleanTime = StringToBoxTime(maxTimeStr.c_str());
+	std::string accountDir = RaidFileController::DiscSetPathToFileSystemPath(discSetNum, rootDir, 1);
+	std::string filename = BackupsList::GetFilePath(accountDir);
+	// create a backup of the filename
+	std::string backupFilename = filename + ".bak";
+	char cmd[256];
+	sprintf(cmd, "cp %s %s", filename.c_str(), backupFilename.c_str());
+	::system(cmd);
+		
+	BackupsList new_list;
+	BackupsList list(accountDir);
+
+
+	std::set<SessionInfos>& sessions = list.GetList();
+	for(auto it = sessions.begin(); it != sessions.end(); ++it)
+	{
+		if(it->GetStartTime() < minCleanTime || it->GetStartTime() > maxCleanTime)
+		{				
+			SessionInfos s(*it);
+			new_list.AddRecord(s);
+		} else {
+			BOX_NOTICE("Deleting backup starting at " << 
+				BoxTimeToISO8601String(it->GetStartTime(), true) <<
+				" on account " << BOX_FORMAT_ACCOUNT(ID));
+		}
+	}
+		
+	list.GetList().swap(new_list.GetList());
+	list.Save(accountDir);		
+	return 0;
+	
+
+}
+
+
 
 int BackupStoreAccountsControl::PrintBackups(int32_t ID, std::string tz)
 {	

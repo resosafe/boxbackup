@@ -91,19 +91,28 @@ void BackupsList::AddRecord(SessionInfos &rInfos)
 //
 // Function
 //		Name:    BackupsList::Shift
-//		Purpose: Keep the Nth latest records
+//		Purpose: Keep the Nth latest records (remove older ones)
 //		Created: 2024/03/12
 //
 // --------------------------------------------------------------------------
 void BackupsList::Shift(int MaxCount)
 {
+    // Validate input
+    if(MaxCount < 0) {
+        THROW_EXCEPTION(BackupStoreException, Internal)
+    }
 
-    if (mList.size() <= MaxCount) {
+    if(mList.size() <= static_cast<size_t>(MaxCount)) {
+        // Nothing to remove
         return;
     }
 
+    // Calculate how many to remove
+    size_t numToRemove = mList.size() - MaxCount;
+    
+    // Remove oldest records (at the beginning of the set)
     auto it = mList.begin();
-    std::advance(it, mList.size() - MaxCount);
+    std::advance(it, numToRemove);
     mList.erase(mList.begin(), it);
 }
     
@@ -125,11 +134,18 @@ SessionInfos* BackupsList::Get(box_time_t StartTime)
     auto it = mList.find(tempInfo);
 
     if (it != mList.end()) {
-        // If found, return a pointer to the existing object
+        // WARNING: Using const_cast on std::set elements is dangerous!
+        // std::set elements are const to preserve ordering invariants.
+        // However, we need to modify stats without changing the sort key (StartTime).
+        // This is safe as long as we only modify non-key fields.
         return const_cast<SessionInfos*>(&(*it));
     } else {
         // If not found, insert a new SessionInfos object and return a pointer to it
-        std::pair<std::set<SessionInfos>::iterator, bool> insertResult = mList.insert(tempInfo);
+        auto insertResult = mList.insert(tempInfo);
+        if (!insertResult.second) {
+            // Insert failed (shouldn't happen, but be defensive)
+            return nullptr;
+        }
         return const_cast<SessionInfos*>(&(*insertResult.first));
     }
 }
@@ -145,10 +161,10 @@ SessionInfos* BackupsList::Get(box_time_t StartTime)
 SessionInfos* BackupsList::GetFirst() 
 {
     // get the first (oldest record)  
-    if(mList.size() > 0) {
+    if(!mList.empty()) {
         return const_cast<SessionInfos*>(&(*mList.begin()));
     }
-    return NULL; 
+    return nullptr; 
 }
 
 
@@ -164,17 +180,39 @@ SessionInfos* BackupsList::GetFirst()
 void BackupsList::ReadFromStream(IOStream &rStream, int Timeout)
 {
     mList.clear();
+    
+    // Check if stream has data to read
+    if(rStream.BytesLeftToRead() == 0) {
+        // Empty stream, nothing to read
+        return;
+    }
+    
     // Read the file magic
     uint32_t magic;
-    rStream.Read(&magic, sizeof(magic), Timeout);
+    if(rStream.Read(&magic, sizeof(magic), Timeout) != sizeof(magic))
+    {
+        THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
+    }
+    
     magic = ntohl(magic);
-    while(rStream.BytesLeftToRead()) {
+    if(magic != BACKUPLIST_FILE_MAGIC_V1)
+    {
+        THROW_EXCEPTION(BackupStoreException, BadBackupStoreFile)
+    }
+    
+    // Read all session records
+    while(rStream.BytesLeftToRead() > 0) {
         // Read the item magic value
-        rStream.Read(&magic, sizeof(magic), Timeout);
+        if(rStream.Read(&magic, sizeof(magic), Timeout) != sizeof(magic))
+        {
+            // Unexpected end of stream
+            THROW_EXCEPTION(BackupStoreException, CouldntReadEntireStructureFromStream)
+        }
+        
         magic = ntohl(magic);
         if (magic != BACKUPLIST_MAGIC_VALUE_V1)
         {
-            THROW_EXCEPTION(BackupStoreException, Internal)
+            THROW_EXCEPTION(BackupStoreException, BadBackupStoreFile)
         }
 
         SessionInfos infos;
@@ -201,62 +239,81 @@ void BackupsList::Save(const std::string &rRootDir) {
         rootDir = mRootDir;
     }
 
-   if(rootDir.empty() ) {
+    if(rootDir.empty()) {
         THROW_EXCEPTION(BackupStoreException, Internal)
     }
 
     std::string fn = GetFilePath(rootDir);
-    FileStream stream(fn.c_str(), O_BINARY | O_RDWR | O_CREAT);
-    WriteToStream(stream);
 
+    // Use RAII for automatic file closing
+    {
+        FileStream stream(fn.c_str(), O_BINARY | O_RDWR | O_CREAT | O_TRUNC);
+        WriteToStream(stream);
+        stream.Flush();
+        // stream.Close() will be called automatically by destructor
+    }
 }
 
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupsList::WriteFromStream
+//		Name:    BackupsList::WriteToStream
 //		Purpose: Write a BackupsList to a stream
 //		Created: 2023/10/30
 //
 // --------------------------------------------------------------------------
 void BackupsList::WriteToStream(IOStream &rStream, int Timeout)
 { 
+    // Seek to beginning to overwrite any existing content
     rStream.Seek(0, IOStream::SeekType_Absolute);
 
-    uint32_t magic = htonl(BACKUPLIST_FILE_MAGIC_V1);
-    rStream.Write(&magic, sizeof(magic));
+    // Write file magic
+    uint32_t fileMagic = htonl(BACKUPLIST_FILE_MAGIC_V1);
+    rStream.Write(&fileMagic, sizeof(fileMagic), Timeout);
 
+    // Write each session record
     for(auto it = mList.begin(); it != mList.end(); ++it) {
-        uint32_t magic = htonl(BACKUPLIST_MAGIC_VALUE_V1);
-        rStream.Write(&magic, sizeof(magic), Timeout);
-        (const_cast<SessionInfos*>(&(*it)))->WriteToStream(rStream, Timeout);
+        // Write record magic
+        uint32_t recordMagic = htonl(BACKUPLIST_MAGIC_VALUE_V1);
+        rStream.Write(&recordMagic, sizeof(recordMagic), Timeout);
+        
+        // Write session data
+        // Note: const_cast is safe here as we're only serializing data
+        const_cast<SessionInfos*>(&(*it))->WriteToStream(rStream, Timeout);
     }
-
-
 }
 
 
 // --------------------------------------------------------------------------
 //
 // Function
-//		Name:    BackupsList::Add
-//		Purpose: Add a new backup to the list
+//		Name:    BackupsList::OpenStream
+//		Purpose: Open or create the backups list file stream
 //		Created: 2023/10/30
 //
 // --------------------------------------------------------------------------
 std::auto_ptr<IOStream> BackupsList::OpenStream(const std::string &rRootDir) 
 {
-
     std::string fn = GetFilePath(rRootDir);
     std::auto_ptr<IOStream> stream(new FileStream(fn.c_str(), O_BINARY | O_RDWR | O_CREAT));
 
-    if( !stream->BytesLeftToRead() ) {
-        // store the format version
+    // Check if file is empty (newly created)
+    IOStream::pos_type bytesAvailable = 0;
+    try {
+        bytesAvailable = stream->BytesLeftToRead();
+    }
+    catch(...) {
+        // If BytesLeftToRead() throws, treat as empty file
+        bytesAvailable = 0;
+    }
+
+    if(bytesAvailable == 0) {
+        // New file, write the format version magic
         uint32_t magic = htonl(BACKUPLIST_FILE_MAGIC_V1);
         stream->Write(&magic, sizeof(magic));
+        // Seek back to beginning for reading
         stream->Seek(0, IOStream::SeekType_Absolute);
     }
 
     return stream;
-	
 }

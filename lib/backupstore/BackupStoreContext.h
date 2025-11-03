@@ -51,6 +51,16 @@ class SessionInfos {
 			mEndTime = 0;
 		}
 
+		SessionInfos(const SessionInfos &rToCopy) {
+			mStartTime = rToCopy.mStartTime;
+			mEndTime = rToCopy.mEndTime;
+			mAddedFilesCount = rToCopy.mAddedFilesCount;
+			mAddedFilesBlocksCount = rToCopy.mAddedFilesBlocksCount;
+			mDeletedFilesCount = rToCopy.mDeletedFilesCount;
+			mDeletedFilesBlocksCount = rToCopy.mDeletedFilesBlocksCount;
+			mAddedDirectoriesCount = rToCopy.mAddedDirectoriesCount;
+			mDeletedDirectoriesCount = rToCopy.mDeletedDirectoriesCount;
+		}
 
 		bool operator<(const SessionInfos& other) const {
 			return GetStartTime() < other.GetStartTime();
