@@ -54,11 +54,12 @@ public:
 	}
 	void Shift(int MaxCount);
 	SessionInfos* GetFirst();
+	SessionInfos* GetLast();
 	SessionInfos* Get(box_time_t StartTime);
 	void ReadFromStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);
 	void WriteToStream(IOStream &rStream, int Timeout = IOStream::TimeOutInfinite);
 	void Save(const std::string &rRootDir = "");
-
+	void Dump();
 	static std::auto_ptr<IOStream> OpenStream(const std::string &rRootDir);
 	
 	static std::string GetFilePath(const std::string &rRootDir)

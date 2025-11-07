@@ -13,7 +13,7 @@
 #include "RaidFileWrite.h"
 #include "RaidFileRead.h"
 #include "Archive.h"
-
+#include "BoxTimeToText.h"
 #include "MemLeakFindOn.h"
 
 
@@ -167,6 +167,22 @@ SessionInfos* BackupsList::GetFirst()
     return nullptr; 
 }
 
+// --------------------------------------------------------------------------
+//
+// Function
+//		Name:    BackupsList::GetLast
+//		Purpose: Get the last (most recent) record
+//		Created: 2024/03/12
+//
+// --------------------------------------------------------------------------
+SessionInfos* BackupsList::GetLast() 
+{
+    // get the last (most recent record)
+    if(!mList.empty()) {
+        return const_cast<SessionInfos*>(&(*mList.rbegin()));
+    }
+    return nullptr;
+}
 
 
 // --------------------------------------------------------------------------
@@ -316,4 +332,18 @@ std::auto_ptr<IOStream> BackupsList::OpenStream(const std::string &rRootDir)
     }
 
     return stream;
+}
+
+void BackupsList::Dump()
+{
+    std::cout << "BackupsList Dump: " << std::endl;
+    for (const auto& session : mList) {
+        std::cout << "  Start Time: " << BoxTimeToISO8601String(session.GetStartTime(), false)
+                  << ", End Time: " << BoxTimeToISO8601String(session.GetEndTime(), false)
+                  << ", Added Files: " << session.GetAddedFilesCount()
+                  << ", Deleted Files: " << session.GetDeletedFilesCount()
+                  << ", Added Directories: " << session.GetAddedDirectoriesCount()
+                  << ", Deleted Directories: " << session.GetDeletedDirectoriesCount()
+                  << std::endl;
+    }
 }

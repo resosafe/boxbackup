@@ -17,6 +17,7 @@
 #include "BackupStoreInfo.h"
 #include "BackupStoreContext.h"
 #include "BackupStoreRefCountDatabase.h"
+#include "BackupsList.h"
 
 class BackupStoreDirectory;
 
@@ -61,7 +62,7 @@ private:
 	// utility functions
 	void MakeObjectFilename(int64_t ObjectID, std::string &rFilenameOut);
 
-	bool ScanDirectory(int32_t flags, box_time_t SnapshotTime, int64_t ObjectID, BackupStoreInfo& rBackupStoreInfo);
+	bool ScanDirectory(int32_t flags, int64_t ObjectID, BackupStoreInfo& rBackupStoreInfo);
 	bool DeleteFiles(BackupStoreInfo& rBackupStoreInfo);
 	bool DeleteEmptyDirectories(BackupStoreInfo& rBackupStoreInfo, bool ForceDelete = false);
 	void DeleteEmptyDirectory(int64_t dirId, std::vector<int64_t>& rToExamine,
@@ -126,6 +127,7 @@ private:
 	// Store informations about the changes made from FixForSnapshotMode
 	SessionInfos mNewSessionsInfos; 
 
+	BackupsList mBackupsList;
 
 	// New reference count list
 	std::auto_ptr<BackupStoreRefCountDatabase> mapNewRefs;

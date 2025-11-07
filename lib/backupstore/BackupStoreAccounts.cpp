@@ -263,17 +263,17 @@ int BackupStoreAccountsControl::SetOptions(int32_t ID, int32_t Options, bool fix
 		}
 
 		housekeeping.DoHousekeeping(flags, false, false);
-		if( housekeeping.GetNewSessionsInfos().HasChanges() ) 
-		{
-			housekeeping.GetNewSessionsInfos().SetEnd();
-			BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(discSetNum, rootDir, 1));
-			if(force)
-			{
-				list.Shift(0);
-			}
-			list.AddRecord(housekeeping.GetNewSessionsInfos());
-			list.Save();
-		}
+		// if( housekeeping.GetNewSessionsInfos().HasChanges() ) 
+		// {
+		// 	housekeeping.GetNewSessionsInfos().SetEnd();
+		// 	BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(discSetNum, rootDir, 1));
+		// 	if(force)
+		// 	{
+		// 		list.Shift(0);
+		// 	}
+		// 	list.AddRecord(housekeeping.GetNewSessionsInfos());
+		// 	list.Save();
+		// }
 		return housekeeping.GetErrorCount();
 	}
 
