@@ -67,6 +67,8 @@ BackupStoreCheck::BackupStoreCheck(const std::string &rStoreRoot, int DiscSetNum
 	  mNumDirectories(0),
 	  mOperationStartTime(GetCurrentBoxTime())
 {
+	BackupsList list(RaidFileController::DiscSetPathToFileSystemPath(DiscSetNumber, rStoreRoot, 1));
+	mBackupsList = list;
 }
 
 
@@ -1049,65 +1051,57 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 
 	EMU_STRUCT_STAT file_st = GetObjectStat(DirectoryID);
 
-
-
-	// check backup timestamp
-	if(rEntry.GetBackupTime() == 0)
+	if ( rEntry.GetBackupTime()==0 )
 	{
-		BOX_ERROR("Directory ID " <<
-			BOX_FORMAT_OBJECTID(DirectoryID) <<
-			" references object " <<
-			BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
-			" which has no backup time. Setting it to current operation time.");
-
-		try {
-			rEntry.SetBackupTime(mOperationStartTime);
-			rIsModified = true;
-			++mNumberErrorsFound;
-		} catch (BoxException &e) {
-			BOX_ERROR("Directory ID " <<
-				BOX_FORMAT_OBJECTID(DirectoryID) <<
-				" references object " <<
-				BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
-				" which has no backup time but the file cannot be stat'ed: ");
-			++mNumberErrorsFound;
-			return false; // remove this entry
+		SessionInfos *firstSession = mBackupsList.GetFirst();
+		if( firstSession == NULL ) {
+			firstSession = &mNewSessionsInfos;
 		}
-
-	}
-
-	// Check deleted timestamp
-	if(rEntry.IsDeleted() )
-	{
-		if (rEntry.GetDeleteTime() == 0)
+		// use the first backup info from the backup list
+		if( rEntry.IsDir() ) 
 		{
-			BOX_ERROR("Directory ID " <<
-				BOX_FORMAT_OBJECTID(DirectoryID) <<
-				" references object " <<
-				BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
-				" which is marked as deleted but has no "
-				"delete time.");
-
-			try {
-				rEntry.SetDeleteTime(mOperationStartTime);
-				rIsModified = true;
-				++mNumberErrorsFound;
-			} catch (BoxException &e) {
-				BOX_ERROR("Directory ID " <<
-					BOX_FORMAT_OBJECTID(DirectoryID) <<
-					" references object " <<
-					BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
-					" which is marked as deleted but the file cannot be stat'ed: ");
-				++mNumberErrorsFound;
-				return false; // remove this entry
-			}
+			firstSession->RecordDirectoryAdded();
+		} else 
+		{
+			firstSession->RecordFileAdded(rEntry.GetSizeInBlocks());
 		}
 
-	}
-	else if (rEntry.GetDeleteTime() != 0)
+		BOX_INFO("Object" << BOX_FORMAT_OBJECTID(rEntry.GetObjectID())
+				<< " has no backup time. Setting to " << BoxTimeToISO8601String(firstSession->GetStartTime(), false) );
+		rEntry.SetBackupTime(firstSession->GetStartTime());
+
+		rIsModified = true;
+	} 
+
+
+	if( rEntry.IsDeleted() ) 
 	{
-		// Not deleted, must not have a delete time
-		BOX_ERROR("Directory ID " <<
+		if (rEntry.GetDeleteTime() == 0) 
+		{
+			SessionInfos *deleteSession = mBackupsList.GetLast();
+			if ( deleteSession == NULL ) {
+				deleteSession = &mNewSessionsInfos;
+			}
+		
+			if( rEntry.IsDir() ) 
+			{
+				deleteSession->RecordDirectoryDeleted();
+			} else 
+			{
+				deleteSession->RecordFileDeleted(rEntry.GetSizeInBlocks());
+			}
+			BOX_INFO("Object " << BOX_FORMAT_OBJECTID(rEntry.GetObjectID())
+					<< " has no Delete time. Setting to " << BoxTimeToISO8601String(deleteSession->GetEndTime(), false) );
+			rEntry.SetDeleteTime( deleteSession->GetEndTime() );
+
+			++mNumberErrorsFound;
+		}
+		
+	
+	} 
+	else if ( rEntry.GetDeleteTime() != 0 )
+	{
+			BOX_ERROR("Directory ID " <<
 			BOX_FORMAT_OBJECTID(DirectoryID) <<
 			" references object " <<
 			BOX_FORMAT_OBJECTID(rEntry.GetObjectID()) <<
@@ -1117,7 +1111,8 @@ bool BackupStoreCheck::CheckDirectoryEntry(BackupStoreDirectory::Entry& rEntry,
 		rEntry.SetDeleteTime(0);
 		rIsModified = true;
 		++mNumberErrorsFound;
-	}
+	}	
+
 
 	return true; // don't delete this entry
 }

@@ -182,6 +182,8 @@ private:
 	bool mFixErrors;
 	bool mQuiet;
 	BackupsList mBackupsList;
+	SessionInfos mNewSessionsInfos; 
+
 	box_time_t mOperationStartTime;
 	
 	int64_t mNumberErrorsFound;
